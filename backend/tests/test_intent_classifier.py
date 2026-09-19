@@ -26,6 +26,17 @@ class TestIntentClassifier(unittest.TestCase):
         self.assertEqual(classify_intent("Find me another section of COP 3530.")["intent"], ALTERNATIVE_SECTION)
         self.assertEqual(classify_intent("Are there online sections of COP 3530?")["intent"], ALTERNATIVE_SECTION)
         self.assertEqual(classify_intent("I cannot take classes after 4 PM.")["intent"], ALTERNATIVE_SECTION)
+        self.assertEqual(classify_intent("COP 3530 is full. What else can I take instead this semester?")["intent"], ALTERNATIVE_SECTION)
+
+        # Ambiguous alternative wording
+        res = classify_intent("Can you find me a better class?")
+        self.assertEqual(res["intent"], ALTERNATIVE_SECTION)
+        self.assertTrue(res["needs_clarification"])
+
+    def test_instead_false_positives(self):
+        # Generic "instead" must not automatically become alternative
+        res = classify_intent("Should I meet with an advisor instead?")
+        self.assertEqual(res["intent"], CLARIFICATION)
 
     def test_online_override(self):
         self.assertEqual(classify_intent("Can I take this course online because I work full time?")["intent"], ONLINE_OVERRIDE)
@@ -34,7 +45,11 @@ class TestIntentClassifier(unittest.TestCase):
 
     def test_unsupported_scope(self):
         self.assertEqual(classify_intent("Can you register me for COP 3530?")["intent"], UNSUPPORTED_SCOPE)
-        self.assertEqual(classify_intent("What grade will I get in COP 3530?")["intent"], UNSUPPORTED_SCOPE)
+        self.assertEqual(classify_intent("What grade will I get if I take COP 3530 and CEN 4010?")["intent"], UNSUPPORTED_SCOPE)
+
+    def test_grade_false_positives(self):
+        # Uses of “grade” that are not grade prediction
+        self.assertNotEqual(classify_intent("Does this course have a grade requirement?")["intent"], UNSUPPORTED_SCOPE)
 
     def test_clarification_cases(self):
         self.assertEqual(classify_intent("Can you check my schedule?")["intent"], CLARIFICATION)

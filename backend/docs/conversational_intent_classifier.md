@@ -20,8 +20,11 @@ The classifier maps prompts to one of six canonical intents:
 The classifier's primary responsibility is to determine the *goal* of the request, not its completeness. If a prompt's intent is recognizable but lacks specific details (like specific course codes or section numbers), it will be classified with its actual intent rather than as a generic `clarification`.
 
 To distinguish between a known route needing more info and an unknown route:
-- **`intent` (e.g., `course_compatibility_check`) + `needs_clarification=True`**: The intent is clear, but the entity extractor should later prompt the user for the missing details.
+- **`intent` (e.g., `course_compatibility_check`) + `needs_clarification=True`**: This means the recognized intent cannot yet be safely executed because required information is absent or ambiguous.
 - **`intent="clarification"`**: The user's request is ambiguous, multi-intent, or lacks recognizable keywords entirely (e.g., "Can you check my schedule?").
+
+**Entity Extraction Hand-off:**
+Later entity extraction and validation will identify missing course codes, section identifiers, meeting times, modality, or override-screening answers. The classifier must not claim a course-risk result, conflict finding, section availability, or override decision.
 
 ## Rule Precedence
 To handle overlapping keywords, the classifier applies rules in this strict precedence order:

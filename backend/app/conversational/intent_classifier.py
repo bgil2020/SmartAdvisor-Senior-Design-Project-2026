@@ -14,7 +14,10 @@ UNSUPPORTED_SCOPE = "unsupported_scope"
 RULES = [
     (UNSUPPORTED_SCOPE, [
         (r'\bregister\b', "unsupported:registration"),
-        (r'\bgrade\b', "unsupported:grade"),
+        (r'\bwhat grade will i get\b', "unsupported:grade_prediction"),
+        (r'\bpredict (my )?grade\b', "unsupported:grade_prediction"),
+        (r'\bgrade prediction\b', "unsupported:grade_prediction"),
+        (r'\bwill i get (an? )?[a-f]\b', "unsupported:grade_prediction"),
     ]),
     (ONLINE_OVERRIDE, [
         (r'\bonline override\b', "override:explicit"),
@@ -23,15 +26,16 @@ RULES = [
         (r'\boverride[^\.\?]*questions\b', "override:questions"),
     ]),
     (ALTERNATIVE_SECTION, [
+        (r'\b(?:another|different|alternative)\s+section[s]?\b', "alternative:another_section"),
         (r'\banother[^\.\?]*section\b', "alternative:another_section"),
         (r'\bdifferent[^\.\?]*section\b', "alternative:different_section"),
         (r'\balternative[^\.\?]*section[s]?\b', "alternative:alternative_section"),
         (r'\balternative\b', "alternative:keyword"),
         (r'\bwhat else can i take\b', "alternative:what_else"),
+        (r'\bwhat else can i take instead\b', "alternative:what_else_instead"),
         (r'\bfits around\b', "alternative:fits_around"),
         (r'\bonline section[s]?\b', "alternative:online_section"),
         (r'\bbetter class\b', "alternative:better_class"),
-        (r'\binstead\b', "alternative:instead"),
         (r'\bcannot take[^\.\?]*after\b', "alternative:time_constraint"),
     ]),
     (SCHEDULE_CONFLICT, [
