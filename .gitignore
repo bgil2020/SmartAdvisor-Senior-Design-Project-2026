@@ -1,28 +1,26 @@
-# macOS
+# macOS Finder metadata
 .DS_Store
-**/.DS_Store
 
-# Python
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-env/
-venv/
-.env
-.venv
-ENV/
-env.bak/
-venv.bak/
 
-# Testing/Coverage
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test, coverage, and type-checker artifacts
 .pytest_cache/
 .coverage
-htmlcov/
-.tox/
-nosetests.xml
 coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
