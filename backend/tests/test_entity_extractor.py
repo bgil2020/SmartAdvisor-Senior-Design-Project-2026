@@ -57,5 +57,48 @@ class TestEntityExtractor(unittest.TestCase):
         res = extract_entities("Does COP 3530 section 001 overlap with MAC 2312 sec 12345?")
         self.assertEqual(res["section_identifiers"], ["001", "12345"])
 
+    def test_future_informational_topics(self):
+        # "What topics are covered in COP 3530?"
+        res = extract_entities("What topics are covered in COP 3530?")
+        self.assertEqual(res["course_codes"], ["COP3530"])
+        self.assertEqual(res["section_identifiers"], [])
+        self.assertEqual(res["schedule_constraints"]["available_days"], [])
+        self.assertEqual(res["schedule_constraints"]["unavailable_days"], [])
+        self.assertIsNone(res["schedule_constraints"]["available_before"])
+        self.assertIsNone(res["schedule_constraints"]["available_after"])
+        self.assertIsNone(res["schedule_constraints"]["unavailable_before"])
+        self.assertIsNone(res["schedule_constraints"]["unavailable_after"])
+        self.assertEqual(res["schedule_constraints"]["meeting_time_ranges"], [])
+        self.assertIsNone(res["modality_preference"])
+
+    def test_future_informational_prerequisites(self):
+        # "What are the prerequisites for MAC 2313?"
+        res = extract_entities("What are the prerequisites for MAC 2313?")
+        self.assertEqual(res["course_codes"], ["MAC2313"])
+        self.assertEqual(res["section_identifiers"], [])
+        self.assertIsNone(res["modality_preference"])
+
+    def test_future_informational_policy(self):
+        # "What does the online override policy say?"
+        from app.conversational.intent_classifier import classify_intent
+        prompt = "What does the online override policy say?"
+        res = extract_entities(prompt)
+        cls_res = classify_intent(prompt)
+        self.assertEqual(res["course_codes"], [])
+        self.assertEqual(res["section_identifiers"], [])
+        self.assertEqual(res["modality_preference"], "online")
+        self.assertEqual(res["intent"], cls_res["intent"])
+        self.assertEqual(res["matched_rules"], cls_res["matched_rules"])
+        self.assertEqual(res["needs_clarification"], cls_res["needs_clarification"])
+        self.assertEqual(res["reason"], cls_res["reason"])
+
+    def test_risky_single_course(self):
+        # "Is COP 3330 risky?"
+        res = extract_entities("Is COP 3330 risky?")
+        self.assertEqual(res["course_codes"], ["COP3330"])
+        self.assertEqual(res["section_identifiers"], [])
+        self.assertIsNone(res["modality_preference"])
+        self.assertEqual(res["schedule_constraints"]["meeting_time_ranges"], [])
+
 if __name__ == '__main__':
     unittest.main()

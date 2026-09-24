@@ -93,5 +93,47 @@ class TestIntentClassifier(unittest.TestCase):
         self.assertEqual(res["intent"], CLARIFICATION)
         self.assertTrue("Multiple intents" in res["reason"])
 
+    def test_informational_queries_and_lexical_limitations(self):
+        """
+        This test captures current raw regex-classifier behavior for regression purposes.
+        The raw classifier's `online_override_screening` output for a general policy-information 
+        question is a known lexical limitation due to keyword matching.
+        The response-policy layer is responsible for overriding this case into the 
+        informational future-RAG path.
+        """
+        prompts = [
+            "What topics are covered in COP 3530?",
+            "What are the prerequisites for MAC 2313?",
+            "What does the online override policy say?"
+        ]
+        
+        for prompt in prompts:
+            res = classify_intent(prompt)
+            if prompt == "What does the online override policy say?":
+                # Known lexical limitation: raw mapping matches keywords. 
+                # This is overridden by the response policy.
+                self.assertEqual(
+                    res["intent"], 
+                    ONLINE_OVERRIDE, 
+                    "Raw classifier matches keywords instead of recognizing general policy intent"
+                )
+            else:
+                self.assertNotIn(res["intent"], [
+                    COURSE_COMPATIBILITY,
+                    SCHEDULE_CONFLICT,
+                    ALTERNATIVE_SECTION,
+                    ONLINE_OVERRIDE
+                ])
+                self.assertIn(res["intent"], [CLARIFICATION, UNSUPPORTED_SCOPE])
+
+    def test_risky_raw_behavior(self):
+        res = classify_intent("Is COP 3330 risky?")
+        self.assertNotIn(res["intent"], [
+            SCHEDULE_CONFLICT,
+            ALTERNATIVE_SECTION,
+            ONLINE_OVERRIDE
+        ])
+        self.assertEqual(res["intent"], COURSE_COMPATIBILITY)
+
 if __name__ == '__main__':
     unittest.main()
