@@ -1,0 +1,53 @@
+
+{
+  "courses": [
+    {
+      "course_id": "CAP 4773",
+      "title": "SmartAdvisor Sample Course",
+      "department": "CAP",
+      "credit_hours": 3.0
+    }
+  ],
+  "sections": [
+    {
+      "crn": "19417",
+      "course_id": "CAP 4773",
+      "term": 202608,
+      "section_number": "001",
+      "campus": "Boca Raton",
+      "days": "M, W",
+      "start_time": "10:00:00",
+      "end_time": "11:15:00",
+      "method": "In-Person",
+      "seats_remaining": 10,
+      "enrollment_status": "Open"
+    },
+    {
+      "crn": "19415",
+      "course_id": "CAP 4773",
+      "term": 202608,
+      "section_number": "042",
+      "campus": "Boca Raton",
+      "days": "T, R",
+      "start_time": "14:00:00",
+      "end_time": "15:15:00",
+      "method": "In-Person",
+      "seats_remaining": 15,
+      "enrollment_status": "Open"
+    }
+  ],
+  "student_profiles": [
+    {
+      "student_id": "7a3f2e10-4c89-4a65-9bd0-128d7e6c4301",
+      "major": "Computer Science",
+      "academic_level": "Undergraduate",
+      "completed_courses": [
+        "COP 3530",
+        "COP 3540"
+      ],
+      "selected_crns": [
+        "19417"
+      ]
+    }
+  ]
+}
