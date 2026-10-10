@@ -4,3 +4,5 @@ fastapi
 uvicorn
 httpx
 pytest
+supabase>=2.32.0
+python-dotenv>=1.2.4
