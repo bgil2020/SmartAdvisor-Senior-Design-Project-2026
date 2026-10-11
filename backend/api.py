@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 
 from .alternative_section_search import find_alternative_sections
-
+from .compatibility_router import router as compatibility_router
 
 app = FastAPI(
     title="SmartAdvisor API",
@@ -16,10 +16,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
+app.include_router(compatibility_router)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
