@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { OverrideFormState } from '../types/override';
+import type { OverrideFormState } from '../types/override';
 
 export const OnlineOverrideForm: React.FC = () => {
   const [form, setForm] = useState<OverrideFormState>({

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
 // --- Types ---
 export type DayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
 
@@ -319,7 +319,7 @@ export default function App() {
             </form>
           )}
         </div>
-
+<OnlineOverrideEvaluator />
       </div>
     </main>
   );
