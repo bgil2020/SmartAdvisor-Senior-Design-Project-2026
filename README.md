@@ -1,45 +1,135 @@
-# SmartAdvisor-Senior-Design-Project-2026
-This project is designed to improve the current academic advising and registration process for engineering students at Florida Atlantic University
-Course Compatibility Engine
+# SmartAdvisor Backend
 
-The Course Compatibility Engine evaluates a student's proposed schedule using synthetic student profiles, course information, previous academic workload, and personal circumstances. It provides preliminary recommendations to help students make informed scheduling decisions.
+This folder contains the backend modules for SmartAdvisor, an academic course-planning application designed to help students identify scheduling conflicts and find alternative course sections.
 
-Files Required
+## Project Structure
 
-Keep these files together in the same folder:
+```text
+SmartAdvisor_Backend/
+├── backend/
+│   ├── __init__.py
+│   ├── api.py
+│   ├── section_retriever.py
+│   ├── meeting_time_normalizer.py
+│   ├── overlap_detector.py
+│   ├── alternative_section_search.py
+│   └── result_formatter.py
+├── data/
+│   └── FAU_Courses.xlsx
+├── tests/
+│   ├── test_api.py
+│   ├── test_meeting_time_normalizer.py
+│   ├── test_overlap_detector.py
+│   └── test_alternative_section_search.py
+├── .env.example
+├── smartadvisor.py
+├── requirements.txt
+└── README.md
+```
 
-course_compatibility_engine.py — Main Course Compatibility Engine
+## Setup in VS Code
 
-test_compatability_api.py — Test script for backend integration
+1. Open the SmartAdvisor_Backend folder in VS Code.
+2. Open Terminal → New Terminal.
+3. Install the required dependencies:
 
-Synthetic Profiles.xlsx — Synthetic student profiles
+```bash
+python -m pip install -r requirements.txt
+```
 
-Course Combinations.xlsx — Course-combination data
+4. Start the FastAPI server:
 
-Final_FAU_CS_CE_EE_Undergraduate_Courses_Revised.xlsx — Course catalog (use the actual filename in the repository)
+```bash
+python -m uvicorn backend.api:app --reload
+```
 
-How to Run
+5. Open the API documentation in your browser:
 
-1. Install the required Python package:
+http://127.0.0.1:8000/docs
 
-py -m pip install openpyxl
+## Health Check
 
-2. Run the interactive prototype:
+The backend provides a health endpoint to verify that the API is running.
 
-py .\course_compatibility_engine.py
+Open:
 
-This allows you to select a synthetic student, enter a proposed schedule, and receive personalized recommendations.
+http://127.0.0.1:8000/health
 
-3. Run the integration test:
+Expected response:
 
-py .\test_compatability_api.py
+```json
+{
+  "status": "healthy",
+  "application": "SmartAdvisor",
+  "message": "Backend API is running successfully."
+}
+```
 
-The test uses a predefined synthetic student and returns structured results, including course compatibility recommendations, completed-course information, and warnings.
+## API Features
 
-To test another student, change the student_id number to a different saved number in the test script.
+The SmartAdvisor backend provides the following functionality:
 
-Integration Notes
+- Course and section retrieval
+- Filtering courses by CRN, department, term, and modality
+- Meeting-time normalization
+- Scheduling conflict detection
+- Alternative section search
+- Health-check endpoint
 
-The evaluate_compatibility() function in course_compatibility_engine.py can be called by the SmartAdvisor backend without using terminal inputs. It returns a Python dictionary that can be converted to JSON for the frontend.
+The FastAPI application includes Swagger/OpenAPI documentation for testing available endpoints.
 
-The engine currently uses synthetic student data and provides preliminary academic planning guidance. It does not replace official academic advising or registration decisions.
+## Alternative Section Search
+
+When a selected class needs a replacement, the backend:
+
+1. Retrieves the original section by CRN.
+2. Searches the FAU dataset for sections of the same course.
+3. Keeps sections within the same term.
+4. Excludes the original CRN.
+5. Removes sections without available seats.
+6. Checks candidate sections against other selected classes.
+7. Excludes sections with scheduling conflicts.
+8. Returns up to three available alternatives.
+
+## Automated Testing
+
+The project uses pytest to verify backend functionality.
+
+To run all tests:
+
+```bash
+python -m pytest -v
+```
+
+The tests cover course retrieval, meeting-time normalization, scheduling conflicts, and alternative section search.
+
+## Environment Configuration
+
+The `.env.example` file provides a template for application configuration.
+
+It includes:
+
+- Application name
+- Development environment
+- API host and port
+- Supabase URL placeholder
+- Supabase key placeholder
+
+Actual database credentials should not be committed to GitHub.
+
+## Spreadsheet Fields Used
+
+- CRN
+- COURSE
+- SECT
+- TERM
+- TITLE
+- DAYS
+- BEG TIME
+- END TIME
+- ENRL REMN
+- CAMPUS
+- INSTRUCTOR
+- METHOD
+
+The included workbook is the FAU course-section dataset supplied for the project.
