@@ -188,10 +188,11 @@ Run the root test command:
 pytest -v
 # or: python -m pytest -v
 ```
-*Current Checkpoint Result:* **79 passed, 1 warning** (~1.4s)  
+*Current Checkpoint Result:* **89 passed, 1 warning** (~1.5s)  
 - 35 backend tests in `tests/` (course API, compatibility API, alternatives, time normalizer, overlap detector)
 - 1 database script test in `scripts/test_supabase_connection.py`
 - 43 conversational baseline tests in `backend/tests/` (dataset evaluation, entity extractor, intent classifier, response policy)
+- 10 conversational API tests in `tests/test_conversational_api.py` (engine execution handoff, missing context, escalation, RAG boundary, validation)
 
 To run specific test suites individually:
 ```bash
@@ -209,10 +210,11 @@ python -m unittest backend/tests/test_dataset_evaluation.py
 ```bash
 npm test
 ```
-*Current Checkpoint Result:* **20 passed across 7 suites** (~120ms)  
+*Current Checkpoint Result:* **26 passed across 8 suites** (~130ms)  
 - Evaluates online override screening rules (military, medical, transportation, other circumstances).
 - Evaluates schedule calendar utility functions (minute conversion, layout positioning, conflict identification).
 - Evaluates frontend-backend wiring utilities (`parse12HourTo24Hour`, `parseBackendDays`, `mapBackendSectionToCourseSection`, in-grid/asynchronous mapping, and real section time overlap detection).
+- Evaluates conversational client payload structure, missing context handling, and response states (`engine_executed`, `clarification`, `escalation`, `rag_inactive`).
 
 ### 3. Frontend Linter
 ```bash
@@ -239,6 +241,7 @@ npm run build
 | `GET` | `/sections` | Retrieve course sections with optional filters | `course` (optional, e.g. `CAP 4773`), `crn` (optional, e.g. `19417`), `term` (optional), `modality` (optional) |
 | `GET` | `/alternatives` | Search non-conflicting replacement sections | `crn` (required, e.g. `19417`), `selected_crns` (optional comma-delimited) |
 | `POST` | `/compatibility` | Evaluate compatibility of course combination | JSON body: `student_id`, `proposed_courses`, `recent_difficulty`, `satisfied_with_performance`, `work_hours`, `preferred_max_credits`, `recent_courses` |
+| `POST` | `/conversation` | Conversational assistant with compatibility engine execution | JSON body: `message` (required, 1-500 chars), optional synthetic student context (`student_id`, `recent_difficulty`, `satisfied_with_performance`, `work_hours`, `preferred_max_credits`, `recent_courses`) |
 
 #### Synthetic Compatibility Payload Example
 ```json
@@ -255,15 +258,24 @@ npm run build
 
 ---
 
-### 2. Conversational Entry Point (`backend.app.conversational.response_policy`)
+### 2. Conversational API & Engine Handoff (`POST /conversation`)
 
-The conversational layer currently operates as an offline Python module (there is no public conversational REST API endpoint yet).
+The conversational layer connects natural-language student queries directly to backend decision support via `POST /conversation`:
+- **Deterministic Intent & Entity Extraction:** Uses rule-based regex patterns for course codes, section identifiers, time ranges, and modalities without relying on ungrounded generative models.
+- **Course Compatibility Engine Execution:** When a compatibility query is recognized and complete student workload context is attached, the backend directly executes `evaluate_compatibility(...)` and returns real risk scores, credit totals, recommendations, and warnings.
+- **Clarification & Missing Context:** If required student workload context is omitted, the assistant provides actionable guidance explaining which fields are missing and retains the student's prompt.
+- **Advisor Escalation:** Requests regarding official university authority (overrides, registration, graduation) are routed to advisor escalation with clear disclaimers.
+- **Inactive RAG Boundary:** Informational queries (e.g. course topic overviews, prerequisites) are flagged as inactive RAG candidates (`future_rag_candidate`), keeping a strict boundary between the current deterministic prototype and future vector-retrieval features.
 
-#### Primary Function Call:
-```python
-from backend.app.conversational.response_policy import build_conversation_response
-
-response = build_conversation_response("Can I take COP 3330 and CEN 4010 together?")
+#### Conversational Request Example:
+```json
+{
+  "message": "Can I take COP 4331 and MAP 3305 together?",
+  "student_id": "Z24567901",
+  "recent_difficulty": 1,
+  "satisfied_with_performance": "yes",
+  "work_hours": 5.0
+}
 ```
 
 #### Standardized Response Schema:
