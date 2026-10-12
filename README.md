@@ -1,188 +1,333 @@
-# SmartAdvisor Backend
+# SmartAdvisor
 
-This folder contains the backend modules for SmartAdvisor, an academic course-planning application designed to help students identify scheduling conflicts and find alternative course sections.
+SmartAdvisor is an academic course-planning and advising decision-support system designed to assist undergraduate students in navigating course compatibility, detecting scheduling conflicts, evaluating section alternatives, and screening online course override eligibility.
 
-## Project Structure
+> **Important Advisor-Authority & Scope Disclaimer:**  
+> SmartAdvisor is a **decision-support prototype**, not an authoritative university system. It does not possess academic authority, cannot officially approve overrides, and cannot register students for courses. All override recommendations are preliminary planning guidance only; official override submission, policy exceptions, degree audits, and final approvals require review by an authorized academic advisor or university office.
+
+---
+
+## Current Implementation Status
+
+| Feature / Component | Status Category | Current Delivery & Operational Mode |
+| ------------------- | --------------- | ----------------------------------- |
+| **Course Catalog & Section Retrieval** | Implemented (Backend API) | File-backed via `data/FAU_Courses.xlsx`; exposed via `GET /courses` and `GET /sections`. |
+| **Scheduling Conflict Detection** | Implemented (Backend API) | Rule-based overlap detector; normalized meeting times. |
+| **Alternative Section Search** | Implemented (Backend API) | File-backed non-conflicting section replacement via `GET /alternatives`. |
+| **Course Compatibility Engine** | Implemented (Backend API) | File-backed rules evaluation via `POST /compatibility` using synthetic student profiles. |
+| **Weekly Schedule Calendar** | Implemented (Browser UI) | Visual calendar layout rendering labeled **mock/demo** schedule data (`src/components/ScheduleCalendar.tsx`). Not yet wired to backend section APIs. |
+| **Online Override Evaluator** | Implemented (Browser UI) | Browser-side preliminary guidance questionnaire (`src/components/OnlineOverrideEvaluator.tsx`). No official override submission or university workflow connection. |
+| **Conversational Intent Classifier** | Implemented (Python Module) | Deterministic keyword/regex classification across 6 canonical intents (`backend/app/conversational/intent_classifier.py`). |
+| **Conversational Entity Extractor** | Implemented (Python Module) | Rule-based extraction & normalization of courses, sections, times, days, and modalities (`backend/app/conversational/entity_extractor.py`). |
+| **Conversational Response Policy** | Implemented (Python Module) | Deterministic routing decision & safety policy (`backend/app/conversational/response_policy.py`). **Does not yet dispatch backend engines.** |
+| **Supabase Cloud Database** | Prepared / Deferred | Schema and scripts exist in `supabase/` and `scripts/`. Default runtime operates strictly on local Excel workbooks without database secrets. |
+| **LLM Adapter & RAG Retrieval** | Planned / Separate Milestone | Informational queries are safely flagged as inactive candidates (`future_rag_candidate`). No live LLM or vector RAG is active. |
+
+---
+
+## Component Map & Team Attribution
+
+| Component | Contributor / Owner | Current Path(s) | Public Entry Point / Runtime Usage | Status & Connectivity |
+| --------- | ------------------- | --------------- | ---------------------------------- | --------------------- |
+| **Backend API & Scheduling Services** | Cloud2856 (Jeffrey Huang) | `backend/api.py`<br>`backend/section_retriever.py`<br>`backend/overlap_detector.py`<br>`backend/alternative_section_search.py`<br>`backend/meeting_time_normalizer.py`<br>`backend/result_formatter.py` | `uvicorn backend.api:app`<br>Endpoints: `GET /`, `GET /courses`, `GET /sections`, `GET /alternatives` | Implemented; reads `data/FAU_Courses.xlsx`. |
+| **Course Compatibility Engine** | bgil2020 (Batsheva Gil) | `backend/compatibility_engine.py`<br>`backend/compatibility_router.py`<br>`backend/compatibility_data/` | `POST /compatibility`<br>(Standalone script: `course_compatibility_engine.py`) | Implemented; integrated into FastAPI router; reads compatibility Excel datasets. |
+| **Frontend Web Application** | micenD2003 (Micen Desjardins) | `src/App.tsx`<br>`src/components/ScheduleCalendar.tsx`<br>`src/components/CourseSelectionForm.tsx`<br>`src/components/OnlineOverrideForm.tsx` | `npm run dev`<br>URL: `http://localhost:5173/` | Implemented UI; uses mock schedule data. |
+| **Online Override Evaluator (UI Integration)** | bgil2020 (Batsheva Gil) / fareedom1 | `src/components/OnlineOverrideEvaluator.tsx`<br>`src/utils/overrideEvaluator.ts`<br>`src/types/override.ts` | Embedded in `src/App.tsx` | Implemented client-side; evaluates military, medical, transportation, other circumstances. |
+| **Deterministic Conversational Baseline** | fareedom1 (Fareed Uddin) | `backend/app/conversational/intent_classifier.py`<br>`backend/app/conversational/entity_extractor.py`<br>`backend/app/conversational/response_policy.py`<br>`backend/tests/` | Python function:<br>`build_conversation_response(message)` | Implemented offline Python module; generates structured routing decisions; does not dispatch engines. |
+| **Integration & Test Suites** | fareedom1 / Team | `tests/`<br>`backend/tests/`<br>`tests/frontend/`<br>`pytest.ini` | `pytest -v`<br>`npm test` | Unified test discovery across all components. |
+
+---
+
+## Repository Structure
 
 ```text
-SmartAdvisor_Backend/
+SmartAdvisor-Senior-Design-Project-2026/
 ├── backend/
-│   ├── __init__.py
-│   ├── api.py
-│   ├── section_retriever.py
-│   ├── meeting_time_normalizer.py
-│   ├── overlap_detector.py
-│   ├── alternative_section_search.py
-│   └── result_formatter.py
+│   ├── api.py                             # Authoritative FastAPI entry point
+│   ├── compatibility_engine.py            # Authoritative runtime compatibility engine
+│   ├── compatibility_router.py            # FastAPI router for POST /compatibility
+│   ├── alternative_section_search.py      # Replacement section finder
+│   ├── overlap_detector.py                # Time overlap conflict checker
+│   ├── section_retriever.py               # File-backed course/section retrieval
+│   ├── meeting_time_normalizer.py         # Meeting day/time string normalization
+│   ├── result_formatter.py                # Response formatting utilities
+│   ├── compatibility_data/                # Authoritative data files used by compatibility engine
+│   │   ├── Course Combinations.xlsx
+│   │   ├── Final_FAU_CS_CE_EE_Undergraduate_Courses_Revised (1) (2).xlsx
+│   │   └── Synthetic Profiles.xlsx
+│   ├── app/
+│   │   └── conversational/                # Authoritative conversational baseline
+│   │       ├── intent_classifier.py       # Rule-based intent classifier (6 canonical intents)
+│   │       ├── entity_extractor.py        # Regex entity extractor & normalizer
+│   │       └── response_policy.py         # Deterministic routing & safety policy
+│   ├── docs/                              # Conversational documentation
+│   │   ├── conversational_intent_classifier.md
+│   │   └── conversational_response_policy.md
+│   └── tests/                             # Conversational test suite & dataset fixture
+│       ├── fixtures/conversational_prompt_dataset.json
+│       ├── test_dataset_evaluation.py
+│       ├── test_entity_extractor.py
+│       ├── test_intent_classifier.py
+│       └── test_response_policy.py
 ├── data/
-│   └── FAU_Courses.xlsx
-├── tests/
-│   ├── test_api.py
-│   ├── test_meeting_time_normalizer.py
-│   ├── test_overlap_detector.py
-│   └── test_alternative_section_search.py
-├── .env.example
-├── smartadvisor.py
-├── requirements.txt
-└── README.md
+│   ├── FAU_Courses.xlsx                   # Authoritative course workbook for backend API
+│   ├── data_dictionary.md                 # Dataset field dictionary
+│   └── sample_records.json                # Synthetic course records sample
+├── src/                                   # React + TypeScript frontend
+│   ├── App.tsx                            # Main application layout
+│   ├── components/
+│   │   ├── ScheduleCalendar.tsx           # Weekly calendar view (renders demo schedule)
+│   │   ├── OnlineOverrideEvaluator.tsx    # Interactive override guidance form
+│   │   ├── CourseSelectionForm.tsx        # Preserved initial selection form component
+│   │   └── OnlineOverrideForm.tsx         # Preserved initial override form component
+│   ├── utils/
+│   │   ├── overrideEvaluator.ts           # Pure business logic for override evaluation
+│   │   └── scheduleUtils.ts               # Calendar layout & time arithmetic helpers
+│   └── types/
+│       ├── override.ts                    # TypeScript types for override evaluation
+│       └── schedule.ts                    # TypeScript types for schedule display
+├── tests/                                 # Root backend and frontend test suites
+│   ├── test_api.py                        # FastAPI core endpoint tests
+│   ├── test_compatibility_api.py          # Compatibility endpoint & CORS regression tests
+│   ├── test_alternative_section_search.py # Section alternative tests
+│   ├── test_meeting_time_normalizer.py    # Time normalizer tests
+│   ├── test_overlap_detector.py           # Schedule conflict detector tests
+│   └── frontend/
+│       └── test_override_evaluator.test.ts# Node test runner suite for frontend logic
+├── scripts/                               # Data import & database connection utilities
+│   ├── import_course.py
+│   ├── test_supabase_connection.py
+│   └── upload_to_supabase.py
+├── supabase/                              # Database migration & setup reference
+│   ├── SETUP.md
+│   └── migrations/20261009_initial_schema.sql
+├── pytest.ini                             # Pytest discovery configuration
+├── package.json                           # Frontend scripts & dependencies
+├── requirements.txt                       # Backend Python dependencies
+├── smartadvisor_conversational_prompt_dataset_draft.md # Conversational prompt dataset reference
+│
+│   # --- Preserved Prototype / Standalone Reference Files (Not deleted) ---
+├── course_compatibility_engine.py         # Batsheva's standalone compatibility script
+├── smartadvisor.py                        # Jeffrey's standalone backend prototype
+├── smartadvisor_personalized_prototype_v5.py # Historical prototype
+├── Course Combinations.xlsx               # Root-level prototype workbook copy
+├── Synthetic Profiles.xlsx                # Root-level prototype workbook copy
+└── Final_FAU_CS_CE_EE_Undergraduate_Courses_Revised(Sheet1).xlsx # Root-level prototype copy
 ```
 
-## Setup in VS Code
+---
 
-1. Open the SmartAdvisor_Backend folder in VS Code.
-2. Open Terminal → New Terminal.
-3. Install the required dependencies:
+## Setup and Execution
 
-```bash
-python -m pip install -r requirements.txt
-```
+### Prerequisites & Verified Environments
+- **Python:** Python 3.11+ (verified on **Python 3.11.5**)
+- **Node.js:** Node.js 22.13.0+ (verified on **Node.js v22.19.0** and **npm 10.9.3**)  
+  *Note on Node compatibility:* Both the dependency tree and the test runner establish this requirement: ESLint 10 devDependencies (such as `@eslint/config-array`) specify `^20.19.0 || ^22.13.0 || >=24`, and the native TypeScript test runner (`npm test`) relies on Node's `--experimental-strip-types` flag (introduced in Node 22.6.0). Earlier versions (including Node 18 and pre-22.13 Node 22 releases) are incompatible.
 
-4. Start the FastAPI server:
+---
 
-```bash
-python -m uvicorn backend.api:app --reload
-```
+### Backend Setup
 
-5. Open the API documentation in your browser:
-
-http://127.0.0.1:8000/docs
-
-## Health Check
-
-The backend provides a health endpoint to verify that the API is running.
-
-Open:
-
-http://127.0.0.1:8000/health
-
-Expected response:
-
-```json
-{
-  "status": "healthy",
-  "application": "SmartAdvisor",
-  "message": "Backend API is running successfully."
-}
-```
-
-## API Features
-
-The SmartAdvisor backend provides the following functionality:
-
-- Course and section retrieval
-- Filtering courses by CRN, department, term, and modality
-- Meeting-time normalization
-- Scheduling conflict detection
-- Alternative section search
-- Health-check endpoint
-
-The FastAPI application includes Swagger/OpenAPI documentation for testing available endpoints.
-
-## Alternative Section Search
-
-When a selected class needs a replacement, the backend:
-
-1. Retrieves the original section by CRN.
-2. Searches the FAU dataset for sections of the same course.
-3. Keeps sections within the same term.
-4. Excludes the original CRN.
-5. Removes sections without available seats.
-6. Checks candidate sections against other selected classes.
-7. Excludes sections with scheduling conflicts.
-8. Returns up to three available alternatives.
-
-## Automated Testing
-
-The project uses pytest to verify backend functionality.
-
-To run all tests:
-
-```bash
-python -m pytest -v
-```
-
-The tests cover course retrieval, meeting-time normalization, scheduling conflicts, and alternative section search.
-
-## Environment Configuration
-
-The `.env.example` file provides a template for application configuration.
-
-It includes:
-
-- Application name
-- Development environment
-- API host and port
-- Supabase URL placeholder
-- Supabase key placeholder
-
-Actual database credentials should not be committed to GitHub.
-
-## Spreadsheet Fields Used
-
-- CRN
-- COURSE
-- SECT
-- TERM
-- TITLE
-- DAYS
-- BEG TIME
-- END TIME
-- ENRL REMN
-- CAMPUS
-- INSTRUCTOR
-- METHOD
-
-The included workbook is the FAU course-section dataset supplied for the project.
-
-## Frontend Setup & Toolchain
-
-The repository includes a React + TypeScript application built with Vite:
-
-- **Supported Node/npm:** Node.js 18+ (tested on Node v22.19.0 / npm 10.9.3)
-- **Install dependencies:**
-  ```bash
-  npm ci
-  ```
-- **Start development server:**
-  ```bash
-  npm run dev
-  ```
-  Default URL: `http://localhost:5173/`
-
-- **Build production bundle:**
-  ```bash
-  npm run build
-  ```
-
-- **Run linter:**
-  ```bash
-  npm run lint
-  ```
-
-- **Run frontend unit tests:**
-  ```bash
-  npm test
-  ```
-  Executes unit tests for override evaluation rules and calendar schedule calculations.
-
-## Running Backend and Frontend Simultaneously
-
-Open two terminal sessions:
-
-1. **Terminal 1 (Backend API):**
+1. **Create and activate a virtual environment:**
    ```bash
-   python -m uvicorn backend.api:app --port 8000
+   python3 -m venv .venv
+   source .venv/bin/activate  # macOS/Linux
+   # or: .venv\Scripts\activate  # Windows
    ```
-2. **Terminal 2 (Frontend UI):**
+
+2. **Install Python dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Start the FastAPI backend server:**
+   ```bash
+   python -m uvicorn backend.api:app --reload --port 8000
+   ```
+
+4. **Verify backend health & interactive Swagger docs:**
+   - Status endpoint: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+   - Swagger / OpenAPI documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+### Frontend Setup
+
+1. **Install Node packages:**
+   ```bash
+   npm ci
+   ```
+
+2. **Start the Vite development server:**
    ```bash
    npm run dev
    ```
+   Open your browser to [http://localhost:5173/](http://localhost:5173/).
 
-*Note: Running both concurrently allows local development; this pull request does not wire frontend UI controls to backend API endpoints.*
+---
 
-## Current Scope & Limitations
+### Running Frontend and Backend Simultaneously
 
-- **Course Schedule Display:** Renders demonstration schedule data to display calendar layout and visual conflict detection.
-- **Online Course Override Guidance:** Provides browser-side preliminary planning guidance; does not verify eligibility, check course availability, submit official override requests, or grant approvals.
-- **API Wiring:** Frontend components and backend API endpoints operate independently in this milestone.
-- **Conversational Layer:** The conversational assistant and intent classifier remain on their separate feature branch.
+To develop across both tiers, run the servers in **separate terminal windows**:
+- **Terminal 1:** `python -m uvicorn backend.api:app --reload --port 8000`
+- **Terminal 2:** `npm run dev`
+
+> **Architecture Reminder:** Running both services concurrently enables local development, but does **not** establish end-to-end integration. The frontend currently renders demonstration schedule data and client-side override guidance; backend API wiring will occur in a subsequent milestone.
+
+---
+
+## Testing
+
+All test commands are reproducible from a clean checkout.
+
+### 1. Unified Python Test Suite (Backend & Conversational)
+Run the root test command:
+```bash
+pytest -v
+# or: python -m pytest -v
+```
+*Current Checkpoint Result:* **79 passed, 1 warning** (~1.4s)  
+- 35 backend tests in `tests/` (course API, compatibility API, alternatives, time normalizer, overlap detector)
+- 1 database script test in `scripts/test_supabase_connection.py`
+- 43 conversational baseline tests in `backend/tests/` (dataset evaluation, entity extractor, intent classifier, response policy)
+
+To run specific test suites individually:
+```bash
+# Run only backend API tests:
+pytest -v tests/
+
+# Run only conversational tests:
+pytest -v backend/tests/
+
+# Run the labeled prompt dataset evaluation report:
+python -m unittest backend/tests/test_dataset_evaluation.py
+```
+
+### 2. Frontend Unit Tests
+```bash
+npm test
+```
+*Current Checkpoint Result:* **11 passed across 2 suites** (~110ms)  
+- Evaluates online override screening rules (military, medical, transportation, other circumstances).
+- Evaluates schedule calendar utility functions (minute conversion, layout positioning, conflict identification).
+
+### 3. Frontend Linter
+```bash
+npm run lint
+```
+*Current Checkpoint Result:* Clean (0 errors, 0 warnings).
+
+### 4. Frontend Production Build
+```bash
+npm run build
+```
+*Current Checkpoint Result:* Compiles cleanly with TypeScript (`tsc -b && vite build`).
+
+---
+
+## API & Conversational Interfaces
+
+### 1. REST API Endpoints (`backend/api.py`)
+
+| Method | Endpoint | Description | Query / Body Parameters |
+| ------ | -------- | ----------- | ----------------------- |
+| `GET` | `/` | Application status & loaded record count | None |
+| `GET` | `/courses` | Search courses from FAU dataset | `term` (optional), `department` (optional, e.g. `COP`), `modality` (optional) |
+| `GET` | `/sections` | Retrieve course sections with optional filters | `course` (optional, e.g. `CAP 4773`), `crn` (optional, e.g. `19417`), `term` (optional), `modality` (optional) |
+| `GET` | `/alternatives` | Search non-conflicting replacement sections | `crn` (required, e.g. `19417`), `selected_crns` (optional comma-delimited) |
+| `POST` | `/compatibility` | Evaluate compatibility of course combination | JSON body: `student_id`, `proposed_courses`, `recent_difficulty`, `satisfied_with_performance`, `work_hours`, `preferred_max_credits`, `recent_courses` |
+
+#### Synthetic Compatibility Payload Example
+```json
+{
+  "student_id": "Z24567901",
+  "proposed_courses": ["COP4331", "MAP3305", "CDA4630"],
+  "recent_difficulty": 1,
+  "satisfied_with_performance": "yes",
+  "work_hours": 5.0,
+  "preferred_max_credits": 15.0,
+  "recent_courses": ["CDA4240C", "CDA4102", "MAC2313"]
+}
+```
+
+---
+
+### 2. Conversational Entry Point (`backend.app.conversational.response_policy`)
+
+The conversational layer currently operates as an offline Python module (there is no public conversational REST API endpoint yet).
+
+#### Primary Function Call:
+```python
+from backend.app.conversational.response_policy import build_conversation_response
+
+response = build_conversation_response("Can I take COP 3330 and CEN 4010 together?")
+```
+
+#### Standardized Response Schema:
+```json
+{
+  "raw_message": "Can I take COP 3330 and CEN 4010 together?",
+  "disposition": "route_core_engine",
+  "target_handler": "course_compatibility_engine",
+  "intent": "course_compatibility_check",
+  "entities": {
+    "course_codes": ["COP3330", "CEN4010"],
+    "section_identifiers": [],
+    "schedule_constraints": { ... },
+    "modality_preference": null,
+    "missing_fields": [],
+    "validation_errors": []
+  },
+  "needs_clarification": false,
+  "missing_fields": [],
+  "validation_errors": [],
+  "response_code": "CORE_REQUEST_READY",
+  "response_text": "Your request is ready to be checked for course compatibility.",
+  "safe_to_route": true,
+  "future_rag_candidate": false,
+  "reason": null
+}
+```
+
+#### Routing Decisions vs. Engine Execution
+> **Critical Architectural Distinction:**  
+> A response with `disposition="route_core_engine"`, `target_handler="course_compatibility_engine"`, or `safe_to_route=true` represents an **analyzed routing decision**, **not proof that a backend engine was dispatched**.  
+> The conversational layer does not automatically trigger backend calculation.  
+> Furthermore, executing the Course Compatibility Engine requires rich student context (such as `student_id`, recent difficulty rating, work hours, and preferred credit limits). The conversational layer extracts course codes from student prompts, but does not invent synthetic student profiles or default context. Bridging conversational routing to actual engine execution will occur in a dedicated wiring milestone.
+
+---
+
+## Configuration, Data, and Privacy
+
+1. **Supplied Data Files:**
+   - Backend course search requires `data/FAU_Courses.xlsx`.
+   - Compatibility engine requires workbooks in `backend/compatibility_data/`.
+   - These files are committed to the repository for local demonstration and automated testing.
+
+2. **Secrets & Environment:**
+   - The default file-backed runtime operates **entirely offline** without database credentials, third-party API keys, or cloud access.
+   - `.env.example` provides optional configuration for host/port and Supabase connection placeholders. **Never commit actual database keys or service role tokens to version control.**
+
+3. **Student Privacy Boundaries:**
+   - No real student records or FERPA-protected identifiable information are stored in this repository.
+   - All profile data in `Synthetic Profiles.xlsx` and testing suites are synthetic test artifacts.
+
+4. **Advising Policy Review Status:**
+   - Override evaluation rules, category thresholds, and conversational guidance text reflect senior-design prototype logic and are subject to ongoing faculty and academic advisor review.
+
+---
+
+## Integration History & Roadmap
+
+### Milestones Completed
+- **PR #1 (Jeffrey Huang):** Integrated backend foundation, file-backed course and section retrieval, overlap conflict detection, alternative section search, and Supabase seed scripts.
+- **PR #2 (Batsheva Gil):** Integrated Course Compatibility Engine, compatibility dataset fixtures, `/compatibility` API endpoint, and automated API regression tests.
+- **PR #3 (Micen Desjardins & Batsheva Gil):** Integrated React + TypeScript frontend, Schedule Calendar layout, Online Override Evaluator component, unit tests, and ESLint configuration.
+- **PR #4 (Fareed Uddin - This Checkpoint):** Consolidated deterministic conversational baseline (intent classifier, entity extractor, response policy), unified root test discovery (`pytest.ini`), synchronized dependencies and ignore rules, and delivered comprehensive project documentation.
+
+*Historical reference branches (`feature/conversational-intent-classifier`, `feature/course-compatibility`, `feature/override-main-integration`, `jeffrey-backend`) are preserved in the repository history for provenance and reference.*
+
+### Next Milestones
+1. **Frontend-to-Backend API Wiring:** Connect `ScheduleCalendar.tsx` to `/sections` and `/alternatives` endpoints, replacing static mock calendar data with live course retrieval.
+2. **Conversational Engine Handoff:** Bridge conversational routing policies (`safe_to_route=true`) to backend engine endpoints with interactive UI presentation.
+3. **LLM Structured Parser Integration:** Introduce an LLM-assisted semantic parser with deterministic rule-based fallback for complex, ambiguous, or multi-intent student queries.
