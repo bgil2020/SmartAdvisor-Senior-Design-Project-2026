@@ -21,7 +21,7 @@ htmlcov/
 .ruff_cache/
 
 # Node dependencies and build artifacts
-node_modules/
+node_modules
 dist/
 dist-ssr/
 *.local

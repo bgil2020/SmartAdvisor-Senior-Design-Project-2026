@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
+import { ConversationalAssistant } from './components/ConversationalAssistant';
 import {
   getCourses,
   getSections,
@@ -974,7 +975,16 @@ export default function App() {
           )}
         </section>
 
-        {/* 4. Online Course Override Guidance (Preserved) */}
+        {/* 4. Conversational Planning Assistant (Deterministic Prototype) */}
+        <ConversationalAssistant
+          defaultProfileId={compatProfileId}
+          defaultWorkHours={compatWorkHours}
+          defaultDifficulty={compatDifficulty}
+          defaultSatisfaction={compatSatisfaction}
+          defaultRecentCourses={compatRecentInput}
+        />
+
+        {/* 5. Online Course Override Guidance (Preserved) */}
         <OnlineOverrideEvaluator />
       </div>
     </main>

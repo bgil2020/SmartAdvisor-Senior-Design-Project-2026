@@ -189,3 +189,55 @@ export async function checkCompatibility(
   });
   return handleResponse<CompatibilityResponse>(res);
 }
+
+export interface ConversationRequest {
+  message: string;
+  student_id?: string | null;
+  recent_difficulty?: number | null;
+  satisfied_with_performance?: 'yes' | 'mostly' | 'no' | null;
+  work_hours?: number | null;
+  preferred_max_credits?: number | null;
+  recent_courses?: string[] | null;
+}
+
+export interface ConversationResponse {
+  status:
+    | 'engine_executed'
+    | 'clarification'
+    | 'escalation'
+    | 'rag_inactive'
+    | 'unsupported'
+    | 'engine_unavailable'
+    | 'engine_error';
+  raw_message: string;
+  disposition: string;
+  target_handler: string;
+  response_code: string;
+  response_text: string;
+  actionable_guidance?: string | null;
+  safe_to_route: boolean;
+  missing_context: string[];
+  extracted_courses: string[];
+  engine_executed: boolean;
+  engine_result?: Record<string, unknown> | null;
+  disclaimer: string;
+}
+
+/**
+ * Send natural-language student message to deterministic conversational assistant.
+ * If intent is course compatibility and student context is provided, executes compatibility engine.
+ */
+export async function sendConversationMessage(
+  payload: ConversationRequest
+): Promise<ConversationResponse> {
+  const url = `${API_BASE_URL}/conversation`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<ConversationResponse>(res);
+}
+

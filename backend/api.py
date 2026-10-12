@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .alternative_section_search import find_alternative_sections
 from .compatibility_router import router as compatibility_router
+from .conversational_router import router as conversational_router
 
 app = FastAPI(
     title="SmartAdvisor API",
@@ -20,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(compatibility_router)
+app.include_router(conversational_router)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
