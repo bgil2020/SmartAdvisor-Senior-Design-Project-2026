@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
 // --- Types ---
 export type DayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
@@ -14,14 +14,6 @@ export interface CourseSection {
   courseCode: string;
   title: string;
   meetings: MeetingTime[];
-}
-
-export interface OverrideFormState {
-  courseCode: string;
-  reasonCategory: string;
-  justification: string;
-  isSubmitting: boolean;
-  status: 'IDLE' | 'SUCCESS';
 }
 
 // --- Mock Data & Constants ---
@@ -89,33 +81,13 @@ function calculateBlockStyle(startTime: string, endTime: string) {
 export default function App() {
   const [major, setMajor] = useState('');
   const [modality, setModality] = useState('HYBRID');
-  const [override, setOverride] = useState<OverrideFormState>({
-    courseCode: '',
-    reasonCategory: '',
-    justification: '',
-    isSubmitting: false,
-    status: 'IDLE',
-  });
 
   const conflictingIds = getConflictingSectionIds(MOCK_SECTIONS);
   const hours = Array.from({ length: 11 }, (_, i) => i + 8);
 
-  const handleOverrideSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setOverride((prev) => ({ ...prev, isSubmitting: true }));
-    setTimeout(() => {
-      setOverride((prev) => ({ ...prev, isSubmitting: false, status: 'SUCCESS' }));
-    }, 800);
-  };
-
-  const isOverrideValid =
-    override.courseCode.trim().length > 0 &&
-    override.reasonCategory !== '' &&
-    override.justification.trim().length >= 30;
-
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '2rem' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'grid', gap: '2rem' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'grid', gap: '2rem', textAlign: 'left' }}>
         
         {/* Header */}
         <header style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '1rem' }}>
@@ -162,9 +134,12 @@ export default function App() {
 
         {/* 2. Schedule Calendar Grid */}
         <div style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
             Course Schedule Display
           </h2>
+          <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
+            (Demonstration Data — Simulated Course Schedule)
+          </p>
           <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(5, 1fr)', border: '1px solid #e5e7eb' }}>
             
             <div style={{ padding: '0.5rem', fontWeight: 'bold', borderRight: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
@@ -230,96 +205,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* 3. Override Form */}
-        <div style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', maxWidth: '600px' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem' }}>
-            Online-Course Override Questionnaire
-          </h2>
-
-          {override.status === 'SUCCESS' ? (
-            <div style={{ padding: '1rem', backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: '6px', color: '#166534' }}>
-              <h3 style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Override Request Submitted</h3>
-              <p style={{ fontSize: '0.875rem' }}>
-                Your request for <strong>{override.courseCode}</strong> was successfully submitted.
-              </p>
-              <button
-                onClick={() => setOverride({ courseCode: '', reasonCategory: '', justification: '', isSubmitting: false, status: 'IDLE' })}
-                style={{ marginTop: '1rem', padding: '0.5rem 1rem', backgroundColor: '#15803d', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
-              >
-                Submit Another Request
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleOverrideSubmit} style={{ display: 'grid', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                  Course Code
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., CS 101"
-                  value={override.courseCode}
-                  onChange={(e) => setOverride({ ...override, courseCode: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                  Reason Category
-                </label>
-                <select
-                  value={override.reasonCategory}
-                  onChange={(e) => setOverride({ ...override, reasonCategory: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  required
-                >
-                  <option value="">-- Select Category --</option>
-                  <option value="SCHEDULE_CONFLICT">Schedule Conflict</option>
-                  <option value="DEGREE_REQUIREMENT">Degree Requirement</option>
-                  <option value="PREREQ_WAIVER">Prerequisite Waiver</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                  Justification (Min 30 Characters)
-                </label>
-                <textarea
-                  rows={4}
-                  placeholder="Provide rationale for override..."
-                  value={override.justification}
-                  onChange={(e) => setOverride({ ...override, justification: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '4px' }}
-                  required
-                />
-                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
-                  {override.justification.length} / 30 minimum characters
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={!isOverrideValid || override.isSubmitting}
-                style={{
-                  padding: '0.75rem',
-                  borderRadius: '4px',
-                  fontWeight: 'bold',
-                  fontSize: '0.875rem',
-                  border: 'none',
-                  backgroundColor: isOverrideValid ? '#2563eb' : '#e5e7eb',
-                  color: isOverrideValid ? '#ffffff' : '#9ca3af',
-                  cursor: isOverrideValid ? 'pointer' : 'not-allowed',
-                }}
-              >
-                {override.isSubmitting ? 'Submitting...' : 'Submit Override Request'}
-              </button>
-            </form>
-          )}
-        </div>
-<OnlineOverrideEvaluator />
+        {/* 3. Online Course Override Guidance */}
+        <OnlineOverrideEvaluator />
       </div>
     </main>
   );

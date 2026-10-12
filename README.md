@@ -133,3 +133,56 @@ Actual database credentials should not be committed to GitHub.
 - METHOD
 
 The included workbook is the FAU course-section dataset supplied for the project.
+
+## Frontend Setup & Toolchain
+
+The repository includes a React + TypeScript application built with Vite:
+
+- **Supported Node/npm:** Node.js 18+ (tested on Node v22.19.0 / npm 10.9.3)
+- **Install dependencies:**
+  ```bash
+  npm ci
+  ```
+- **Start development server:**
+  ```bash
+  npm run dev
+  ```
+  Default URL: `http://localhost:5173/`
+
+- **Build production bundle:**
+  ```bash
+  npm run build
+  ```
+
+- **Run linter:**
+  ```bash
+  npm run lint
+  ```
+
+- **Run frontend unit tests:**
+  ```bash
+  npm test
+  ```
+  Executes unit tests for override evaluation rules and calendar schedule calculations.
+
+## Running Backend and Frontend Simultaneously
+
+Open two terminal sessions:
+
+1. **Terminal 1 (Backend API):**
+   ```bash
+   python -m uvicorn backend.api:app --port 8000
+   ```
+2. **Terminal 2 (Frontend UI):**
+   ```bash
+   npm run dev
+   ```
+
+*Note: Running both concurrently allows local development; this pull request does not wire frontend UI controls to backend API endpoints.*
+
+## Current Scope & Limitations
+
+- **Course Schedule Display:** Renders demonstration schedule data to display calendar layout and visual conflict detection.
+- **Online Course Override Guidance:** Provides browser-side preliminary planning guidance; does not verify eligibility, check course availability, submit official override requests, or grant approvals.
+- **API Wiring:** Frontend components and backend API endpoints operate independently in this milestone.
+- **Conversational Layer:** The conversational assistant and intent classifier remain on their separate feature branch.

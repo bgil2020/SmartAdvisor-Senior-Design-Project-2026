@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-
-type OverrideResult = {
-  status: string;
-  course?: string;
-  message: string;
-};
+import { evaluateOverride } from '../utils/overrideEvaluator';
+import type { OverrideResult } from '../utils/overrideEvaluator';
 
 export default function OnlineOverrideEvaluator() {
   const [courseCode, setCourseCode] = useState('');
@@ -16,61 +12,13 @@ export default function OnlineOverrideEvaluator() {
 
   function handleOverrideEvaluation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (
-      !courseCode.trim() ||
-      !overrideCategory ||
-      !overrideDescription.trim() ||
-      !documentationStatus
-    ) {
-      setOverrideResult({
-        status: 'More Information Needed',
-        message: 'Please complete all fields before requesting a recommendation.',
-      });
-      return;
-    }
-
-    const course = courseCode.trim().toUpperCase();
-    const documentationAvailable = documentationStatus === 'available';
-
-    let status = '';
-    let message = '';
-
-    if (overrideCategory === 'military') {
-      status = documentationAvailable
-        ? 'Advising Review Recommended'
-        : 'Additional Documentation May Be Needed';
-
-      message = documentationAvailable
-        ? 'Active-duty military obligations may support an online override request. Include your supporting documentation when contacting advising staff.'
-        : 'Active-duty military obligations may support an online override request. Contact advising staff to confirm what documentation is required.';
-    } else if (overrideCategory === 'medical') {
-      status = documentationAvailable
-        ? 'Advising Review Recommended'
-        : 'Additional Documentation May Be Needed';
-
-      message = documentationAvailable
-        ? 'Hospitalization or illness preventing in-person attendance may support an online override request. Supporting documentation should explain the attendance limitation.'
-        : 'A medical circumstance may support an online override request. Contact advising staff to determine what supporting documentation is needed.';
-    } else if (overrideCategory === 'transportation') {
-      status = 'Individual Review Required';
-      message =
-        'Exceptional transportation circumstances may be considered individually and may require dean-level approval. Contact advising staff to discuss your situation and provide supporting information when available.';
-    } else {
-      status = 'Advising Consultation Recommended';
-      message =
-        'Your circumstances do not clearly match one of the categories represented in this prototype. Contact advising staff to discuss whether another option or exception is available.';
-    }
-
-    if (documentationStatus === 'unavailable') {
-      message +=
-        ' You indicated that supporting documentation is unavailable. Advising staff can help you find out if your request can be considered without it.';
-    } else if (documentationStatus === 'not_yet') {
-      message +=
-        ' You indicated that supporting documentation has not yet been obtained. Ask advising staff what is required before submitting your formal request.';
-    }
-
-    setOverrideResult({ status, course, message });
+    const result = evaluateOverride({
+      courseCode,
+      overrideCategory,
+      overrideDescription,
+      documentationStatus,
+    });
+    setOverrideResult(result);
   }
 
   const fieldStyle = {
@@ -89,6 +37,7 @@ export default function OnlineOverrideEvaluator() {
         borderRadius: '8px',
         border: '1px solid #e5e7eb',
         maxWidth: '600px',
+        textAlign: 'left',
       }}
     >
       <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>

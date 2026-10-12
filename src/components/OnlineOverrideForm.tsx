@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { OverrideFormState } from '../types/override';
+import type { OverrideFormState, OverrideReasonCategory } from '../types/override';
 
 export const OnlineOverrideForm: React.FC = () => {
   const [form, setForm] = useState<OverrideFormState>({
@@ -62,7 +62,7 @@ export const OnlineOverrideForm: React.FC = () => {
         <label className="block text-xs font-semibold mb-1">Reason Category</label>
         <select
           value={form.reasonCategory}
-          onChange={(e) => setForm({ ...form, reasonCategory: e.target.value as any })}
+          onChange={(e) => setForm({ ...form, reasonCategory: e.target.value as OverrideReasonCategory })}
           className="w-full p-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         >
