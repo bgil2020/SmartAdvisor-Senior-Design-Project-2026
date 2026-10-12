@@ -6,11 +6,14 @@ export interface MeetingTime {
   endTime: string;   // 24h "HH:MM" format
 }
 
+import type { RawSectionRecord } from '../services/api';
+
 export interface CourseSection {
   id: string;
   courseCode: string;
   title: string;
   meetings: MeetingTime[];
+  raw?: RawSectionRecord;
 }
 
 export const MOCK_SECTIONS: CourseSection[] = [
