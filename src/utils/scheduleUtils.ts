@@ -1,6 +1,6 @@
 import type { RawSectionRecord } from '../services/api';
 
-export type DayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
+export type DayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN';
 
 export interface MeetingTime {
   day: DayOfWeek;
@@ -8,12 +8,18 @@ export interface MeetingTime {
   endTime: string;   // 24h "HH:MM" format
 }
 
+export type MeetingCategory = 'in_grid' | 'out_of_grid_timed' | 'asynchronous' | 'unknown_tba';
+
 export interface CourseSection {
   id: string;
   courseCode: string;
   title: string;
+  sect?: string;
   meetings: MeetingTime[];
+  meetingCategory?: MeetingCategory;
+  scheduleNote?: string;
   raw?: RawSectionRecord;
+  rawRecords?: RawSectionRecord[];
 }
 
 export const DAYS: DayOfWeek[] = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
@@ -24,6 +30,11 @@ export const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60; // 600 mins
 export function parseTimeToMinutes(timeStr: string): number {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+export function isValidTimeInterval(start24: string | null | undefined, end24: string | null | undefined): boolean {
+  if (!start24 || !end24) return false;
+  return parseTimeToMinutes(start24) < parseTimeToMinutes(end24);
 }
 
 export function getConflictingSectionIds(sections: CourseSection[]): Set<string> {
@@ -67,6 +78,7 @@ export function calculateBlockStyle(startTime: string, endTime: string) {
 
 /**
  * Converts 12-hour AM/PM string (e.g., "04:00 PM", "9:30 AM") into 24-hour "HH:MM".
+ * Validates minute bounds (00-59) and hour bounds (01-12).
  */
 export function parse12HourTo24Hour(timeStr: string | null | undefined): string | null {
   if (!timeStr) return null;
@@ -75,10 +87,12 @@ export function parse12HourTo24Hour(timeStr: string | null | undefined): string 
   if (!match) return null;
 
   let hours = parseInt(match[1], 10);
-  const minutes = match[2];
+  const minutesNum = parseInt(match[2], 10);
+  const minutesStr = match[2];
   const period = match[3];
 
   if (hours < 1 || hours > 12) return null;
+  if (minutesNum < 0 || minutesNum > 59) return null;
 
   if (period === 'PM' && hours !== 12) {
     hours += 12;
@@ -86,12 +100,12 @@ export function parse12HourTo24Hour(timeStr: string | null | undefined): string 
     hours = 0;
   }
 
-  return `${String(hours).padStart(2, '0')}:${minutes}`;
+  return `${String(hours).padStart(2, '0')}:${minutesStr}`;
 }
 
 /**
- * Normalizes FAU single-letter day abbreviations (M, T, W, R, F) to DayOfWeek array.
- * Note: FAU uses R for Thursday.
+ * Normalizes FAU single-letter day abbreviations (M, T, W, R, F, S, U) to DayOfWeek array.
+ * Note: FAU uses R for Thursday, S for Saturday, U for Sunday.
  */
 export function parseBackendDays(daysStr: string | null | undefined): DayOfWeek[] {
   if (!daysStr) return [];
@@ -102,6 +116,8 @@ export function parseBackendDays(daysStr: string | null | undefined): DayOfWeek[
     W: 'WED',
     R: 'THU',
     F: 'FRI',
+    S: 'SAT',
+    U: 'SUN',
   };
 
   const results: DayOfWeek[] = [];
@@ -121,58 +137,141 @@ export interface MappedSectionResult {
 }
 
 /**
- * Maps raw backend FAU section records to calendar course section structures.
- * Distinguishes in-grid daytime meetings from asynchronous, online, or evening meetings.
+ * Groups raw section records by CRN so distinct meeting rows belonging to the same section
+ * are preserved and aggregated rather than discarded or treated as duplicates.
  */
-export function mapBackendSectionToCourseSection(raw: RawSectionRecord): MappedSectionResult {
-  const crnStr = String(raw.CRN ?? '0');
-  const courseCode = String(raw.COURSE ?? 'UNKNOWN');
-  const title = String(raw.TITLE ?? courseCode);
+export function groupRawSectionsByCrn(rawSections: RawSectionRecord[]): RawSectionRecord[][] {
+  const map = new Map<string, RawSectionRecord[]>();
+  for (const raw of rawSections) {
+    const crnKey = String(raw.CRN ?? 'UNKNOWN').trim();
+    const existing = map.get(crnKey);
+    if (existing) {
+      existing.push(raw);
+    } else {
+      map.set(crnKey, [raw]);
+    }
+  }
+  return Array.from(map.values());
+}
 
-  const days = parseBackendDays(raw.DAYS);
-  const start24 = parse12HourTo24Hour(raw['BEG TIME']);
-  const end24 = parse12HourTo24Hour(raw['END TIME']);
+/**
+ * Maps a group of raw records for a single CRN into a unified CourseSection.
+ * Preserves all distinct timed meetings for conflict checking, including evening and weekend hours.
+ */
+export function mapGroupedSectionToCourseSection(records: RawSectionRecord[]): MappedSectionResult {
+  if (!records || records.length === 0) {
+    throw new Error('Cannot map empty records array to CourseSection');
+  }
 
-  const method = String(raw.METHOD ?? '').toLowerCase();
-  const isOnline = method.includes('online') || method.includes('distance') || method.includes('remote');
+  const primary = records[0];
+  const crnStr = String(primary.CRN ?? '0');
+  const courseCode = String(primary.COURSE ?? 'UNKNOWN');
+  const title = String(primary.TITLE ?? courseCode);
+  const sect = primary.SECT ? String(primary.SECT) : undefined;
 
-  // Check if meetings fit within 8:00 AM (08:00) to 6:00 PM (18:00) calendar range
-  if (!start24 || !end24 || days.length === 0) {
+  const allMeetings: MeetingTime[] = [];
+  const meetingSummaries: string[] = [];
+  let isOnline = false;
+  let hasValidTimedMeeting = false;
+
+  for (const rec of records) {
+    const method = String(rec.METHOD ?? '').toLowerCase();
+    if (method.includes('online') || method.includes('distance') || method.includes('remote')) {
+      isOnline = true;
+    }
+
+    const days = parseBackendDays(rec.DAYS);
+    const start24 = parse12HourTo24Hour(rec['BEG TIME']);
+    const end24 = parse12HourTo24Hour(rec['END TIME']);
+
+    if (days.length > 0 && start24 && end24 && isValidTimeInterval(start24, end24)) {
+      hasValidTimedMeeting = true;
+      meetingSummaries.push(`${days.join('/')} ${rec['BEG TIME']} - ${rec['END TIME']}`);
+      for (const day of days) {
+        if (!allMeetings.some((m) => m.day === day && m.startTime === start24 && m.endTime === end24)) {
+          allMeetings.push({ day, startTime: start24, endTime: end24 });
+        }
+      }
+    }
+  }
+
+  const gridStartMins = START_HOUR * 60; // 480 (8:00 AM)
+  const gridEndMins = END_HOUR * 60;     // 1080 (6:00 PM)
+
+  if (!hasValidTimedMeeting) {
+    const category: MeetingCategory = isOnline ? 'asynchronous' : 'unknown_tba';
     const note = isOnline
-      ? 'Online / Distance Learning (No fixed campus meeting)'
-      : 'TBA / Meeting times not specified in schedule';
+      ? 'Online / Distance Learning (Asynchronous - No fixed campus meeting)'
+      : 'Schedule TBA (Meeting times not specified in schedule - cannot verify conflicts)';
     return {
-      section: { id: crnStr, courseCode, title, meetings: [], raw },
+      section: {
+        id: crnStr,
+        courseCode,
+        title,
+        sect,
+        meetings: [],
+        meetingCategory: category,
+        scheduleNote: note,
+        raw: primary,
+        rawRecords: records,
+      },
       isUnscheduled: true,
       scheduleNote: note,
     };
   }
 
-  const startMins = parseTimeToMinutes(start24);
-  const endMins = parseTimeToMinutes(end24);
-  const gridStartMins = START_HOUR * 60; // 480
-  const gridEndMins = END_HOUR * 60;     // 1080
+  // Check if all meetings fit standard daytime grid (Mon-Fri, 8am-6pm)
+  const standardDays: DayOfWeek[] = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
+  const allFitInGrid = allMeetings.every((m) => {
+    const sMins = parseTimeToMinutes(m.startTime);
+    const eMins = parseTimeToMinutes(m.endTime);
+    return standardDays.includes(m.day) && sMins >= gridStartMins && eMins <= gridEndMins;
+  });
 
-  if (startMins < gridStartMins || endMins > gridEndMins) {
-    const timeDisplay = `${raw['BEG TIME']} - ${raw['END TIME']}`;
+  const summaryText = meetingSummaries.join(', ');
+
+  if (!allFitInGrid) {
+    const note = `Evening / Weekend schedule (${summaryText}) — Conflict check active`;
     return {
-      section: { id: crnStr, courseCode, title, meetings: [], raw },
+      section: {
+        id: crnStr,
+        courseCode,
+        title,
+        sect,
+        meetings: allMeetings,
+        meetingCategory: 'out_of_grid_timed',
+        scheduleNote: note,
+        raw: primary,
+        rawRecords: records,
+      },
       isUnscheduled: true,
-      scheduleNote: `Evening / Extended schedule (${days.join(', ')} ${timeDisplay})`,
+      scheduleNote: note,
     };
   }
 
-  const meetings: MeetingTime[] = days.map((day) => ({
-    day,
-    startTime: start24,
-    endTime: end24,
-  }));
-
+  const note = summaryText;
   return {
-    section: { id: crnStr, courseCode, title, meetings, raw },
+    section: {
+      id: crnStr,
+      courseCode,
+      title,
+      sect,
+      meetings: allMeetings,
+      meetingCategory: 'in_grid',
+      scheduleNote: note,
+      raw: primary,
+      rawRecords: records,
+    },
     isUnscheduled: false,
-    scheduleNote: `${days.join(', ')} ${raw['BEG TIME']} - ${raw['END TIME']}`,
+    scheduleNote: note,
   };
+}
+
+/**
+ * Convenience mapper for a single raw section record.
+ */
+export function mapBackendSectionToCourseSection(raw: RawSectionRecord): MappedSectionResult {
+  return mapGroupedSectionToCourseSection([raw]);
 }
 
 export function formatMeetingDisplay(raw?: RawSectionRecord): string {
@@ -183,4 +282,10 @@ export function formatMeetingDisplay(raw?: RawSectionRecord): string {
   const time = beg && end ? `${beg} - ${end}` : 'TBA';
   const method = raw.METHOD?.trim() || 'In-Person';
   return `${days} ${time} (${method})`;
+}
+
+export function formatGroupedMeetingDisplay(records?: RawSectionRecord[]): string {
+  if (!records || records.length === 0) return 'No schedule details';
+  const lines = records.map((r) => formatMeetingDisplay(r));
+  return Array.from(new Set(lines)).join(' | ');
 }

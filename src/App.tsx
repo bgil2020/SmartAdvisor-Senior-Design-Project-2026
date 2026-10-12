@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
 import {
   getCourses,
@@ -14,8 +14,9 @@ import {
   DAYS,
   getConflictingSectionIds,
   calculateBlockStyle,
-  mapBackendSectionToCourseSection,
-  formatMeetingDisplay,
+  groupRawSectionsByCrn,
+  mapGroupedSectionToCourseSection,
+  formatGroupedMeetingDisplay,
   type CourseSection,
 } from './utils/scheduleUtils';
 import { MOCK_SECTIONS } from './types/schedule';
@@ -106,8 +107,8 @@ export default function App() {
   const [loadingSections, setLoadingSections] = useState(false);
   const [sectionsError, setSectionsError] = useState<string | null>(null);
 
-  // Student's active schedule of real sections
-  const [enrolledSections, setEnrolledSections] = useState<RawSectionRecord[]>([]);
+  // Student's proposed schedule of selected sections
+  const [selectedSections, setSelectedSections] = useState<RawSectionRecord[]>([]);
 
   // Demo toggle: show mock schedule data when desired
   const [showDemoSchedule, setShowDemoSchedule] = useState(false);
@@ -117,6 +118,10 @@ export default function App() {
   const [alternativesList, setAlternativesList] = useState<RawSectionRecord[]>([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
   const [alternativesError, setAlternativesError] = useState<string | null>(null);
+
+  // Request race-condition tracking refs
+  const sectionsRequestIdRef = useRef(0);
+  const alternativesRequestIdRef = useRef(0);
 
   // --- 3. Course Compatibility Form State ---
   const [compatProfileId, setCompatProfileId] = useState(SYNTHETIC_PROFILES[0].student_id);
@@ -165,112 +170,187 @@ export default function App() {
     };
   }, []);
 
-  // --- Fetch sections when course selected ---
+  // --- Fetch sections when course selected (with race condition prevention) ---
   const handleSelectCourse = (courseCode: string) => {
+    const reqId = ++sectionsRequestIdRef.current;
     setSelectedCourseCode(courseCode);
     setAvailableSections([]);
     setSectionsError(null);
 
-    if (!courseCode) return;
+    if (!courseCode) {
+      setLoadingSections(false);
+      return;
+    }
 
     setLoadingSections(true);
     getSections(courseCode)
       .then((res) => {
+        if (reqId !== sectionsRequestIdRef.current) return;
         setAvailableSections(res.sections);
       })
       .catch((err: unknown) => {
+        if (reqId !== sectionsRequestIdRef.current) return;
         const msg = err instanceof Error ? err.message : 'Error fetching sections';
         setSectionsError(msg);
       })
       .finally(() => {
-        setLoadingSections(false);
+        if (reqId === sectionsRequestIdRef.current) {
+          setLoadingSections(false);
+        }
       });
   };
 
-  // --- Add section to schedule ---
-  const handleAddSection = (section: RawSectionRecord) => {
-    if (enrolledSections.some((s) => String(s.CRN) === String(section.CRN))) {
+  // --- Group raw available sections by CRN to preserve multi-meeting sections ---
+  const groupedAvailableSections = useMemo(
+    () => groupRawSectionsByCrn(availableSections),
+    [availableSections]
+  );
+
+  // --- Add grouped section records to proposed schedule ---
+  const handleAddSectionGroup = (records: RawSectionRecord[]) => {
+    if (!records || records.length === 0) return;
+    const crnStr = String(records[0].CRN);
+    if (selectedSections.some((s) => String(s.CRN) === crnStr)) {
       return; // already added
     }
-    const updated = [...enrolledSections, section];
-    setEnrolledSections(updated);
+    const updated = [...selectedSections, ...records];
+    setSelectedSections(updated);
+
+    // Invalidate open alternatives as selected schedule has changed
+    if (alternativesTarget) {
+      setAlternativesTarget(null);
+      setAlternativesList([]);
+      setAlternativesError(null);
+    }
 
     // Auto-update compatibility proposed courses list
     const codes = Array.from(new Set(updated.map((s) => s.COURSE.trim())));
     setCompatProposedInput(codes.join(', '));
   };
 
-  // --- Remove section from schedule ---
+  // --- Remove all section records for a CRN from proposed schedule ---
   const handleRemoveSection = (crn: number | string) => {
-    const updated = enrolledSections.filter((s) => String(s.CRN) !== String(crn));
-    setEnrolledSections(updated);
-    const codes = Array.from(new Set(updated.map((s) => s.COURSE.trim())));
-    setCompatProposedInput(codes.join(', '));
-    if (alternativesTarget && String(alternativesTarget.CRN) === String(crn)) {
+    const crnStr = String(crn);
+    const updated = selectedSections.filter((s) => String(s.CRN) !== crnStr);
+    setSelectedSections(updated);
+
+    if (alternativesTarget && String(alternativesTarget.CRN) === crnStr) {
+      setAlternativesTarget(null);
+      setAlternativesList([]);
+      setAlternativesError(null);
+    } else if (alternativesTarget) {
+      // Invalidate open alternatives as conflicting set changed
       setAlternativesTarget(null);
       setAlternativesList([]);
     }
+
+    const codes = Array.from(new Set(updated.map((s) => s.COURSE.trim())));
+    setCompatProposedInput(codes.join(', '));
   };
 
-  // --- Open Find Alternatives ---
+  // --- Open Find Alternatives (with race condition prevention) ---
   const handleFindAlternatives = (target: RawSectionRecord) => {
+    const reqId = ++alternativesRequestIdRef.current;
     setAlternativesTarget(target);
     setAlternativesList([]);
     setAlternativesError(null);
     setLoadingAlternatives(true);
 
-    const otherCrns = enrolledSections
-      .map((s) => s.CRN)
-      .filter((crn) => String(crn) !== String(target.CRN));
+    const otherCrns = Array.from(
+      new Set(
+        selectedSections
+          .map((s) => String(s.CRN))
+          .filter((crn) => crn !== String(target.CRN))
+      )
+    );
 
     getAlternatives(target.CRN, otherCrns)
       .then((res) => {
+        if (reqId !== alternativesRequestIdRef.current) return;
         setAlternativesList(res.alternatives);
       })
       .catch((err: unknown) => {
+        if (reqId !== alternativesRequestIdRef.current) return;
         const msg = err instanceof Error ? err.message : 'Failed to search alternative sections';
         setAlternativesError(msg);
       })
       .finally(() => {
-        setLoadingAlternatives(false);
+        if (reqId === alternativesRequestIdRef.current) {
+          setLoadingAlternatives(false);
+        }
       });
   };
 
-  // --- Replace section with alternative ---
-  const handleSwapAlternative = (newSection: RawSectionRecord) => {
-    if (!alternativesTarget) return;
+  // --- Group alternatives list by CRN ---
+  const groupedAlternativesList = useMemo(
+    () => groupRawSectionsByCrn(alternativesList),
+    [alternativesList]
+  );
+
+  // --- Replace section with alternative group ---
+  const handleSwapAlternativeGroup = (newRecords: RawSectionRecord[]) => {
+    if (!alternativesTarget || !newRecords.length) return;
     const targetCrnStr = String(alternativesTarget.CRN);
-    const updated = enrolledSections.map((s) =>
-      String(s.CRN) === targetCrnStr ? newSection : s
-    );
-    setEnrolledSections(updated);
+    const filtered = selectedSections.filter((s) => String(s.CRN) !== targetCrnStr);
+    const updated = [...filtered, ...newRecords];
+    setSelectedSections(updated);
     setAlternativesTarget(null);
     setAlternativesList([]);
+    setAlternativesError(null);
+
+    const codes = Array.from(new Set(updated.map((s) => s.COURSE.trim())));
+    setCompatProposedInput(codes.join(', '));
   };
 
-  // --- Map enrolled sections to calendar & unscheduled lists ---
-  const { inGridSections, unscheduledSections } = useMemo(() => {
+  // --- Map selected sections into calendar grid, out-of-grid timed, async, and TBA ---
+  const { inGridSections, outOfGridTimedSections, asynchronousSections, unknownTbaSections } = useMemo(() => {
+    const grouped = groupRawSectionsByCrn(selectedSections);
     const inGrid: CourseSection[] = [];
-    const unscheduled: Array<{ raw: RawSectionRecord; note: string }> = [];
+    const outOfGridTimed: CourseSection[] = [];
+    const asyncSections: CourseSection[] = [];
+    const unknownSections: CourseSection[] = [];
 
-    for (const raw of enrolledSections) {
-      const mapped = mapBackendSectionToCourseSection(raw);
-      if (mapped.isUnscheduled) {
-        unscheduled.push({ raw, note: mapped.scheduleNote });
-      } else {
+    for (const group of grouped) {
+      const mapped = mapGroupedSectionToCourseSection(group);
+      if (mapped.section.meetingCategory === 'in_grid') {
         inGrid.push(mapped.section);
+      } else if (mapped.section.meetingCategory === 'out_of_grid_timed') {
+        outOfGridTimed.push(mapped.section);
+      } else if (mapped.section.meetingCategory === 'asynchronous') {
+        asyncSections.push(mapped.section);
+      } else {
+        unknownSections.push(mapped.section);
       }
     }
-    return { inGridSections: inGrid, unscheduledSections: unscheduled };
-  }, [enrolledSections]);
+
+    return {
+      inGridSections: inGrid,
+      outOfGridTimedSections: outOfGridTimed,
+      asynchronousSections: asyncSections,
+      unknownTbaSections: unknownSections,
+    };
+  }, [selectedSections]);
 
   // Calendar display target: either real in-grid sections or mock demo sections
   const displaySections: CourseSection[] = showDemoSchedule ? MOCK_SECTIONS : inGridSections;
-  const conflictingIds = useMemo(
-    () => getConflictingSectionIds(displaySections),
-    [displaySections]
+
+  // Conflict detection checks all timed sections (in-grid and out-of-grid)
+  const allTimedSections = useMemo(
+    () => [...inGridSections, ...outOfGridTimedSections],
+    [inGridSections, outOfGridTimedSections]
   );
+
+  const conflictingIds = useMemo(
+    () => (showDemoSchedule ? getConflictingSectionIds(MOCK_SECTIONS) : getConflictingSectionIds(allTimedSections)),
+    [showDemoSchedule, allTimedSections]
+  );
+
   const hours = Array.from({ length: 11 }, (_, i) => i + 8);
+
+  // Distinct unique selected CRNs for summary badges
+  const distinctSelectedSections = useMemo(() => {
+    return groupRawSectionsByCrn(selectedSections).map((group) => group[0]);
+  }, [selectedSections]);
 
   // --- Profile Selection Change ---
   const handleProfileChange = (studentId: string) => {
@@ -316,18 +396,21 @@ export default function App() {
       recent_courses: recentList.length > 0 ? recentList : null,
     })
       .then((res) => {
-        setCompatResult(res);
+        if (res && res.success) {
+          setCompatResult(res);
+        } else {
+          setCompatError((res as { error?: string })?.error || 'Compatibility evaluation was not successful.');
+        }
       })
       .catch((err: unknown) => {
-        if (err instanceof ApiError && typeof err.data === 'object' && err.data !== null) {
-          const detail = (err.data as { detail: unknown }).detail;
-          if (typeof detail === 'object' && detail !== null) {
-            setCompatResult(detail as CompatibilityResponse);
-            return;
-          }
-        }
-        const msg = err instanceof Error ? err.message : 'Compatibility evaluation failed';
+        const msg =
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+            ? err.message
+            : 'Compatibility evaluation failed';
         setCompatError(msg);
+        setCompatResult(null);
       })
       .finally(() => {
         setLoadingCompat(false);
@@ -415,11 +498,11 @@ export default function App() {
               </h3>
               {loadingSections && <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>Loading sections from backend...</p>}
               {sectionsError && <p style={{ fontSize: '0.875rem', color: '#dc2626' }}>{sectionsError}</p>}
-              {!loadingSections && availableSections.length === 0 && !sectionsError && (
+              {!loadingSections && groupedAvailableSections.length === 0 && !sectionsError && (
                 <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>No active sections found for this course.</p>
               )}
 
-              {availableSections.length > 0 && (
+              {groupedAvailableSections.length > 0 && (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', marginTop: '0.5rem' }}>
                     <thead>
@@ -435,13 +518,15 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {availableSections.map((sec) => {
-                        const isEnrolled = enrolledSections.some((s) => String(s.CRN) === String(sec.CRN));
+                      {groupedAvailableSections.map((secRecords) => {
+                        const sec = secRecords[0];
+                        const crnStr = String(sec.CRN);
+                        const isSelected = selectedSections.some((s) => String(s.CRN) === crnStr);
                         return (
-                          <tr key={String(sec.CRN)} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '0.5rem', fontWeight: '600' }}>{String(sec.CRN)}</td>
+                          <tr key={crnStr} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '0.5rem', fontWeight: '600' }}>{crnStr}</td>
                             <td style={{ padding: '0.5rem' }}>{sec.SECT}</td>
-                            <td style={{ padding: '0.5rem' }}>{formatMeetingDisplay(sec)}</td>
+                            <td style={{ padding: '0.5rem' }}>{formatGroupedMeetingDisplay(secRecords)}</td>
                             <td style={{ padding: '0.5rem' }}>{sec.METHOD || 'In-Person'}</td>
                             <td style={{ padding: '0.5rem' }}>{sec.CAMPUS || '—'}</td>
                             <td style={{ padding: '0.5rem', color: Number(sec['ENRL REMN']) <= 0 ? '#dc2626' : '#16a34a' }}>
@@ -451,19 +536,19 @@ export default function App() {
                             <td style={{ padding: '0.5rem' }}>
                               <button
                                 type="button"
-                                onClick={() => handleAddSection(sec)}
-                                disabled={isEnrolled}
+                                onClick={() => handleAddSectionGroup(secRecords)}
+                                disabled={isSelected}
                                 style={{
                                   padding: '4px 10px',
                                   fontSize: '0.75rem',
-                                  backgroundColor: isEnrolled ? '#9ca3af' : '#2563eb',
+                                  backgroundColor: isSelected ? '#9ca3af' : '#2563eb',
                                   color: '#ffffff',
                                   border: 'none',
                                   borderRadius: '4px',
-                                  cursor: isEnrolled ? 'not-allowed' : 'pointer',
+                                  cursor: isSelected ? 'not-allowed' : 'pointer',
                                 }}
                               >
-                                {isEnrolled ? 'Added' : '+ Add to Schedule'}
+                                {isSelected ? 'Selected' : '+ Add to Schedule'}
                               </button>
                             </td>
                           </tr>
@@ -482,14 +567,17 @@ export default function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#111827' }}>
-                2. Active Weekly Course Schedule
+                2. Proposed Schedule & Conflict Resolution
               </h2>
               <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
                 {showDemoSchedule
                   ? '(Demonstration Mode — Displaying simulated test schedule)'
-                  : enrolledSections.length === 0
-                  ? 'No real sections added yet. Select a course above to add sections to your schedule.'
-                  : `${enrolledSections.length} real course section(s) currently selected.`}
+                  : distinctSelectedSections.length === 0
+                  ? 'No sections selected yet. Choose a course above to add sections to your proposed schedule.'
+                  : `${distinctSelectedSections.length} course section(s) currently selected for planning.`}
+              </p>
+              <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                Adding or swapping sections updates your preliminary planning schedule; it does not enroll a student in FAU systems.
               </p>
             </div>
             
@@ -504,46 +592,55 @@ export default function App() {
             </label>
           </div>
 
-          {/* Enrolled Sections Summary Bar */}
-          {!showDemoSchedule && enrolledSections.length > 0 && (
+          {/* Selected Sections Summary Bar */}
+          {!showDemoSchedule && distinctSelectedSections.length > 0 && (
             <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
               <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#166534', marginBottom: '0.5rem' }}>
-                Enrolled Sections:
+                Proposed Schedule (Selected Sections):
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {enrolledSections.map((sec) => (
-                  <div
-                    key={String(sec.CRN)}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <strong>{sec.COURSE}</strong> (CRN {String(sec.CRN)})
-                    <button
-                      type="button"
-                      title="Find Alternatives"
-                      onClick={() => handleFindAlternatives(sec)}
-                      style={{ border: 'none', background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '2px', cursor: 'pointer', fontSize: '10px' }}
+                {distinctSelectedSections.map((sec) => {
+                  const crnStr = String(sec.CRN);
+                  const isConflict = conflictingIds.has(crnStr);
+                  return (
+                    <div
+                      key={crnStr}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: '#ffffff',
+                        border: isConflict ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
                     >
-                      Alternatives
-                    </button>
-                    <button
-                      type="button"
-                      title="Remove"
-                      onClick={() => handleRemoveSection(sec.CRN)}
-                      style={{ border: 'none', background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '2px', cursor: 'pointer', fontSize: '10px' }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                      <strong>{sec.COURSE}</strong> (CRN {crnStr})
+                      {isConflict && (
+                        <span style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '1px 4px', borderRadius: '2px', fontSize: '10px', fontWeight: 'bold' }}>
+                          ⚠️ Conflict
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        title="Find Alternatives"
+                        onClick={() => handleFindAlternatives(sec)}
+                        style={{ border: 'none', background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '2px', cursor: 'pointer', fontSize: '10px' }}
+                      >
+                        Alternatives
+                      </button>
+                      <button
+                        type="button"
+                        title="Remove"
+                        onClick={() => handleRemoveSection(sec.CRN)}
+                        style={{ border: 'none', background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: '2px', cursor: 'pointer', fontSize: '10px' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -635,53 +732,159 @@ export default function App() {
             ))}
           </div>
 
-          {/* Unscheduled / Online / Evening Courses Panel */}
-          {!showDemoSchedule && unscheduledSections.length > 0 && (
+          {/* Sections Outside Standard Day Calendar (Evening, Weekend, Asynchronous, TBA) */}
+          {!showDemoSchedule && (outOfGridTimedSections.length > 0 || asynchronousSections.length > 0 || unknownTbaSections.length > 0) && (
             <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
               <h3 style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: '#334155', marginBottom: '0.5rem' }}>
-                Enrolled Sections Outside Standard Day Calendar:
+                Selected Sections Outside Standard Daytime Calendar (8 AM – 6 PM):
               </h3>
               <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '0.75rem' }}>
-                Sections without fixed daytime meeting times (such as fully online asynchronous classes or evening offerings starting after 6:00 PM) are preserved below:
+                Timed evening/weekend offerings participate in conflict detection. Fully online asynchronous or TBA sections are listed separately.
               </p>
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
-                {unscheduledSections.map(({ raw, note }) => (
-                  <div
-                    key={String(raw.CRN)}
-                    style={{
-                      padding: '0.5rem',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '0.8125rem',
-                    }}
-                  >
-                    <div>
-                      <strong>{raw.COURSE}</strong> — {raw.TITLE} (CRN {String(raw.CRN)}, Sec {raw.SECT})
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{note}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleFindAlternatives(raw)}
-                        style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Alternatives
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSection(raw.CRN)}
-                        style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Remove
-                      </button>
-                    </div>
+
+              {/* 1. Out-of-Grid Timed Sections (Evening / Weekend) */}
+              {outOfGridTimedSections.length > 0 && (
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.35rem' }}>
+                    Evening / Weekend Timed Sections (Conflict Check Active):
                   </div>
-                ))}
-              </div>
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    {outOfGridTimedSections.map((sec) => {
+                      const isConflict = conflictingIds.has(sec.id);
+                      return (
+                        <div
+                          key={sec.id}
+                          style={{
+                            padding: '0.5rem',
+                            backgroundColor: isConflict ? '#fef2f2' : '#ffffff',
+                            border: isConflict ? '1px solid #f87171' : '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '0.8125rem',
+                          }}
+                        >
+                          <div>
+                            <strong>{sec.courseCode}</strong> — {sec.title} (CRN {sec.id}{sec.sect ? `, Sec ${sec.sect}` : ''})
+                            <div style={{ fontSize: '0.75rem', color: isConflict ? '#b91c1c' : '#64748b' }}>
+                              {sec.scheduleNote}
+                              {isConflict && ' — ⚠️ OVERLAPS WITH ANOTHER SCHEDULED SECTION'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {sec.raw && (
+                              <button
+                                type="button"
+                                onClick={() => handleFindAlternatives(sec.raw!)}
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                Alternatives
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSection(sec.id)}
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Asynchronous Online Sections */}
+              {asynchronousSections.length > 0 && (
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.35rem' }}>
+                    Asynchronous Distance Learning (No Fixed Meeting Times):
+                  </div>
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    {asynchronousSections.map((sec) => (
+                      <div
+                        key={sec.id}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.8125rem',
+                        }}
+                      >
+                        <div>
+                          <strong>{sec.courseCode}</strong> — {sec.title} (CRN {sec.id})
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{sec.scheduleNote}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {sec.raw && (
+                            <button
+                              type="button"
+                              onClick={() => handleFindAlternatives(sec.raw!)}
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                            >
+                              Alternatives
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSection(sec.id)}
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Unknown / TBA Sections */}
+              {unknownTbaSections.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.35rem' }}>
+                    Meeting Schedule TBA / Unspecified (Conflict Clearance Unavailable):
+                  </div>
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    {unknownTbaSections.map((sec) => (
+                      <div
+                        key={sec.id}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.8125rem',
+                        }}
+                      >
+                        <div>
+                          <strong>{sec.courseCode}</strong> — {sec.title} (CRN {sec.id})
+                          <div style={{ fontSize: '0.75rem', color: '#b45309' }}>{sec.scheduleNote}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSection(sec.id)}
+                            style={{ padding: '4px 8px', fontSize: '0.75rem', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -702,57 +905,60 @@ export default function App() {
               </div>
 
               <p style={{ fontSize: '0.8125rem', color: '#1e40af', marginBottom: '0.75rem' }}>
-                Queried backend endpoint: <code>GET /alternatives?crn={String(alternativesTarget.CRN)}</code>. Returns sections of the same course in the same term that do not conflict with your other selected classes.
+                Queried backend endpoint: <code>GET /alternatives?crn={String(alternativesTarget.CRN)}</code>. Returns sections of the same course that do not conflict with your other selected classes.
               </p>
 
               {loadingAlternatives && <p style={{ fontSize: '0.875rem', color: '#2563eb' }}>Searching alternative sections...</p>}
               {alternativesError && <p style={{ fontSize: '0.875rem', color: '#dc2626' }}>{alternativesError}</p>}
-              {!loadingAlternatives && alternativesList.length === 0 && !alternativesError && (
+              {!loadingAlternatives && groupedAlternativesList.length === 0 && !alternativesError && (
                 <p style={{ fontSize: '0.875rem', color: '#4b5563' }}>
                   No non-conflicting replacement sections found with open seats in the prototype dataset.
                 </p>
               )}
 
-              {alternativesList.length > 0 && (
+              {groupedAlternativesList.length > 0 && (
                 <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {alternativesList.map((alt) => (
-                    <div
-                      key={String(alt.CRN)}
-                      style={{
-                        padding: '0.75rem',
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #bfdbfe',
-                        borderRadius: '4px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '0.8125rem',
-                      }}
-                    >
-                      <div>
-                        <strong>Section {alt.SECT}</strong> (CRN {String(alt.CRN)}) — {formatMeetingDisplay(alt)}
-                        <div style={{ fontSize: '0.75rem', color: '#475569' }}>
-                          Instructor: {alt.INSTRUCTOR || 'TBA'} | Campus: {alt.CAMPUS || 'Main'} | Seats Remaining: {String(alt['ENRL REMN'] ?? 0)}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSwapAlternative(alt)}
+                  {groupedAlternativesList.map((altRecords) => {
+                    const alt = altRecords[0];
+                    return (
+                      <div
+                        key={String(alt.CRN)}
                         style={{
-                          padding: '6px 12px',
-                          fontSize: '0.75rem',
-                          backgroundColor: '#16a34a',
-                          color: '#ffffff',
-                          border: 'none',
+                          padding: '0.75rem',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #bfdbfe',
                           borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontWeight: '600',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.8125rem',
                         }}
                       >
-                        Swap with this Section
-                      </button>
-                    </div>
-                  ))}
+                        <div>
+                          <strong>Section {alt.SECT}</strong> (CRN {String(alt.CRN)}) — {formatGroupedMeetingDisplay(altRecords)}
+                          <div style={{ fontSize: '0.75rem', color: '#475569' }}>
+                            Instructor: {alt.INSTRUCTOR || 'TBA'} | Campus: {alt.CAMPUS || 'Main'} | Seats Remaining: {String(alt['ENRL REMN'] ?? 0)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSwapAlternativeGroup(altRecords)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '0.75rem',
+                            backgroundColor: '#16a34a',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                          }}
+                        >
+                          Swap with this Section
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -901,72 +1107,103 @@ export default function App() {
 
           {compatResult && (
             <div style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#0f172a' }}>
+              <div style={{ marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#0f172a', margin: '0 0 0.5rem 0' }}>
                   Compatibility Result for {compatResult.student_name} ({compatResult.major})
                 </h3>
-                <span
-                  style={{
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    fontSize: '0.8125rem',
-                    fontWeight: 'bold',
-                    backgroundColor:
-                      compatResult.overall_risk === 'Low'
-                        ? '#dcfce7'
-                        : compatResult.overall_risk === 'Medium'
-                        ? '#fef9c3'
-                        : '#fee2e2',
-                    color:
-                      compatResult.overall_risk === 'Low'
-                        ? '#166534'
-                        : compatResult.overall_risk === 'Medium'
-                        ? '#854d0e'
-                        : '#991b1b',
-                  }}
-                >
-                  Overall Workload Risk: {compatResult.overall_risk}
-                </span>
-              </div>
-
-              <div style={{ fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-                <strong>Proposed Credits:</strong> {compatResult.proposed_credits} | <strong>Courses:</strong> {compatResult.proposed_courses?.join(', ')}
-              </div>
-
-              {compatResult.recommendations && compatResult.recommendations.length > 0 && (
-                <div style={{ marginBottom: '0.75rem' }}>
-                  <strong>Recommendations:</strong>
-                  <ul style={{ margin: '0.25rem 0 0 1.25rem', padding: 0, fontSize: '0.8125rem' }}>
-                    {compatResult.recommendations.map((rec, i) => (
-                      <li key={i}>{rec}</li>
-                    ))}
-                  </ul>
+                <div style={{ fontSize: '0.8125rem', color: '#475569' }}>
+                  Student ID: {compatResult.student_id} | Proposed Credits: <strong>{compatResult.proposed_credits}</strong>
+                  {compatResult.recent_credits !== null && compatResult.recent_credits !== undefined && (
+                    <span> | Recent Credits: <strong>{compatResult.recent_credits}</strong></span>
+                  )}
                 </div>
-              )}
+              </div>
 
-              {compatResult.matched_combinations && compatResult.matched_combinations.length > 0 && (
-                <div style={{ marginBottom: '0.75rem' }}>
-                  <strong>Combination Analysis:</strong>
-                  <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.25rem' }}>
-                    {compatResult.matched_combinations.map((comb, i) => (
-                      <div key={i} style={{ padding: '0.5rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '4px', fontSize: '0.8125rem' }}>
-                        <div><strong>Pair:</strong> {comb.courses.join(' + ')} | <strong>Category:</strong> {comb.risk_category} ({comb.severity})</div>
-                        <div style={{ color: '#475569', marginTop: '2px' }}>{comb.explanation}</div>
-                        {comb.recommended_action && <div style={{ color: '#0369a1', marginTop: '2px' }}>Action: {comb.recommended_action}</div>}
+              {/* Primary Engine Assessment */}
+              <div style={{ padding: '0.875rem', backgroundColor: '#eff6ff', borderLeft: '4px solid #3b82f6', borderRadius: '4px', marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#1d4ed8' }}>
+                  Semester Assessment
+                </div>
+                <div style={{ fontSize: '0.9375rem', fontWeight: '600', color: '#1e3a8a', marginTop: '0.25rem' }}>
+                  {compatResult.assessment}
+                </div>
+              </div>
+
+              {/* Matched Course Combinations */}
+              {compatResult.matched_course_combinations && compatResult.matched_course_combinations.length > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.5rem' }}>
+                    Matched Course Combinations ({compatResult.matched_course_combinations.length}):
+                  </h4>
+                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                    {compatResult.matched_course_combinations.map((comb, i) => (
+                      <div key={i} style={{ padding: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8125rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.25rem' }}>
+                          <strong>Pair: {comb.courses.join(' + ')}</strong>
+                          <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#f1f5f9', color: '#334155', fontWeight: '600' }}>
+                            {comb.baseline_rating}
+                          </span>
+                        </div>
+                        <p style={{ margin: '0.25rem 0', color: '#334155' }}>{comb.personalized_guidance}</p>
+                        {comb.reasoning && (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                            <em>Reasoning:</em> {comb.reasoning}
+                          </div>
+                        )}
+                        {comb.factors && comb.factors.length > 0 && (
+                          <ul style={{ margin: '0.35rem 0 0 1.25rem', padding: 0, fontSize: '0.75rem', color: '#475569' }}>
+                            {comb.factors.map((f, fi) => (
+                              <li key={fi}>{f}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {compatResult.repeat_courses && compatResult.repeat_courses.length > 0 && (
-                <div style={{ marginBottom: '0.5rem', color: '#b45309', fontSize: '0.8125rem' }}>
-                  ⚠️ <strong>Repeat Course Warning:</strong> {compatResult.repeat_courses.join(', ')}
+              {/* Recommendations */}
+              {compatResult.recommendations && compatResult.recommendations.length > 0 && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <h4 style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.25rem' }}>
+                    Recommendations:
+                  </h4>
+                  <ul style={{ margin: '0.25rem 0 0 1.25rem', padding: 0, fontSize: '0.8125rem', color: '#334155' }}>
+                    {compatResult.recommendations.map((rec, i) => (
+                      <li key={i} style={{ marginTop: '0.25rem' }}>{rec}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
+              {/* Repeat Course Warning */}
+              {compatResult.repeat_course_warning && (
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', fontSize: '0.8125rem', color: '#92400e' }}>
+                  <strong>⚠️ Repeat Course Warning:</strong> {compatResult.repeat_course_warning}
+                  {compatResult.previously_completed_courses && compatResult.previously_completed_courses.length > 0 && (
+                    <div style={{ marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                      Previously completed courses in student history: {compatResult.previously_completed_courses.join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Data Warnings */}
+              {compatResult.data_warnings && compatResult.data_warnings.length > 0 && (
+                <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.8125rem', color: '#991b1b' }}>
+                  <strong>Data Warnings:</strong>
+                  <ul style={{ margin: '0.25rem 0 0 1.25rem', padding: 0, fontSize: '0.75rem' }}>
+                    {compatResult.data_warnings.map((dw, i) => (
+                      <li key={i}>{dw}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Disclaimer */}
               {compatResult.disclaimer && (
-                <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
+                <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem', margin: '0.75rem 0 0 0' }}>
                   {compatResult.disclaimer}
                 </p>
               )}
