@@ -1,17 +1,6 @@
-export type DayOfWeek = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI';
+import type { DayOfWeek, MeetingTime, CourseSection } from '../utils/scheduleUtils';
 
-export interface MeetingTime {
-  day: DayOfWeek;
-  startTime: string; // 24h "HH:MM" format
-  endTime: string;   // 24h "HH:MM" format
-}
-
-export interface CourseSection {
-  id: string;
-  courseCode: string;
-  title: string;
-  meetings: MeetingTime[];
-}
+export type { DayOfWeek, MeetingTime, CourseSection };
 
 export const MOCK_SECTIONS: CourseSection[] = [
   {
