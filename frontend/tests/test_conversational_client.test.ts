@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import type { ConversationRequest, ConversationResponse } from '../../src/services/api';
+import type { ConversationRequest, ConversationResponse } from '../src/services/api';
 
 describe('Conversational Client Payload & State Handling', () => {
   it('correctly structures payload with full synthetic workload context', () => {

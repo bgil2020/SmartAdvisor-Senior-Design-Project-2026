@@ -1,13 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { evaluateOverride } from '../../src/utils/overrideEvaluator.ts';
+import { evaluateOverride } from '../src/utils/overrideEvaluator.ts';
 import {
   parseTimeToMinutes,
   getConflictingSectionIds,
   calculateBlockStyle,
-} from '../../src/utils/scheduleUtils.ts';
-import { MOCK_SECTIONS } from '../../src/types/schedule.ts';
+} from '../src/utils/scheduleUtils.ts';
+import { MOCK_SECTIONS } from '../src/types/schedule.ts';
 
 describe('Online Override Evaluator Logic', () => {
   it('returns "More Information Needed" when required fields are empty', () => {

@@ -9,8 +9,8 @@ import {
   mapGroupedSectionToCourseSection,
   mapBackendSectionToCourseSection,
   getConflictingSectionIds,
-} from '../../src/utils/scheduleUtils.ts';
-import type { RawSectionRecord, CompatibilityResponse } from '../../src/services/api.ts';
+} from '../src/utils/scheduleUtils.ts';
+import type { RawSectionRecord, CompatibilityResponse } from '../src/services/api.ts';
 
 describe('Frontend-Backend Wiring Schedule Utilities', () => {
   describe('parse12HourTo24Hour', () => {

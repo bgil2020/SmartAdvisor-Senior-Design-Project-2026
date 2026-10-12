@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+# Ensure repo root is on sys.path for standalone script execution
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from backend.section_retriever import load_course_data, get_section_by_crn
 from backend.alternative_section_search import find_alternative_sections
 from backend.result_formatter import build_alternative_response, print_alternatives
