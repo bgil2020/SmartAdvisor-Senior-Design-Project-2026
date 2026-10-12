@@ -67,6 +67,14 @@ export interface CompatibilityRequest {
   recent_courses?: string[] | null;
 }
 
+export interface MatchedCourseCombination {
+  courses: string[];
+  baseline_rating: string;
+  personalized_guidance: string;
+  factors: string[];
+  reasoning: string;
+}
+
 export interface CompatibilityResponse {
   success: boolean;
   student_id: string;
@@ -74,19 +82,16 @@ export interface CompatibilityResponse {
   major: string;
   proposed_courses: string[];
   proposed_credits: number;
-  overall_risk: 'Low' | 'Medium' | 'High' | string;
+  recent_credits?: number | null;
+  assessment: string;
+  matched_course_combinations: MatchedCourseCombination[];
+  completed_courses?: string[];
+  previously_completed_courses?: string[];
+  repeat_course_warning?: string | null;
   recommendations: string[];
-  matched_combinations?: Array<{
-    courses: string[];
-    risk_category: string;
-    severity: string;
-    explanation: string;
-    recommended_action?: string;
-  }>;
-  repeat_courses?: string[];
-  data_limitations?: string[];
+  data_warnings?: string[];
   disclaimer?: string;
-  detail?: string | unknown;
+  error?: string;
 }
 
 export class ApiError extends Error {
@@ -101,6 +106,30 @@ export class ApiError extends Error {
   }
 }
 
+function formatErrorDetail(detail: unknown): string {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === 'object' && item !== null && 'msg' in item) {
+          const loc = Array.isArray((item as { loc?: unknown[] }).loc)
+            ? (item as { loc: unknown[] }).loc.filter((part) => part !== 'body').join('.')
+            : '';
+          return loc ? `${loc}: ${(item as { msg: string }).msg}` : (item as { msg: string }).msg;
+        }
+        return JSON.stringify(item);
+      })
+      .join('; ');
+  }
+  if (typeof detail === 'object' && detail !== null) {
+    if ('error' in detail && typeof (detail as { error: unknown }).error === 'string') {
+      return (detail as { error: string }).error;
+    }
+    return JSON.stringify(detail);
+  }
+  return String(detail);
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let errData: unknown;
@@ -109,10 +138,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
     } catch {
       errData = await res.text();
     }
-    const message =
-      typeof errData === 'object' && errData !== null && 'detail' in errData
-        ? String((errData as { detail: unknown }).detail)
-        : `Request failed with status ${res.status}`;
+    let message = `Request failed with status ${res.status}`;
+    if (typeof errData === 'object' && errData !== null && 'detail' in errData) {
+      message = formatErrorDetail((errData as { detail: unknown }).detail);
+    } else if (typeof errData === 'string' && errData.trim()) {
+      message = errData;
+    }
     throw new ApiError(message, res.status, errData);
   }
   return res.json() as Promise<T>;
