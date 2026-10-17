@@ -22,12 +22,7 @@ from openpyxl import load_workbook
 
 BASE_DIR = Path(__file__).resolve().parent / "compatibility_data"
 PROFILE_FILE = BASE_DIR / "Synthetic Profiles.xlsx"
-CATALOG_CANDIDATES = sorted(
-    BASE_DIR.glob("Final_FAU_CS_CE_EE_Undergraduate_Courses_Revised*.xlsx"),
-    key=lambda p: p.stat().st_mtime,
-    reverse=True,
-)
-CATALOG_FILE = CATALOG_CANDIDATES[0] if CATALOG_CANDIDATES else BASE_DIR / "Final_FAU_CS_CE_EE_Undergraduate_Courses_Revised.xlsx"
+CATALOG_FILE = BASE_DIR / "Final_FAU_CS_CE_EE_Undergraduate_Courses_Revised(Sheet1).xlsx"
 COMBINATIONS_FILE = BASE_DIR / "Course Combinations.xlsx"
 
 
