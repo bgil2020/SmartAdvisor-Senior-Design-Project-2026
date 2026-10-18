@@ -19,6 +19,13 @@ import pandas as pd
 
 from .section_retriever import load_course_data
 from .overlap_detector import sections_overlap, get_conflict_details
+from .meeting_time_normalizer import (
+    get_schedule_status,
+    is_verified_asynchronous,
+    SCHEDULE_STATUS_SCHEDULED,
+    SCHEDULE_STATUS_ASYNCHRONOUS,
+    SCHEDULE_STATUS_UNKNOWN,
+)
 from .alternative_section_search import find_alternative_sections
 
 logger = logging.getLogger(__name__)
@@ -46,6 +53,8 @@ def format_section_record(sec: pd.Series) -> Dict[str, Any]:
     end = str(sec.get("END TIME", "")).strip()
     time_str = f"{beg} - {end}".strip(" -") if beg and end else "Unscheduled / Online"
 
+    sched_status = get_schedule_status(sec)
+
     return {
         "crn": str(sec["CRN"]).strip().replace(".0", ""),
         "course": str(sec["COURSE"]).strip(),
@@ -58,6 +67,7 @@ def format_section_record(sec: pd.Series) -> Dict[str, Any]:
         "term": int(sec["TERM"]) if pd.notna(sec.get("TERM")) else None,
         "seats_remaining": int(sec.get("ENRL REMN", 0)) if pd.notna(sec.get("ENRL REMN")) else 0,
         "instructor": str(sec.get("INSTRUCTOR", "")).strip(),
+        "schedule_status": sched_status,
     }
 
 
@@ -72,6 +82,8 @@ def resolve_section(
       - 5-digit CRN string or int (e.g. '20158' or 20158)
       - Dictionary with 'crn' or ('course' and 'section')
       - Object with attributes 'crn' or ('course' and 'section')
+
+    Validates supplied fields against each other to prevent contradictory inputs.
 
     Returns:
         (section_row, error_message, is_ambiguous)
@@ -131,7 +143,33 @@ def resolve_section(
         if len(crn_matches) > 1:
             terms = sorted(crn_matches["TERM"].unique())
             return None, f"Multiple sections matched CRN '{crn_clean}' across terms ({terms}). Please specify a term.", True
-        return crn_matches.iloc[0], None, False
+
+        sec_match = crn_matches.iloc[0]
+
+        # Validate supplied course/section against the resolved CRN to detect contradictions
+        if course_val:
+            c_norm = normalize_course_code(course_val)
+            cat_c_norm = normalize_course_code(sec_match["COURSE"])
+            if c_norm != cat_c_norm:
+                return (
+                    None,
+                    f"Contradictory section details: CRN '{crn_clean}' is course '{sec_match['COURSE']}', "
+                    f"which contradicts specified course '{course_val}'.",
+                    False,
+                )
+
+        if sect_val:
+            s_clean = str(sect_val).strip().upper().lstrip("0")
+            cat_s_clean = str(sec_match["SECT"]).strip().upper().lstrip("0")
+            if s_clean != cat_s_clean:
+                return (
+                    None,
+                    f"Contradictory section details: CRN '{crn_clean}' is section '{sec_match['SECT']}', "
+                    f"which contradicts specified section '{sect_val}'.",
+                    False,
+                )
+
+        return sec_match, None, False
 
     # 2. Resolve by Course + Section
     if course_val:
@@ -200,6 +238,7 @@ def evaluate_schedule_conflict(
     """Evaluates whether two sections have a schedule conflict using overlap_detector.
 
     Returns a structured dictionary with execution outcome and details.
+    Distinguishes scheduled sections, verified asynchronous sections, and unknown/TBA timing.
     """
     sec1, err1, amb1 = resolve_section(courses, section1_input, term)
     if err1:
@@ -228,11 +267,28 @@ def evaluate_schedule_conflict(
     s1_formatted = format_section_record(sec1)
     s2_formatted = format_section_record(sec2)
 
+    # If timing is unknown/TBA: Insufficient data must not produce a verified "no conflict"
+    if details.get("conflict") == "Unknown":
+        return {
+            "success": True,
+            "has_conflict": None,
+            "is_uncertain": True,
+            "shared_days": "",
+            "conflict_summary": "Unknown",
+            "reason": details.get("reason", "Missing or unverified meeting schedule."),
+            "schedule_status": "unknown_timing",
+            "section_1": s1_formatted,
+            "section_2": s2_formatted,
+        }
+
     return {
         "success": True,
         "has_conflict": bool(overlap),
+        "is_uncertain": False,
         "shared_days": details.get("shared_days", ""),
         "conflict_summary": details.get("conflict", "No"),
+        "note": details.get("note"),
+        "schedule_status": details.get("schedule_status"),
         "section_1": s1_formatted,
         "section_2": s2_formatted,
     }
@@ -249,6 +305,7 @@ def evaluate_alternative_sections(
 
     Treats an explicitly empty list ([]) as valid zero-enrolled-courses schedule.
     Treats None as missing schedule context.
+    Discloses safe limitations if candidate or current schedule timing cannot be verified.
     """
     target_sec, err, amb = resolve_section(courses, target_section_input, term)
     if err:
@@ -268,6 +325,7 @@ def evaluate_alternative_sections(
 
     selected_crns: List[str] = []
     resolved_selected: List[Dict[str, Any]] = []
+    unknown_sched_sections: List[str] = []
 
     for item in selected_sections_input:
         s_row, s_err, s_amb = resolve_section(courses, item, term=target_term)
@@ -287,6 +345,11 @@ def evaluate_alternative_sections(
                     ),
                     "is_ambiguous": False,
                 }
+
+        s_status = get_schedule_status(s_row)
+        if s_status == SCHEDULE_STATUS_UNKNOWN:
+            unknown_sched_sections.append(f"{s_row['COURSE']} section {s_row['SECT']}")
+
         crn_str = str(s_row["CRN"]).strip().replace(".0", "")
         selected_crns.append(crn_str)
         resolved_selected.append(format_section_record(s_row))
@@ -307,7 +370,28 @@ def evaluate_alternative_sections(
             "is_ambiguous": False,
         }
 
-    alt_records = [format_section_record(alt) for alt in alternatives]
+    limitations: List[str] = []
+    if unknown_sched_sections:
+        limitations.append(
+            f"Current schedule contains section(s) with unverified or TBA meeting times: "
+            f"{', '.join(unknown_sched_sections)}. Cannot guarantee alternative sections avoid conflict with unverified sections."
+        )
+
+    alt_records: List[Dict[str, Any]] = []
+    for alt in alternatives:
+        rec = format_section_record(alt)
+        alt_status = get_schedule_status(alt)
+        rec["schedule_status"] = alt_status
+        if alt_status == SCHEDULE_STATUS_UNKNOWN:
+            rec["timing_verified"] = False
+            rec["schedule_note"] = "Meeting times unverified or TBA; conflict avoidance cannot be guaranteed."
+        else:
+            rec["timing_verified"] = True
+        alt_records.append(rec)
+
+    has_uncertain_alts = any(not r.get("timing_verified", True) for r in alt_records)
+    if has_uncertain_alts:
+        limitations.append("One or more alternative sections have unverified or TBA meeting times.")
 
     return {
         "success": True,
@@ -316,4 +400,7 @@ def evaluate_alternative_sections(
         "count": len(alt_records),
         "alternatives": alt_records,
         "selected_crns": selected_crns,
+        "has_unknown_schedule": bool(unknown_sched_sections),
+        "has_uncertain_alternatives": has_uncertain_alts,
+        "limitations": limitations,
     }

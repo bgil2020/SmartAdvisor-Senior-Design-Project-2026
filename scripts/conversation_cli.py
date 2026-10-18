@@ -230,9 +230,17 @@ class ConversationHarness:
                 # 2. Schedule Conflict Result
                 elif "has_conflict" in engine_result:
                     conf = engine_result.get("has_conflict")
-                    print(f"  Conflict Found  : {'YES' if conf else 'NO'}")
+                    if conf is True:
+                        conf_str = "YES"
+                    elif conf is False:
+                        conf_str = "NO"
+                    else:
+                        conf_str = "UNCERTAIN / UNVERIFIED"
+                    print(f"  Conflict Found  : {conf_str}")
                     if conf:
                         print(f"  Shared Days     : {engine_result.get('shared_days', 'N/A')}")
+                    if engine_result.get("is_uncertain"):
+                        print(f"  Uncertain Reason: {engine_result.get('reason')}")
                     s1 = engine_result.get("section_1", {})
                     s2 = engine_result.get("section_2", {})
                     print(f"  Section 1       : {s1.get('course')} sec {s1.get('section')} (CRN {s1.get('crn')}, {s1.get('days')} {s1.get('time')})")
@@ -245,12 +253,19 @@ class ConversationHarness:
                     alts = engine_result.get("alternatives", [])
                     print(f"  Alternatives    : {len(alts)} found")
                     for a in alts:
-                        print(f"    * CRN {a.get('crn')} - Sec {a.get('section')}: {a.get('days')} {a.get('time')} | Seats Open: {a.get('seats_remaining')} | Instr: {a.get('instructor')}")
+                        ver_flag = "" if a.get("timing_verified", True) else " [UNVERIFIED TIMING]"
+                        print(f"    * CRN {a.get('crn')} - Sec {a.get('section')}: {a.get('days')} {a.get('time')} | Seats Open: {a.get('seats_remaining')} | Instr: {a.get('instructor')}{ver_flag}")
                     sched = engine_result.get("selected_schedule", [])
                     if sched:
                         print(f"  Avoided Schedule: {len(sched)} enrolled class(es)")
                         for sc in sched:
                             print(f"      - {sc.get('course')} sec {sc.get('section')} (CRN {sc.get('crn')})")
+
+                limits = engine_result.get("limitations")
+                if limits:
+                    print("  Limitations     :")
+                    for lim in limits:
+                        print(f"    * {lim}")
             else:
                 print(f"  Error: {engine_result.get('error')}")
 
