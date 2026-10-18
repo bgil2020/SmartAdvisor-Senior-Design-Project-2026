@@ -24,6 +24,8 @@ SmartAdvisor is an academic course-planning and advising decision-support system
 | **Session Persistence** | In-Memory (Client) | Active schedule and chat history are held in React state; refreshing the browser resets the session. |
 
 ---
+##Recent Development Updates
+--
 
 ## Requirements
 
