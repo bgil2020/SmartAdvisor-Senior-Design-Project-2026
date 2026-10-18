@@ -56,8 +56,8 @@ RULES = [
 ]
 
 def count_course_codes(text: str) -> int:
-    """Extract course codes like 'COP 3530' or 'COP3530' to estimate completeness."""
-    matches = re.findall(r'\b[a-z]{3}\s*\d{4}\b', text)
+    """Extract course codes like 'COP 3530', 'COP3530', or 'COP3530C' to estimate completeness."""
+    matches = re.findall(r'\b[a-z]{3}\s*\d{4}[a-z]?\b', text)
     return len(set(matches))
 
 def classify_intent(prompt: str) -> Dict[str, Any]:

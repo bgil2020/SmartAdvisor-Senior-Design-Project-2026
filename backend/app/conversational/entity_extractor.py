@@ -71,18 +71,18 @@ def parse_time(time_str: str, ampm: str = None) -> Optional[str]:
     return f"{h:02d}:{m:02d}"
 
 def extract_course_codes(text: str) -> List[str]:
-    matches = re.findall(r'\b([a-zA-Z]{3})[\s-]*(\d{4})\b', text)
+    matches = re.findall(r'\b([a-zA-Z]{3})[\s-]*(\d{4}[a-zA-Z]?)\b', text)
     codes = []
     seen = set()
     for prefix, num in matches:
-        code = f"{prefix.upper()}{num}"
+        code = f"{prefix.upper()}{num.upper()}"
         if code not in seen:
             seen.add(code)
             codes.append(code)
     return codes
 
 def extract_section_identifiers(text: str) -> List[str]:
-    matches = re.findall(r'\b(?:section|sec)\s+(\d+)\b', text, re.IGNORECASE)
+    matches = re.findall(r'\b(?:section|sec|sect)\s+(\d+)\b', text, re.IGNORECASE)
     secs = []
     seen = set()
     for m in matches:
@@ -90,6 +90,42 @@ def extract_section_identifiers(text: str) -> List[str]:
             seen.add(m)
             secs.append(m)
     return secs
+
+def extract_crns(text: str) -> List[str]:
+    """Extract 5-digit CRNs like 'CRN 20158' or standalone 5-digit numbers."""
+    explicit = re.findall(r'\b(?:crn|crn#|#)\s*(\d{5})\b', text, re.IGNORECASE)
+    if explicit:
+        return sorted(list(dict.fromkeys(explicit)))
+    generic = re.findall(r'\b(\d{5})\b', text)
+    return sorted(list(dict.fromkeys(generic)))
+
+def extract_course_section_pairs(text: str) -> List[Dict[str, str]]:
+    """Extract bound pairs of course codes and section identifiers directly from phrasing."""
+    pairs: List[Dict[str, str]] = []
+    seen = set()
+
+    # Pattern 1: COURSE ... section/sec/sect SECT (e.g. 'COP 3530C section 001')
+    p1 = r'\b([a-zA-Z]{3}[\s-]*\d{4}[a-zA-Z]?)\b[\s,]*(?:section|sec|sect)?\s*([0-9]{1,4}[a-zA-Z]?)\b'
+    for m in re.finditer(p1, text, re.IGNORECASE):
+        c, s = m.groups()
+        if s and (s.isdigit() or len(s) <= 4):
+            c_norm = re.sub(r'[^A-Z0-9]', '', c.upper())
+            s_norm = s.upper()
+            if (c_norm, s_norm) not in seen:
+                seen.add((c_norm, s_norm))
+                pairs.append({"course": c_norm, "section": s_norm, "raw_course": c})
+
+    # Pattern 2: section/sec/sect SECT of/for COURSE (e.g. 'section 001 of COP 3530C')
+    p2 = r'\b(?:section|sec|sect)\s*([0-9]{1,4}[a-zA-Z]?)\s+(?:of|for|in)\s+([a-zA-Z]{3}[\s-]*\d{4}[a-zA-Z]?)\b'
+    for m in re.finditer(p2, text, re.IGNORECASE):
+        s, c = m.groups()
+        c_norm = re.sub(r'[^A-Z0-9]', '', c.upper())
+        s_norm = s.upper()
+        if (c_norm, s_norm) not in seen:
+            seen.add((c_norm, s_norm))
+            pairs.append({"course": c_norm, "section": s_norm, "raw_course": c})
+
+    return pairs
 
 def extract_schedule_constraints(text: str) -> dict:
     constraints = {
@@ -199,6 +235,8 @@ def extract_entities(message: str) -> dict:
     validation_errors = []
     course_codes = extract_course_codes(message)
     section_identifiers = extract_section_identifiers(message)
+    course_section_pairs = extract_course_section_pairs(message)
+    crns = extract_crns(message)
     schedule_constraints = extract_schedule_constraints(message)
     modality_preference = extract_modality(message, validation_errors)
     
@@ -206,20 +244,20 @@ def extract_entities(message: str) -> dict:
     
     course_count = len(course_codes)
     if intent in [COURSE_COMPATIBILITY, SCHEDULE_CONFLICT]:
-        if course_count < 2:
+        if course_count < 2 and len(crns) < 2:
             needs_clarification = True
             missing_fields.append("course_codes")
         else:
             needs_clarification = False
     elif intent in [ALTERNATIVE_SECTION, ONLINE_OVERRIDE]:
-        if course_count < 1:
+        if course_count < 1 and len(crns) < 1:
             needs_clarification = True
             missing_fields.append("course_codes")
         else:
             needs_clarification = False
 
     if intent == SCHEDULE_CONFLICT:
-        if course_count >= 2 and not section_identifiers and not schedule_constraints["meeting_time_ranges"]:
+        if course_count >= 2 and not section_identifiers and not schedule_constraints["meeting_time_ranges"] and len(crns) < 2:
             missing_fields.append("section_identifiers")
             needs_clarification = True
 
@@ -231,6 +269,8 @@ def extract_entities(message: str) -> dict:
         "reason": reason,
         "course_codes": course_codes,
         "section_identifiers": section_identifiers,
+        "course_section_pairs": course_section_pairs,
+        "crns": crns,
         "schedule_constraints": schedule_constraints,
         "modality_preference": modality_preference,
         "missing_fields": sorted(list(set(missing_fields))),
