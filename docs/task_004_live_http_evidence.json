@@ -1,0 +1,659 @@
+[
+  {
+    "case_id": "A",
+    "name": "Known overlapping pair",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+      "term": 202608,
+      "sections": [
+        "20158",
+        "17077"
+      ]
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "engine_executed",
+      "raw_message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "SCHEDULE_CONFLICT_FOUND",
+      "response_text": "Schedule conflict detected: COP 3530C section 001 and MAC 2312 section 006 overlap on T, R (12:30 PM - 01:50 PM vs 12:00 PM - 01:50 PM).",
+      "actionable_guidance": null,
+      "safe_to_route": true,
+      "missing_context": [],
+      "extracted_courses": [
+        "COP3530C",
+        "MAC2312"
+      ],
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "has_conflict": true,
+        "is_uncertain": false,
+        "shared_days": "T, R",
+        "conflict_summary": "Yes",
+        "note": null,
+        "schedule_status": "confirmed_conflict",
+        "section_1": {
+          "crn": "20158",
+          "course": "COP 3530C",
+          "section": "001",
+          "title": "Data Struc and Algrthm Anlys",
+          "days": "T  R",
+          "time": "12:30 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 17,
+          "instructor": "Nojoumian, Mehrdad",
+          "schedule_status": "SCHEDULED"
+        },
+        "section_2": {
+          "crn": "17077",
+          "course": "MAC 2312",
+          "section": "006",
+          "title": "Calculus-Analytic Geometry 2",
+          "days": "T  R",
+          "time": "12:00 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 3,
+          "instructor": "Persichetti, Edoardo",
+          "schedule_status": "SCHEDULED"
+        }
+      },
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "B",
+    "name": "Known non-overlapping pair",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Do COP 3530C section 001 and MAC 2312 section 002 overlap?",
+      "term": 202608,
+      "sections": [
+        "20158",
+        "15637"
+      ]
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "engine_executed",
+      "raw_message": "Do COP 3530C section 001 and MAC 2312 section 002 overlap?",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "NO_SCHEDULE_CONFLICT",
+      "response_text": "No schedule conflict found: COP 3530C section 001 (T  R 12:30 PM - 01:50 PM) and MAC 2312 section 002 (W  F 12:00 PM - 01:50 PM) do not overlap.",
+      "actionable_guidance": null,
+      "safe_to_route": true,
+      "missing_context": [],
+      "extracted_courses": [
+        "COP3530C",
+        "MAC2312"
+      ],
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "has_conflict": false,
+        "is_uncertain": false,
+        "shared_days": "",
+        "conflict_summary": "No",
+        "note": null,
+        "schedule_status": "confirmed_no_conflict",
+        "section_1": {
+          "crn": "20158",
+          "course": "COP 3530C",
+          "section": "001",
+          "title": "Data Struc and Algrthm Anlys",
+          "days": "T  R",
+          "time": "12:30 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 17,
+          "instructor": "Nojoumian, Mehrdad",
+          "schedule_status": "SCHEDULED"
+        },
+        "section_2": {
+          "crn": "15637",
+          "course": "MAC 2312",
+          "section": "002",
+          "title": "Calculus-Analytic Geometry 2",
+          "days": "W  F",
+          "time": "12:00 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 3,
+          "instructor": "Locke, Stephen",
+          "schedule_status": "SCHEDULED"
+        }
+      },
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "C",
+    "name": "More than two sections (excess rejection)",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Do COP 3530C section 001, MAC 2312 section 002, and MAC 2312 section 006 overlap?",
+      "term": 202608,
+      "sections": [
+        "20158",
+        "15637",
+        "17077"
+      ]
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "clarification",
+      "raw_message": "Do COP 3530C section 001, MAC 2312 section 002, and MAC 2312 section 006 overlap?",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "EXCESS_SECTIONS_DETECTED",
+      "response_text": "Schedule conflict checking currently supports comparing exactly two sections at a time. You provided 3 sections (20158, 15637, 17077). Please specify exactly two sections to check for conflicts.",
+      "actionable_guidance": "Narrow your request to exactly two sections.",
+      "safe_to_route": true,
+      "missing_context": [
+        "two_sections_only"
+      ],
+      "extracted_courses": [
+        "COP3530C",
+        "MAC2312"
+      ],
+      "engine_executed": false,
+      "engine_result": null,
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "D",
+    "name": "Contradictory message and structured context",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+      "term": 202608,
+      "sections": [
+        "20158",
+        "15637"
+      ]
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "clarification",
+      "raw_message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "CONTRADICTORY_SECTION_DETAILS",
+      "response_text": "Contradictory section information detected: Message references MAC2312 section 006, but structured input specifies section 002 (CRN 15637). Please clarify which section you want to evaluate.",
+      "actionable_guidance": "Resolve the mismatch between message text and structured section context.",
+      "safe_to_route": true,
+      "missing_context": [
+        "consistent_sections"
+      ],
+      "extracted_courses": [
+        "COP3530C",
+        "MAC2312"
+      ],
+      "engine_executed": false,
+      "engine_result": null,
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "E",
+    "name": "Unknown/TBA timing",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Do CNT 4403 section 001 and COP 3530C section 001 overlap?",
+      "term": 202608,
+      "sections": [
+        "18077",
+        "20158"
+      ]
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "engine_executed",
+      "raw_message": "Do CNT 4403 section 001 and COP 3530C section 001 overlap?",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "SCHEDULE_UNCERTAIN_TIMING",
+      "response_text": "Cannot verify schedule conflict: Meeting times are missing, TBA, or unverified for: CNT 4403 section 001. Without verified meeting times or confirmed asynchronous status, non-conflict cannot be guaranteed for CNT 4403 section 001 and COP 3530C section 001.",
+      "actionable_guidance": "Please consult the official course schedule or department for confirmed meeting times.",
+      "safe_to_route": true,
+      "missing_context": [],
+      "extracted_courses": [
+        "CNT4403",
+        "COP3530C"
+      ],
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "has_conflict": null,
+        "is_uncertain": true,
+        "shared_days": "",
+        "conflict_summary": "Unknown",
+        "reason": "Meeting times are missing, TBA, or unverified for: CNT 4403 section 001.",
+        "schedule_status": "unknown_timing",
+        "section_1": {
+          "crn": "18077",
+          "course": "CNT 4403",
+          "section": "001",
+          "title": "Foundations of Cybersecurity",
+          "days": "",
+          "time": "Unscheduled / Online",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 94,
+          "instructor": "TBA",
+          "schedule_status": "UNKNOWN_TIMING"
+        },
+        "section_2": {
+          "crn": "20158",
+          "course": "COP 3530C",
+          "section": "001",
+          "title": "Data Struc and Algrthm Anlys",
+          "days": "T  R",
+          "time": "12:30 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 17,
+          "instructor": "Nojoumian, Mehrdad",
+          "schedule_status": "SCHEDULED"
+        }
+      },
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "F",
+    "name": "Alternatives with explicit target and selected schedule",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Find another section of COP 3530C section 001",
+      "term": 202608,
+      "target_section": "20158",
+      "selected_sections": [
+        "15637"
+      ]
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "engine_executed",
+      "raw_message": "Find another section of COP 3530C section 001",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "ALTERNATIVE_SECTIONS_FOUND",
+      "response_text": "Found 1 non-conflicting alternative section(s) for COP 3530C (replacing Section 001): Section 012 (CRN 20789, F 02:00 PM - 03:50 PM, 8 seats open).",
+      "actionable_guidance": null,
+      "safe_to_route": true,
+      "missing_context": [],
+      "extracted_courses": [
+        "COP3530C"
+      ],
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "target_section": {
+          "crn": "20158",
+          "course": "COP 3530C",
+          "section": "001",
+          "title": "Data Struc and Algrthm Anlys",
+          "days": "T  R",
+          "time": "12:30 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 17,
+          "instructor": "Nojoumian, Mehrdad",
+          "schedule_status": "SCHEDULED"
+        },
+        "selected_schedule": [
+          {
+            "crn": "15637",
+            "course": "MAC 2312",
+            "section": "002",
+            "title": "Calculus-Analytic Geometry 2",
+            "days": "W  F",
+            "time": "12:00 PM - 01:50 PM",
+            "method": "In-Person",
+            "campus": "Boca Raton",
+            "term": 202608,
+            "seats_remaining": 3,
+            "instructor": "Locke, Stephen",
+            "schedule_status": "SCHEDULED"
+          }
+        ],
+        "count": 1,
+        "alternatives": [
+          {
+            "crn": "20789",
+            "course": "COP 3530C",
+            "section": "012",
+            "title": "Data Struc and Algrthm Anlys",
+            "days": "F",
+            "time": "02:00 PM - 03:50 PM",
+            "method": "In-Person",
+            "campus": "Boca Raton",
+            "term": 202608,
+            "seats_remaining": 8,
+            "instructor": "Nojoumian, Mehrdad",
+            "schedule_status": "SCHEDULED",
+            "timing_verified": true
+          }
+        ],
+        "selected_crns": [
+          "15637"
+        ],
+        "has_unknown_schedule": false,
+        "has_uncertain_alternatives": false,
+        "limitations": []
+      },
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "G",
+    "name": "Alternatives with missing (omitted) selected schedule",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Find another section of COP 3530C section 001",
+      "term": 202608,
+      "target_section": "20158"
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "clarification",
+      "raw_message": "Find another section of COP 3530C section 001",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "MISSING_SCHEDULE_CONTEXT",
+      "response_text": "To find non-conflicting alternative sections, please provide your current schedule or enrolled section CRNs in selected_sections (or provide an empty list if you have no other enrolled classes).",
+      "actionable_guidance": "Provide enrolled section CRNs in selected_sections context, or supply [] for an empty schedule.",
+      "safe_to_route": true,
+      "missing_context": [
+        "selected_sections"
+      ],
+      "extracted_courses": [
+        "COP3530C"
+      ],
+      "engine_executed": false,
+      "engine_result": null,
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "H",
+    "name": "Alternatives with explicitly empty selected schedule",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Find another section of COP 3530C section 001",
+      "term": 202608,
+      "target_section": "20158",
+      "selected_sections": []
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "engine_executed",
+      "raw_message": "Find another section of COP 3530C section 001",
+      "disposition": "route_core_engine",
+      "target_handler": "scheduling_engine",
+      "response_code": "ALTERNATIVE_SECTIONS_FOUND",
+      "response_text": "Found 2 non-conflicting alternative section(s) for COP 3530C (replacing Section 001): Section 011 (CRN 20788, F 12:00 PM - 01:50 PM, 9 seats open); Section 012 (CRN 20789, F 02:00 PM - 03:50 PM, 8 seats open).",
+      "actionable_guidance": null,
+      "safe_to_route": true,
+      "missing_context": [],
+      "extracted_courses": [
+        "COP3530C"
+      ],
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "target_section": {
+          "crn": "20158",
+          "course": "COP 3530C",
+          "section": "001",
+          "title": "Data Struc and Algrthm Anlys",
+          "days": "T  R",
+          "time": "12:30 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 17,
+          "instructor": "Nojoumian, Mehrdad",
+          "schedule_status": "SCHEDULED"
+        },
+        "selected_schedule": [],
+        "count": 2,
+        "alternatives": [
+          {
+            "crn": "20788",
+            "course": "COP 3530C",
+            "section": "011",
+            "title": "Data Struc and Algrthm Anlys",
+            "days": "F",
+            "time": "12:00 PM - 01:50 PM",
+            "method": "In-Person",
+            "campus": "Boca Raton",
+            "term": 202608,
+            "seats_remaining": 9,
+            "instructor": "Nojoumian, Mehrdad",
+            "schedule_status": "SCHEDULED",
+            "timing_verified": true
+          },
+          {
+            "crn": "20789",
+            "course": "COP 3530C",
+            "section": "012",
+            "title": "Data Struc and Algrthm Anlys",
+            "days": "F",
+            "time": "02:00 PM - 03:50 PM",
+            "method": "In-Person",
+            "campus": "Boca Raton",
+            "term": 202608,
+            "seats_remaining": 8,
+            "instructor": "Nojoumian, Mehrdad",
+            "schedule_status": "SCHEDULED",
+            "timing_verified": true
+          }
+        ],
+        "selected_crns": [],
+        "has_unknown_schedule": false,
+        "has_uncertain_alternatives": false,
+        "limitations": []
+      },
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "I_conversation",
+    "name": "Compatibility with complete synthetic workload context via /conversation",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Can I take COP 4331 and MAP 3305 together?",
+      "student_id": "Z24567901",
+      "recent_difficulty": 1,
+      "satisfied_with_performance": "yes",
+      "work_hours": 5.0,
+      "preferred_max_credits": 15.0
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "engine_executed",
+      "raw_message": "Can I take COP 4331 and MAP 3305 together?",
+      "disposition": "route_core_engine",
+      "target_handler": "course_compatibility_engine",
+      "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+      "response_text": "Workload compatibility evaluation completed for COP4331, MAP3305. Semester assessment: Potentially manageable based on the information provided.",
+      "actionable_guidance": null,
+      "safe_to_route": true,
+      "missing_context": [],
+      "extracted_courses": [
+        "COP4331",
+        "MAP3305"
+      ],
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "student_id": "Z24567901",
+        "student_name": "Evie Woods",
+        "major": "Electrical Engineering",
+        "proposed_courses": [
+          "COP4331",
+          "MAP3305"
+        ],
+        "proposed_credits": 6.0,
+        "recent_credits": null,
+        "assessment": "Potentially manageable based on the information provided",
+        "matched_course_combinations": [],
+        "completed_courses": [
+          "ENC1101",
+          "ENC1102",
+          "CDA3203",
+          "CHM2045",
+          "EGN1002",
+          "MAC1105",
+          "CDA4102",
+          "CAP4773",
+          "MAP3305",
+          "EEL3111",
+          "EEL3502"
+        ],
+        "previously_completed_courses": [
+          "MAP3305"
+        ],
+        "repeat_course_warning": "These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional.",
+        "recommendations": [
+          "Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully.",
+          "Factors supporting the schedule: The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload."
+        ],
+        "data_warnings": [],
+        "disclaimer": "This is preliminary academic planning guidance, not an official advising or registration decision."
+      },
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "I_direct",
+    "name": "Compatibility with complete synthetic workload context via /compatibility",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/compatibility",
+    "request_json": {
+      "student_id": "Z24567901",
+      "proposed_courses": [
+        "COP 4331",
+        "MAP 3305"
+      ],
+      "recent_difficulty": 1,
+      "satisfied_with_performance": "yes",
+      "work_hours": 5.0,
+      "preferred_max_credits": 15.0
+    },
+    "http_status": 200,
+    "response_json": {
+      "success": true,
+      "student_id": "Z24567901",
+      "student_name": "Evie Woods",
+      "major": "Electrical Engineering",
+      "proposed_courses": [
+        "COP4331",
+        "MAP3305"
+      ],
+      "proposed_credits": 6.0,
+      "recent_credits": null,
+      "assessment": "Potentially manageable based on the information provided",
+      "matched_course_combinations": [],
+      "completed_courses": [
+        "ENC1101",
+        "ENC1102",
+        "CDA3203",
+        "CHM2045",
+        "EGN1002",
+        "MAC1105",
+        "CDA4102",
+        "CAP4773",
+        "MAP3305",
+        "EEL3111",
+        "EEL3502"
+      ],
+      "previously_completed_courses": [
+        "MAP3305"
+      ],
+      "repeat_course_warning": "These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional.",
+      "recommendations": [
+        "Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully.",
+        "Factors supporting the schedule: The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload."
+      ],
+      "data_warnings": [],
+      "disclaimer": "This is preliminary academic planning guidance, not an official advising or registration decision."
+    }
+  },
+  {
+    "case_id": "J",
+    "name": "Advisor escalation",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "Can you give me a prerequisite override for COP 3530C?"
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "escalation",
+      "raw_message": "Can you give me a prerequisite override for COP 3530C?",
+      "disposition": "advisor_escalation",
+      "target_handler": "academic_advisor",
+      "response_code": "ADVISOR_ESCALATION_REQUIRED",
+      "response_text": "An academic advisor or authorized university office must make the official decision or action regarding your request.",
+      "actionable_guidance": "Official advising actions (overrides, registration, graduation) require consulting with an authorized academic advisor.",
+      "safe_to_route": false,
+      "missing_context": [],
+      "extracted_courses": [
+        "COP3530C"
+      ],
+      "engine_executed": false,
+      "engine_result": null,
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  },
+  {
+    "case_id": "K",
+    "name": "Known informational prompt expected to reach inactive-RAG boundary",
+    "tool": "curl.exe",
+    "url": "http://127.0.0.1:8008/conversation",
+    "request_json": {
+      "message": "What does the policy say about dropping a course?"
+    },
+    "http_status": 200,
+    "response_json": {
+      "status": "rag_inactive",
+      "raw_message": "What does the policy say about dropping a course?",
+      "disposition": "future_rag_candidate",
+      "target_handler": "future_informational_rag",
+      "response_code": "FUTURE_RAG_NOT_AVAILABLE",
+      "response_text": "Source-grounded informational lookup is not enabled in the current prototype. Please check the official catalog or speak with an advisor.",
+      "actionable_guidance": "Informational RAG retrieval is planned for a future milestone and is not active in this prototype.",
+      "safe_to_route": false,
+      "missing_context": [],
+      "extracted_courses": [],
+      "engine_executed": false,
+      "engine_result": null,
+      "disclaimer": "SmartAdvisor conversational layer is a rule-based decision-support prototype. It does not approve overrides or register courses."
+    }
+  }
+]
