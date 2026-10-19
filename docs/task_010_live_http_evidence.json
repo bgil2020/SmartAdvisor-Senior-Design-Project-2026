@@ -1,0 +1,290 @@
+{
+  "metadata": {
+    "task_id": "TASK-010",
+    "timestamp": "2026-10-19T02:02:19Z",
+    "artifact_type": "structured execution summary",
+    "python_executable": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026\\.venv\\Scripts\\python.exe",
+    "is_virtual_environment": true,
+    "key_present": true,
+    "configured_model": "gemini-3.8-flash",
+    "provider_status": "402 RESOURCE_EXHAUSTED (observed from Google GenAI provider)",
+    "verification_status": "Live Gemini verification remains pending.",
+    "notes": "Contains response_text_snippet and selected response fields rather than raw HTTP stream. HTTP 200 represents application response status, not provider success. model_id identifies the configured/attempted model, not proof that the model returned a successful parsing result. provider_called=true records that the running server reached the hybrid branch attempting a provider call prior to catching the provider error."
+  },
+  "deterministic_mode_runs": [
+    {
+      "case_id": "DET-01",
+      "description": "Deterministic Compatibility Check",
+      "request_payload": {
+        "message": "Can I take COP 4331 and MAP 3305 together?",
+        "student_id": "Z24567901",
+        "recent_difficulty": 1,
+        "satisfied_with_performance": "yes",
+        "work_hours": 5.0,
+        "preferred_max_credits": 15.0,
+        "recent_courses": [
+          "CDA4240C",
+          "CDA4102",
+          "MAC2313"
+        ]
+      },
+      "status_code": 200,
+      "latency_ms": 102.81,
+      "parser_source": "deterministic",
+      "fallback_used": false,
+      "model_id": null,
+      "target_handler": "course_compatibility_engine",
+      "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+      "engine_executed": true,
+      "status": "engine_executed",
+      "response_text_snippet": "Workload compatibility evaluation completed for COP4331, MAP3305. Semester assessment: Potentially manageable based on t",
+      "provider_called": false
+    },
+    {
+      "case_id": "DET-02",
+      "description": "Deterministic Schedule Conflict Check (with bound sections)",
+      "request_payload": {
+        "message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+        "term": 202608
+      },
+      "status_code": 200,
+      "latency_ms": 122.74,
+      "parser_source": "deterministic",
+      "fallback_used": false,
+      "model_id": null,
+      "target_handler": "scheduling_engine",
+      "response_code": "SCHEDULE_CONFLICT_FOUND",
+      "engine_executed": true,
+      "status": "engine_executed",
+      "response_text_snippet": "Schedule conflict detected: COP 3530C section 001 and MAC 2312 section 006 overlap on T, R (12:30 PM - 01:50 PM vs 12:00",
+      "provider_called": false
+    }
+  ],
+  "hybrid_mode_runs": [
+    {
+      "case_id": "HYB-01",
+      "description": "Compatibility paraphrase with explicit synthetic workload context (Provider call attempted)",
+      "request_payload": {
+        "message": "Would enrolling in both COP 4331 and MAP 3305 exhaust my weekly capacity?",
+        "student_id": "Z24567901",
+        "recent_difficulty": 1,
+        "satisfied_with_performance": "yes",
+        "work_hours": 5.0,
+        "preferred_max_credits": 15.0,
+        "recent_courses": [
+          "CDA4240C",
+          "CDA4102",
+          "MAC2313"
+        ]
+      },
+      "status_code": 200,
+      "latency_ms": 988.78,
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider rate limit or quota exceeded",
+      "model_id": "gemini-3.8-flash",
+      "target_handler": "none",
+      "response_code": "AMBIGUOUS_REQUEST",
+      "engine_executed": false,
+      "engine_result": null,
+      "status": "clarification",
+      "safe_to_route": false,
+      "disposition": "clarify",
+      "response_text_snippet": "Please choose one goal: compare course workload, check schedule/sections, or screen an online override.",
+      "provider_called": true
+    },
+    {
+      "case_id": "HYB-02",
+      "description": "Compatibility check: actual provider error (402 RESOURCE_EXHAUSTED) followed by valid deterministic engine result",
+      "request_payload": {
+        "message": "Can I take COP 4331 and MAP 3305 together?",
+        "student_id": "Z24567901",
+        "recent_difficulty": 1,
+        "satisfied_with_performance": "yes",
+        "work_hours": 5.0,
+        "preferred_max_credits": 15.0,
+        "recent_courses": [
+          "CDA4240C",
+          "CDA4102",
+          "MAC2313"
+        ]
+      },
+      "status_code": 200,
+      "latency_ms": 703.29,
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider rate limit or quota exceeded",
+      "model_id": "gemini-3.8-flash",
+      "target_handler": "course_compatibility_engine",
+      "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "student_id": "Z24567901",
+        "student_name": "Evie Woods",
+        "major": "Electrical Engineering",
+        "proposed_courses": [
+          "COP4331",
+          "MAP3305"
+        ],
+        "proposed_credits": 6.0,
+        "recent_credits": 10.0,
+        "assessment": "Potentially manageable based on the information provided",
+        "matched_course_combinations": [],
+        "completed_courses": [
+          "ENC1101",
+          "ENC1102",
+          "CDA3203",
+          "CHM2045",
+          "EGN1002",
+          "MAC1105",
+          "CDA4102",
+          "CAP4773",
+          "MAP3305",
+          "EEL3111",
+          "EEL3502"
+        ],
+        "previously_completed_courses": [
+          "MAP3305"
+        ],
+        "repeat_course_warning": "These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional.",
+        "recommendations": [
+          "Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully.",
+          "Factors supporting the schedule: The proposed schedule is 4 credits lower than the student's recent 10-credit semester. The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload."
+        ],
+        "data_warnings": [],
+        "disclaimer": "This is preliminary academic planning guidance, not an official advising or registration decision."
+      },
+      "status": "engine_executed",
+      "safe_to_route": true,
+      "disposition": "route_core_engine",
+      "response_text_snippet": "Workload compatibility evaluation completed for COP4331, MAP3305. Semester assessment: Potentially manageable based on t",
+      "provider_called": true
+    },
+    {
+      "case_id": "HYB-03",
+      "description": "Scheduling conflict check: actual provider error (402 RESOURCE_EXHAUSTED) followed by valid deterministic engine result",
+      "request_payload": {
+        "message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+        "term": 202608
+      },
+      "status_code": 200,
+      "latency_ms": 871.51,
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider rate limit or quota exceeded",
+      "model_id": "gemini-3.8-flash",
+      "target_handler": "scheduling_engine",
+      "response_code": "SCHEDULE_CONFLICT_FOUND",
+      "engine_executed": true,
+      "engine_result": {
+        "success": true,
+        "has_conflict": true,
+        "is_uncertain": false,
+        "shared_days": "T, R",
+        "conflict_summary": "Yes",
+        "note": null,
+        "schedule_status": "confirmed_conflict",
+        "section_1": {
+          "crn": "20158",
+          "course": "COP 3530C",
+          "section": "001",
+          "title": "Data Struc and Algrthm Anlys",
+          "days": "T  R",
+          "time": "12:30 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 17,
+          "instructor": "Nojoumian, Mehrdad",
+          "schedule_status": "SCHEDULED"
+        },
+        "section_2": {
+          "crn": "17077",
+          "course": "MAC 2312",
+          "section": "006",
+          "title": "Calculus-Analytic Geometry 2",
+          "days": "T  R",
+          "time": "12:00 PM - 01:50 PM",
+          "method": "In-Person",
+          "campus": "Boca Raton",
+          "term": 202608,
+          "seats_remaining": 3,
+          "instructor": "Persichetti, Edoardo",
+          "schedule_status": "SCHEDULED"
+        }
+      },
+      "status": "engine_executed",
+      "safe_to_route": true,
+      "disposition": "route_core_engine",
+      "response_text_snippet": "Schedule conflict detected: COP 3530C section 001 and MAC 2312 section 006 overlap on T, R (12:30 PM - 01:50 PM vs 12:00",
+      "provider_called": true
+    },
+    {
+      "case_id": "HYB-04",
+      "description": "Missing-information clarification: provider failure followed by clarification response",
+      "request_payload": {
+        "message": "Can I take COP 3530?"
+      },
+      "status_code": 200,
+      "latency_ms": 716.13,
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider rate limit or quota exceeded",
+      "model_id": "gemini-3.8-flash",
+      "target_handler": "none",
+      "response_code": "AMBIGUOUS_REQUEST",
+      "engine_executed": false,
+      "engine_result": null,
+      "status": "clarification",
+      "safe_to_route": false,
+      "disposition": "clarify",
+      "response_text_snippet": "Please choose one goal: compare course workload, check schedule/sections, or screen an online override.",
+      "provider_called": true
+    },
+    {
+      "case_id": "HYB-05",
+      "description": "Safety gate boundary case: Advisor Escalation for Override (Deterministic safety gate)",
+      "request_payload": {
+        "message": "Please approve an official prerequisite override for COP 3530 so I can graduate."
+      },
+      "status_code": 200,
+      "latency_ms": 628.07,
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider rate limit or quota exceeded",
+      "model_id": "gemini-3.8-flash",
+      "target_handler": "academic_advisor",
+      "response_code": "ADVISOR_ESCALATION_REQUIRED",
+      "engine_executed": false,
+      "engine_result": null,
+      "status": "escalation",
+      "safe_to_route": false,
+      "disposition": "advisor_escalation",
+      "response_text_snippet": "An academic advisor or authorized university office must make the official decision or action regarding your request.",
+      "provider_called": true
+    },
+    {
+      "case_id": "HYB-06",
+      "description": "Safety / Informational candidate boundary case (inactive RAG prototype candidate)",
+      "request_payload": {
+        "message": "What does the university catalog policy say about course withdrawal prerequisites?"
+      },
+      "status_code": 200,
+      "latency_ms": 649.77,
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider rate limit or quota exceeded",
+      "model_id": "gemini-3.8-flash",
+      "target_handler": "future_informational_rag",
+      "response_code": "FUTURE_RAG_NOT_AVAILABLE",
+      "engine_executed": false,
+      "engine_result": null,
+      "status": "rag_inactive",
+      "safe_to_route": false,
+      "disposition": "future_rag_candidate",
+      "response_text_snippet": "Source-grounded informational lookup is not enabled in the current prototype. Please check the official catalog or speak",
+      "provider_called": true
+    }
+  ]
+}
