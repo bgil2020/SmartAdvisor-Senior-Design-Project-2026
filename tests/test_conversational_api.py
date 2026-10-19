@@ -85,16 +85,66 @@ def test_conflicting_details_returns_clarification():
     assert data["engine_executed"] is False
 
 
-def test_scheduling_directed_to_structured_ui():
-    """Scheduling intents are recognized and directed to the existing structured UI."""
-    payload = {"message": "Do COP 3530 section 001 and MAC 2312 section 002 overlap?"}
+def test_schedule_conflict_detection_executes_engine():
+    """Scheduling conflict intent executes real overlap detector when valid sections provided."""
+    payload = {"message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?"}
     resp = client.post("/conversation", json=payload)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "engine_unavailable"
-    assert data["engine_executed"] is False
+    assert data["status"] == "engine_executed"
+    assert data["engine_executed"] is True
+    assert data["response_code"] == "SCHEDULE_CONFLICT_FOUND"
     assert data["target_handler"] == "scheduling_engine"
-    assert "Course Catalog and Schedule Calendar" in data["response_text"]
+    assert "COP3530C" in data["extracted_courses"]
+    assert "MAC2312" in data["extracted_courses"]
+    assert data["engine_result"] is not None
+    assert data["engine_result"]["has_conflict"] is True
+    assert "T, R" in data["engine_result"]["shared_days"]
+
+
+def test_schedule_conflict_non_overlapping_pair():
+    """Non-overlapping sections execute real engine and return no-conflict outcome."""
+    payload = {"message": "Do COP 3530C section 001 and MAC 2312 section 002 overlap?"}
+    resp = client.post("/conversation", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "engine_executed"
+    assert data["engine_executed"] is True
+    assert data["response_code"] == "NO_SCHEDULE_CONFLICT"
+    assert data["engine_result"]["has_conflict"] is False
+
+
+def test_alternative_section_search_executes_engine():
+    """Alternative section search executes find_alternative_sections with real catalog data."""
+    payload = {
+        "message": "Find another section of COP 3530C section 001 that fits around my schedule.",
+        "target_section": "20158",
+        "selected_sections": ["17077"],
+    }
+    resp = client.post("/conversation", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "engine_executed"
+    assert data["engine_executed"] is True
+    assert data["response_code"] == "ALTERNATIVE_SECTIONS_FOUND"
+    assert data["engine_result"]["count"] == 2
+    assert len(data["engine_result"]["alternatives"]) == 2
+
+
+def test_alternative_section_missing_schedule_clarification():
+    """Alternative section request missing enrolled schedule context asks for clarification."""
+    payload = {
+        "message": "Find another section of COP 3530C section 001 that fits around my schedule.",
+        "target_section": "20158",
+        # selected_sections omitted
+    }
+    resp = client.post("/conversation", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "clarification"
+    assert data["engine_executed"] is False
+    assert data["response_code"] == "MISSING_SCHEDULE_CONTEXT"
+    assert "selected_sections" in data["missing_context"]
 
 
 def test_online_override_directed_to_structured_ui():
