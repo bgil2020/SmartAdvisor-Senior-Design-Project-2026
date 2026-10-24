@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Query
+
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from pathlib import Path
@@ -6,12 +7,60 @@ from pathlib import Path
 from .alternative_section_search import find_alternative_sections
 from .compatibility_router import router as compatibility_router
 from .conversational_router import router as conversational_router
+from .logging_config import get_api_logger
 
 app = FastAPI(
     title="SmartAdvisor API",
     description="Backend API for retrieving FAU course and section data.",
     version="1.0.0",
 )
+
+api_logger = get_api_logger()
+
+
+@app.middleware("http")
+async def log_api_requests(request: Request, call_next):
+    route_path = "unmatched_route"
+
+    try:
+        response = await call_next(request)
+        route = request.scope.get("route")
+        route_path = getattr(route, "path", "unmatched_route")
+        status_code = response.status_code
+
+        if status_code >= 500:
+            error_category = "SERVER_ERROR"
+        elif status_code >= 400:
+            error_category = "CLIENT_ERROR"
+        else:
+            error_category = None
+
+        api_logger.info(
+            "API request completed",
+            extra={
+                "event": "api_request",
+                "method": request.method,
+                "endpoint": route_path,
+                "status_code": status_code,
+                "error_category": error_category,
+            },
+        )
+
+        return response
+
+    except Exception:
+        api_logger.error(
+            "API request failed",
+            extra={
+                "event": "api_error",
+                "method": request.method,
+                "endpoint": route_path,
+                "status_code": 500,
+                "error_category": "UNHANDLED_EXCEPTION",
+            },
+        )
+        raise
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,8 +69,10 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
 app.include_router(compatibility_router)
 app.include_router(conversational_router)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
@@ -367,7 +418,7 @@ def get_sections(
 
 @app.get("/alternatives")
 def get_alternatives(
-    crn: str = Query(...),
+    crn: str = Query(..., pattern=r"^[0-9]+$"),
     selected_crns: str | None = Query(default=None),
 ):
     selected = []
