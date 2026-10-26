@@ -4,6 +4,8 @@ Audits conversational routing, entity extraction, context validation,
 and engine execution across all required test cases (A through J).
 Preserves existing tests untouched.
 """
+import logging
+
 import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -497,7 +499,7 @@ def test_case_i_unknown_course_and_invalid_profile():
     assert "profile not found" in d2["engine_result"]["error"]
 
 
-def test_case_j_engine_exception_handling():
+def test_case_j_engine_exception_handling(caplog):
     """Case J: Engine runtime exception is caught, returns engine_error with engine_executed=True."""
     payload = {
         "message": "Can I take COP 4331 and MAP 3305 together?",
@@ -507,11 +509,14 @@ def test_case_j_engine_exception_handling():
         "work_hours": 5.0,
     }
 
-    def failing_engine(*args, **kwargs):
-        raise RuntimeError("Simulated internal engine database failure")
+    private_detail = "database failure at https://user:secret@example.invalid/private"
 
-    with patch.object(conv_router, "evaluate_compatibility", side_effect=failing_engine):
-        resp = client.post("/conversation", json=payload)
+    def failing_engine(*args, **kwargs):
+        raise RuntimeError(private_detail)
+
+    with caplog.at_level(logging.ERROR, logger=conv_router.__name__):
+        with patch.object(conv_router, "evaluate_compatibility", side_effect=failing_engine):
+            resp = client.post("/conversation", json=payload)
 
     assert resp.status_code == 200
     d = resp.json()
@@ -519,5 +524,8 @@ def test_case_j_engine_exception_handling():
     assert d["response_code"] == "ENGINE_EXECUTION_ERROR"
     # Contract observation: engine_executed is True even when exception raised!
     assert d["engine_executed"] is True
-    assert "Simulated internal engine database failure" in d["response_text"]
-    assert d["engine_result"] == {"error": "Simulated internal engine database failure"}
+    assert private_detail not in resp.text
+    assert private_detail not in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "could not be completed" in d["response_text"]
+    assert d["engine_result"] == {"error": "Internal compatibility engine error"}

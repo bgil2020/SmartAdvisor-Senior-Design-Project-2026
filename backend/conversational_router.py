@@ -23,6 +23,12 @@ try:
         ALTERNATIVE_SECTION,
     )
     from backend.app.conversational.hybrid_parser import parse_query
+    from backend.app.conversational.explanation_contract import (
+        BaseExplanationProvider,
+        DEFAULT_EXPLANATION_DISCLAIMER,
+        EXPLANATION_CONTRACT_VERSION,
+        render_explanation,
+    )
 except ImportError:
     from app.conversational.response_policy import (
         build_conversation_response,
@@ -40,6 +46,12 @@ except ImportError:
         ALTERNATIVE_SECTION,
     )
     from app.conversational.hybrid_parser import parse_query
+    from app.conversational.explanation_contract import (
+        BaseExplanationProvider,
+        DEFAULT_EXPLANATION_DISCLAIMER,
+        EXPLANATION_CONTRACT_VERSION,
+        render_explanation,
+    )
 
 from .compatibility_engine import evaluate_compatibility
 from .scheduling_service import (
@@ -51,6 +63,10 @@ from .scheduling_service import (
 )
 
 router = APIRouter(tags=["Conversational Assistant"])
+
+# Deterministic rendering is the production default. Tests may replace this
+# seam with fake providers; no live explanation provider is enabled.
+_explanation_provider: BaseExplanationProvider | None = None
 
 
 class ConversationRequest(BaseModel):
@@ -96,15 +112,18 @@ class ConversationResponse(BaseModel):
     extracted_courses: list[str] = Field(default_factory=list)
     engine_executed: bool = False
     engine_result: dict | None = None
-    disclaimer: str = (
-        "SmartAdvisor conversational layer is a rule-based decision-support prototype. "
-        "It does not approve overrides or register courses."
-    )
+    disclaimer: str = DEFAULT_EXPLANATION_DISCLAIMER
     # Observability metadata
     parser_source: Literal["deterministic", "llm", "fallback"] = "deterministic"
     fallback_used: bool = False
     fallback_reason: str | None = None
     model_id: str | None = None
+    explanation_source: Literal["deterministic", "provider_structured", "fallback"] = "deterministic"
+    explanation_fallback_used: bool = False
+    explanation_fallback_reason: str | None = None
+    explanation_contract_version: str = EXPLANATION_CONTRACT_VERSION
+    evidence_references: list[str] = Field(default_factory=list)
+    explanation_limitations: list[str] = Field(default_factory=list)
 
 
 @router.post("/conversation", response_model=ConversationResponse)
@@ -140,6 +159,23 @@ def handle_conversation(req: ConversationRequest):
         kwargs.setdefault("fallback_used", fallback_used)
         kwargs.setdefault("fallback_reason", fallback_reason)
         kwargs.setdefault("model_id", model_id)
+        explanation = render_explanation(
+            response_code=kwargs.get("response_code", "UNKNOWN"),
+            target_handler=kwargs.get("target_handler", "none"),
+            current_text=kwargs.get("response_text", ""),
+            engine_result=kwargs.get("engine_result"),
+            extracted_courses=kwargs.get("extracted_courses", []),
+            missing_context=kwargs.get("missing_context", []),
+            provider=_explanation_provider,
+        )
+        kwargs["response_text"] = explanation.response_text
+        kwargs["disclaimer"] = explanation.disclaimer
+        kwargs["explanation_source"] = explanation.explanation_source
+        kwargs["explanation_fallback_used"] = explanation.explanation_fallback_used
+        kwargs["explanation_fallback_reason"] = explanation.explanation_fallback_reason
+        kwargs["explanation_contract_version"] = explanation.contract_version
+        kwargs["evidence_references"] = explanation.evidence_references
+        kwargs["explanation_limitations"] = explanation.limitations
         return ConversationResponse(**kwargs)
 
     # 1. Escalation to advisor
@@ -261,17 +297,21 @@ def handle_conversation(req: ConversationRequest):
                     recent_courses=req.recent_courses,
                 )
             except Exception as exc:
+                logger.error(
+                    "Compatibility evaluation failed with exception type %s.",
+                    type(exc).__name__,
+                )
                 return _build_response(
                     status="engine_error",
                     raw_message=message,
                     disposition=disposition,
                     target_handler=target_handler,
                     response_code="ENGINE_EXECUTION_ERROR",
-                    response_text=f"Compatibility engine encountered an error: {exc}",
+                    response_text="Compatibility engine encountered an internal error.",
                     safe_to_route=True,
                     extracted_courses=extracted_courses,
                     engine_executed=True,
-                    engine_result={"error": str(exc)},
+                    engine_result={"error": "Internal compatibility engine error"},
                 )
 
             if not engine_output.get("success"):
@@ -495,7 +535,10 @@ def handle_conversation(req: ConversationRequest):
                         term=req.term,
                     )
                 except Exception as exc:
-                    logger.exception("Conflict evaluation encountered an unexpected error: %s", exc)
+                    logger.error(
+                        "Conflict evaluation failed with exception type %s.",
+                        type(exc).__name__,
+                    )
                     return _build_response(
                         status="engine_error",
                         raw_message=message,
@@ -711,7 +754,10 @@ def handle_conversation(req: ConversationRequest):
                         max_results=3,
                     )
                 except Exception as exc:
-                    logger.exception("Alternative section search encountered an unexpected error: %s", exc)
+                    logger.error(
+                        "Alternative section search failed with exception type %s.",
+                        type(exc).__name__,
+                    )
                     return _build_response(
                         status="engine_error",
                         raw_message=message,
