@@ -22,6 +22,7 @@ try:
         SCHEDULE_CONFLICT,
         ALTERNATIVE_SECTION,
     )
+    from backend.app.conversational.hybrid_parser import parse_query
 except ImportError:
     from app.conversational.response_policy import (
         build_conversation_response,
@@ -38,6 +39,7 @@ except ImportError:
         SCHEDULE_CONFLICT,
         ALTERNATIVE_SECTION,
     )
+    from app.conversational.hybrid_parser import parse_query
 
 from .compatibility_engine import evaluate_compatibility
 from .scheduling_service import (
@@ -98,20 +100,29 @@ class ConversationResponse(BaseModel):
         "SmartAdvisor conversational layer is a rule-based decision-support prototype. "
         "It does not approve overrides or register courses."
     )
+    # Observability metadata
+    parser_source: Literal["deterministic", "llm", "fallback"] = "deterministic"
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+    model_id: str | None = None
 
 
 @router.post("/conversation", response_model=ConversationResponse)
 def handle_conversation(req: ConversationRequest):
     """
-    Evaluates student prompt using deterministic intent classifier and response policy.
-    When intent is course compatibility and full student/workload context is supplied,
-    executes the authoritative compatibility engine directly.
+    Evaluates student prompt using conversational parser (deterministic or hybrid Gemini)
+    and deterministic response policy.
+    When intent is course compatibility or scheduling and full context is supplied,
+    executes the authoritative core engines directly.
     """
     message = req.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-    policy_resp = build_conversation_response(message)
+    # Execute parser (hybrid with automatic fallback, or deterministic)
+    parsed_result = parse_query(message, context=req.model_dump())
+    policy_resp = build_conversation_response(message, parsed_result=parsed_result)
+
     disposition = policy_resp.get("disposition")
     target_handler = policy_resp.get("target_handler")
     response_code = policy_resp.get("response_code", "UNKNOWN")
@@ -119,9 +130,21 @@ def handle_conversation(req: ConversationRequest):
     entities = policy_resp.get("entities", {})
     extracted_courses = entities.get("course_codes", [])
 
+    parser_source = entities.get("parser_source", "deterministic")
+    fallback_used = entities.get("fallback_used", False)
+    fallback_reason = entities.get("fallback_reason")
+    model_id = entities.get("model_id")
+
+    def _build_response(**kwargs) -> ConversationResponse:
+        kwargs.setdefault("parser_source", parser_source)
+        kwargs.setdefault("fallback_used", fallback_used)
+        kwargs.setdefault("fallback_reason", fallback_reason)
+        kwargs.setdefault("model_id", model_id)
+        return ConversationResponse(**kwargs)
+
     # 1. Escalation to advisor
     if disposition == DISPOSITION_ESCALATION:
-        return ConversationResponse(
+        return _build_response(
             status="escalation",
             raw_message=message,
             disposition=disposition,
@@ -136,7 +159,7 @@ def handle_conversation(req: ConversationRequest):
 
     # 2. Informational RAG queries (Inactive prototype candidate)
     if disposition == DISPOSITION_RAG:
-        return ConversationResponse(
+        return _build_response(
             status="rag_inactive",
             raw_message=message,
             disposition=disposition,
@@ -161,7 +184,7 @@ def handle_conversation(req: ConversationRequest):
 
     # Clarification requested by response policy
     if disposition == DISPOSITION_CLARIFY:
-        return ConversationResponse(
+        return _build_response(
             status="clarification",
             raw_message=message,
             disposition=disposition,
@@ -176,7 +199,7 @@ def handle_conversation(req: ConversationRequest):
 
     # 4. Unsupported queries
     if disposition == DISPOSITION_UNSUPPORTED:
-        return ConversationResponse(
+        return _build_response(
             status="unsupported",
             raw_message=message,
             disposition=disposition,
@@ -206,7 +229,7 @@ def handle_conversation(req: ConversationRequest):
 
             if missing_context:
                 missing_str = ", ".join(missing_context)
-                return ConversationResponse(
+                return _build_response(
                     status="clarification",
                     raw_message=message,
                     disposition=disposition,
@@ -238,7 +261,7 @@ def handle_conversation(req: ConversationRequest):
                     recent_courses=req.recent_courses,
                 )
             except Exception as exc:
-                return ConversationResponse(
+                return _build_response(
                     status="engine_error",
                     raw_message=message,
                     disposition=disposition,
@@ -252,7 +275,7 @@ def handle_conversation(req: ConversationRequest):
                 )
 
             if not engine_output.get("success"):
-                return ConversationResponse(
+                return _build_response(
                     status="engine_error",
                     raw_message=message,
                     disposition=disposition,
@@ -266,7 +289,7 @@ def handle_conversation(req: ConversationRequest):
                 )
 
             assessment_summary = engine_output.get("assessment", "Assessment complete")
-            return ConversationResponse(
+            return _build_response(
                 status="engine_executed",
                 raw_message=message,
                 disposition=disposition,
@@ -308,7 +331,7 @@ def handle_conversation(req: ConversationRequest):
             if intent == SCHEDULE_CONFLICT:
                 # 1. Prevent silent truncation: Reject or clarify requests containing >2 section references
                 if req.sections and len(req.sections) > 2:
-                    return ConversationResponse(
+                    return _build_response(
                         status="clarification",
                         raw_message=message,
                         disposition=disposition,
@@ -328,7 +351,7 @@ def handle_conversation(req: ConversationRequest):
 
                 if (not req.sections or len(req.sections) <= 2) and (len(msg_pairs) > 2 or len(msg_crns) > 2):
                     count = max(len(msg_pairs), len(msg_crns))
-                    return ConversationResponse(
+                    return _build_response(
                         status="clarification",
                         raw_message=message,
                         disposition=disposition,
@@ -365,7 +388,7 @@ def handle_conversation(req: ConversationRequest):
                         if msg_crns:
                             contradictory_crns = [c for c in msg_crns if c not in s_crns]
                             if contradictory_crns:
-                                return ConversationResponse(
+                                return _build_response(
                                     status="clarification",
                                     raw_message=message,
                                     disposition=disposition,
@@ -392,7 +415,7 @@ def handle_conversation(req: ConversationRequest):
                                 if matched:
                                     struct_sec = str(matched[0]["SECT"]).strip().upper().lstrip("0")
                                     if p_sec != struct_sec:
-                                        return ConversationResponse(
+                                        return _build_response(
                                             status="clarification",
                                             raw_message=message,
                                             disposition=disposition,
@@ -410,7 +433,7 @@ def handle_conversation(req: ConversationRequest):
                                             engine_executed=False,
                                         )
                                 elif len(msg_pairs) >= 2:
-                                    return ConversationResponse(
+                                    return _build_response(
                                         status="clarification",
                                         raw_message=message,
                                         disposition=disposition,
@@ -446,7 +469,7 @@ def handle_conversation(req: ConversationRequest):
                         missing_parts.append("specific section numbers or CRNs")
 
                     detail_msg = f" ({', '.join(missing_parts)})" if missing_parts else ""
-                    return ConversationResponse(
+                    return _build_response(
                         status="clarification",
                         raw_message=message,
                         disposition=disposition,
@@ -473,7 +496,7 @@ def handle_conversation(req: ConversationRequest):
                     )
                 except Exception as exc:
                     logger.exception("Conflict evaluation encountered an unexpected error: %s", exc)
-                    return ConversationResponse(
+                    return _build_response(
                         status="engine_error",
                         raw_message=message,
                         disposition=disposition,
@@ -490,7 +513,7 @@ def handle_conversation(req: ConversationRequest):
                     is_ambiguous = conflict_res.get("is_ambiguous", False)
                     resp_code = "AMBIGUOUS_SECTION_MATCH" if is_ambiguous else "SECTION_NOT_FOUND"
                     status_val = "clarification" if is_ambiguous else "engine_error"
-                    return ConversationResponse(
+                    return _build_response(
                         status=status_val,
                         raw_message=message,
                         disposition=disposition,
@@ -518,7 +541,7 @@ def handle_conversation(req: ConversationRequest):
                     )
                     if unsupported_prefs:
                         resp_text += pref_note
-                    return ConversationResponse(
+                    return _build_response(
                         status="engine_executed",
                         raw_message=message,
                         disposition=disposition,
@@ -556,7 +579,7 @@ def handle_conversation(req: ConversationRequest):
                 if unsupported_prefs:
                     resp_text += pref_note
 
-                return ConversationResponse(
+                return _build_response(
                     status="engine_executed",
                     raw_message=message,
                     disposition=disposition,
@@ -587,7 +610,7 @@ def handle_conversation(req: ConversationRequest):
                         t_code = normalize_course_code(t_row["COURSE"])
                         t_sect = str(t_row["SECT"]).strip().upper().lstrip("0")
                         if msg_crns and msg_crns[0] != t_crn:
-                            return ConversationResponse(
+                            return _build_response(
                                 status="clarification",
                                 raw_message=message,
                                 disposition=disposition,
@@ -608,7 +631,7 @@ def handle_conversation(req: ConversationRequest):
                             p_code = normalize_course_code(p["course"])
                             p_sect = str(p["section"]).strip().upper().lstrip("0")
                             if p_code != t_code or p_sect != t_sect:
-                                return ConversationResponse(
+                                return _build_response(
                                     status="clarification",
                                     raw_message=message,
                                     disposition=disposition,
@@ -628,7 +651,7 @@ def handle_conversation(req: ConversationRequest):
 
                 if not target_sec_input and extracted_courses:
                     course_name = extracted_courses[0]
-                    return ConversationResponse(
+                    return _build_response(
                         status="clarification",
                         raw_message=message,
                         disposition=disposition,
@@ -646,7 +669,7 @@ def handle_conversation(req: ConversationRequest):
                     )
 
                 if not target_sec_input:
-                    return ConversationResponse(
+                    return _build_response(
                         status="clarification",
                         raw_message=message,
                         disposition=disposition,
@@ -662,7 +685,7 @@ def handle_conversation(req: ConversationRequest):
 
                 # Selected schedule handling: distinguish None (omitted) from [] (explicitly empty schedule)
                 if req.selected_sections is None:
-                    return ConversationResponse(
+                    return _build_response(
                         status="clarification",
                         raw_message=message,
                         disposition=disposition,
@@ -689,7 +712,7 @@ def handle_conversation(req: ConversationRequest):
                     )
                 except Exception as exc:
                     logger.exception("Alternative section search encountered an unexpected error: %s", exc)
-                    return ConversationResponse(
+                    return _build_response(
                         status="engine_error",
                         raw_message=message,
                         disposition=disposition,
@@ -712,7 +735,7 @@ def handle_conversation(req: ConversationRequest):
                     else:
                         resp_code = "SECTION_NOT_FOUND"
                         status_val = "engine_error"
-                    return ConversationResponse(
+                    return _build_response(
                         status=status_val,
                         raw_message=message,
                         disposition=disposition,
@@ -757,7 +780,7 @@ def handle_conversation(req: ConversationRequest):
                 if unsupported_prefs:
                     resp_text += pref_note
 
-                return ConversationResponse(
+                return _build_response(
                     status="engine_executed",
                     raw_message=message,
                     disposition=disposition,
@@ -772,7 +795,7 @@ def handle_conversation(req: ConversationRequest):
 
         # C. Online Override Screening - Directed to UI
         if target_handler == HANDLER_OVERRIDE:
-            return ConversationResponse(
+            return _build_response(
                 status="engine_unavailable",
                 raw_message=message,
                 disposition=disposition,
@@ -789,7 +812,7 @@ def handle_conversation(req: ConversationRequest):
             )
 
     # Fallback
-    return ConversationResponse(
+    return _build_response(
         status="unsupported",
         raw_message=message,
         disposition=disposition or "unsupported",

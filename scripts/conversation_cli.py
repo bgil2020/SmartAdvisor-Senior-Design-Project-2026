@@ -186,6 +186,16 @@ class ConversationHarness:
         print(f"Safe to Route    : {data.get('safe_to_route')}")
         print(f"Engine Executed  : {data.get('engine_executed')}")
 
+        parser_source = data.get("parser_source")
+        if parser_source:
+            print(f"Parser Source    : {parser_source}")
+        if data.get("fallback_used"):
+            print("Fallback Used    : True")
+            if data.get("fallback_reason"):
+                print(f"Fallback Reason  : {data.get('fallback_reason')}")
+        if data.get("model_id"):
+            print(f"Model ID         : {data.get('model_id')}")
+
         extracted_courses = data.get("extracted_courses", [])
         if extracted_courses:
             print(f"Extracted Courses: {', '.join(extracted_courses)}")
@@ -276,7 +286,7 @@ class ConversationHarness:
 
     def run_diagnostics(self, message: str) -> None:
         """Inspect internal classifier/extractor representation for diagnostic debugging.
-        
+
         Explicitly marked as local diagnostic inspection to preserve boundary.
         """
         try:

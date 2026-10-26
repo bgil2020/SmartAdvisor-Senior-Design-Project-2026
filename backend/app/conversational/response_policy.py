@@ -10,6 +10,16 @@ try:
         CLARIFICATION,
         UNSUPPORTED_SCOPE
     )
+    from backend.app.conversational.parser_contract import (
+        INTENT_COURSE_COMPATIBILITY,
+        INTENT_SCHEDULE_CONFLICT,
+        INTENT_ALTERNATIVE_SECTION,
+        INTENT_ONLINE_OVERRIDE,
+        INTENT_ADVISOR_ESCALATION,
+        INTENT_INFORMATIONAL_RAG,
+        INTENT_CLARIFICATION,
+        INTENT_UNSUPPORTED,
+    )
 except ImportError:
     from app.conversational.entity_extractor import extract_entities
     from app.conversational.intent_classifier import (
@@ -19,6 +29,16 @@ except ImportError:
         ONLINE_OVERRIDE,
         CLARIFICATION,
         UNSUPPORTED_SCOPE
+    )
+    from app.conversational.parser_contract import (
+        INTENT_COURSE_COMPATIBILITY,
+        INTENT_SCHEDULE_CONFLICT,
+        INTENT_ALTERNATIVE_SECTION,
+        INTENT_ONLINE_OVERRIDE,
+        INTENT_ADVISOR_ESCALATION,
+        INTENT_INFORMATIONAL_RAG,
+        INTENT_CLARIFICATION,
+        INTENT_UNSUPPORTED,
     )
 
 # Constants for Disposition
@@ -72,7 +92,8 @@ def is_future_rag_candidate(message: str, extractor_result: dict) -> bool:
     return False
 
 def is_ambiguous_single_course_workload(message: str, entities: dict) -> bool:
-    if entities.get("intent") != COURSE_COMPATIBILITY:
+    intent = entities.get("intent")
+    if intent not in (COURSE_COMPATIBILITY, INTENT_COURSE_COMPATIBILITY):
         return False
     if len(entities.get("course_codes", [])) != 1:
         return False
@@ -83,15 +104,36 @@ def is_ambiguous_single_course_workload(message: str, entities: dict) -> bool:
         return True
     return False
 
-def build_conversation_response(message: str) -> dict:
-    entities = extract_entities(message)
-    intent = entities["intent"]
-    validation_errors = entities["validation_errors"]
-    needs_clarification = entities["needs_clarification"]
-    missing_fields = entities["missing_fields"]
-    
-    # 1. Advisor escalation
-    if requires_advisor_escalation(message):
+def build_conversation_response(message: str, parsed_result: Any = None) -> dict:
+    if parsed_result is not None:
+        if hasattr(parsed_result, "to_extractor_dict"):
+            entities = parsed_result.to_extractor_dict()
+        elif isinstance(parsed_result, dict):
+            entities = parsed_result
+        else:
+            entities = extract_entities(message)
+    else:
+        entities = extract_entities(message)
+
+    intent = entities.get("intent")
+    validation_errors = entities.get("validation_errors", [])
+    needs_clarification = entities.get("needs_clarification", False)
+    missing_fields = entities.get("missing_fields", [])
+
+    parser_source = entities.get("parser_source", "deterministic")
+    fallback_used = entities.get("fallback_used", False)
+    fallback_reason = entities.get("fallback_reason")
+    model_id = entities.get("model_id")
+
+    base_meta = {
+        "parser_source": parser_source,
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
+        "model_id": model_id,
+    }
+
+    # 1. Advisor escalation (Deterministic safety gate + LLM interpretation)
+    if requires_advisor_escalation(message) or intent in (INTENT_ADVISOR_ESCALATION, "advisor_escalation"):
         return {
             "raw_message": message,
             "disposition": DISPOSITION_ESCALATION,
@@ -127,7 +169,7 @@ def build_conversation_response(message: str) -> dict:
         }
 
     # 3. Future informational RAG candidate
-    if is_future_rag_candidate(message, entities):
+    if is_future_rag_candidate(message, entities) or intent in (INTENT_INFORMATIONAL_RAG, "future_rag_candidate"):
         return {
             "raw_message": message,
             "disposition": DISPOSITION_RAG,
@@ -145,19 +187,19 @@ def build_conversation_response(message: str) -> dict:
         }
 
     # 4. Clarification/missing required data
-    if needs_clarification or missing_fields:
+    if needs_clarification or missing_fields or intent in (CLARIFICATION, INTENT_CLARIFICATION):
         code = CODE_AMBIGUOUS_REQUEST
         text = "Please choose one goal: compare course workload, check schedule/sections, or screen an online override."
         reason = "Missing required details or ambiguous intent."
-        
+
         if is_ambiguous_single_course_workload(message, entities):
             code = CODE_AMBIGUOUS_REQUEST
             text = "Are you asking about the general difficulty/workload of this course, or whether it is compatible with another course? If comparing, please provide the other course code."
             reason = "Ambiguous single-course workload/compatibility question."
-        elif intent == COURSE_COMPATIBILITY and len(entities.get("course_codes", [])) == 1:
+        elif intent in (COURSE_COMPATIBILITY, INTENT_COURSE_COMPATIBILITY) and len(entities.get("course_codes", [])) == 1:
             code = CODE_MISSING_SECOND_COURSE
             text = "Please provide the other course code you'd like to compare."
-        elif "course_codes" in missing_fields or (intent in [COURSE_COMPATIBILITY, SCHEDULE_CONFLICT, ALTERNATIVE_SECTION, ONLINE_OVERRIDE] and len(entities.get("course_codes", [])) == 0):
+        elif "course_codes" in missing_fields or (intent in [COURSE_COMPATIBILITY, INTENT_COURSE_COMPATIBILITY, SCHEDULE_CONFLICT, INTENT_SCHEDULE_CONFLICT, ALTERNATIVE_SECTION, INTENT_ALTERNATIVE_SECTION, ONLINE_OVERRIDE, INTENT_ONLINE_OVERRIDE] and len(entities.get("course_codes", [])) == 0 and len(entities.get("crns", [])) == 0):
             code = CODE_MISSING_COURSE_CODES
             text = "Please provide the course code(s), for example 'COP 3530'."
         elif "section_identifiers" in missing_fields or "schedule_constraints" in missing_fields:
@@ -181,7 +223,7 @@ def build_conversation_response(message: str) -> dict:
         }
 
     # 5. Ready core deterministic routing
-    if intent == COURSE_COMPATIBILITY:
+    if intent in (COURSE_COMPATIBILITY, INTENT_COURSE_COMPATIBILITY):
         return {
             "raw_message": message,
             "disposition": DISPOSITION_ROUTE_CORE,
@@ -197,8 +239,8 @@ def build_conversation_response(message: str) -> dict:
             "future_rag_candidate": False,
             "reason": "All required data for compatibility check is present."
         }
-        
-    elif intent in [SCHEDULE_CONFLICT, ALTERNATIVE_SECTION]:
+
+    elif intent in (SCHEDULE_CONFLICT, INTENT_SCHEDULE_CONFLICT, ALTERNATIVE_SECTION, INTENT_ALTERNATIVE_SECTION):
         return {
             "raw_message": message,
             "disposition": DISPOSITION_ROUTE_CORE,
@@ -214,8 +256,8 @@ def build_conversation_response(message: str) -> dict:
             "future_rag_candidate": False,
             "reason": "All required data for scheduling check is present."
         }
-        
-    elif intent == ONLINE_OVERRIDE:
+
+    elif intent in (ONLINE_OVERRIDE, INTENT_ONLINE_OVERRIDE):
         return {
             "raw_message": message,
             "disposition": DISPOSITION_ROUTE_CORE,

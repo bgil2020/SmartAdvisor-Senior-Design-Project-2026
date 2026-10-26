@@ -1,0 +1,295 @@
+{
+  "task": "Task 1 - live LLM parser verification",
+  "verified_at": "2026-10-25",
+  "repository": {
+    "branch": "feature/llm-structured-parser",
+    "head": "cfac81e88e71b4dbfb68ca1258ae21b529da2383",
+    "checkpoint_is_ancestor": true
+  },
+  "environment": {
+    "python": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026\\.venv\\Scripts\\python.exe",
+    "python_version": "3.12.6",
+    "virtual_environment": true,
+    "gemini_key_present": true,
+    "model": "gemini-3.8-flash",
+    "timeout_seconds": 10,
+    "sdk_retry_attempts": 1
+  },
+  "live_llm_application_cases": {
+    "status": "blocked",
+    "reason": "The approved access check received HTTP 503 and returned no validated parse; no further external calls were made."
+  },
+  "offline_http_verification": [
+    {
+      "case": "controlled_provider_failure_http",
+      "request": {
+        "message": "Can I take COP 4331 and MAP 3305 together?",
+        "student_id": "Z24567901",
+        "recent_difficulty": 1,
+        "satisfied_with_performance": "yes",
+        "work_hours": 5,
+        "preferred_max_credits": 15,
+        "recent_courses": [
+          "CDA4240C",
+          "CDA4102",
+          "MAC2313"
+        ]
+      },
+      "http_status": 200,
+      "latency_ms": 140.46,
+      "provider_call": "one injected local failure; zero external calls",
+      "parser_source": "fallback",
+      "fallback_used": true,
+      "fallback_reason": "Provider error (RuntimeError)",
+      "model_id": "gemini-3.8-flash",
+      "validated_intent": "course_compatibility_check",
+      "validated_courses": [
+        "COP4331",
+        "MAP3305"
+      ],
+      "status": "engine_executed",
+      "handler": "course_compatibility_engine",
+      "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+      "engine_executed": true,
+      "meaningful_result": "Potentially manageable based on the information provided"
+    },
+    {
+      "case": "deterministic_schedule",
+      "request": {
+        "message": "Do COP 3530C section 001 and MAC 2312 section 006 meet at the same time?",
+        "term": 202608
+      },
+      "http_status": 200,
+      "latency_ms": 97.79,
+      "provider_call": "none",
+      "parser_source": "deterministic",
+      "fallback_used": false,
+      "fallback_reason": null,
+      "model_id": null,
+      "validated_intent": "schedule_conflict_check",
+      "validated_courses": [
+        "COP3530C",
+        "MAC2312"
+      ],
+      "status": "engine_executed",
+      "handler": "scheduling_engine",
+      "response_code": "SCHEDULE_CONFLICT_FOUND",
+      "engine_executed": true,
+      "meaningful_result": "Confirmed conflict"
+    },
+    {
+      "case": "deterministic_missing_context",
+      "request": {
+        "message": "Can I take COP 4331 and MAP 3305 together?"
+      },
+      "http_status": 200,
+      "latency_ms": 1.51,
+      "provider_call": "none",
+      "parser_source": "deterministic",
+      "fallback_used": false,
+      "fallback_reason": null,
+      "model_id": null,
+      "validated_intent": "course_compatibility_check",
+      "validated_courses": [
+        "COP4331",
+        "MAP3305"
+      ],
+      "status": "clarification",
+      "handler": "course_compatibility_engine",
+      "response_code": "MISSING_STUDENT_CONTEXT",
+      "engine_executed": false,
+      "meaningful_result": "Requested student_id, recent_difficulty, satisfied_with_performance, and work_hours"
+    },
+    {
+      "case": "deterministic_advisor_only",
+      "request": {
+        "message": "Please approve an official prerequisite override for COP 3530."
+      },
+      "http_status": 200,
+      "latency_ms": 1.2,
+      "provider_call": "none",
+      "parser_source": "deterministic",
+      "fallback_used": false,
+      "fallback_reason": null,
+      "model_id": null,
+      "validated_intent": "advisor_escalation",
+      "validated_courses": [
+        "COP3530"
+      ],
+      "status": "escalation",
+      "handler": "academic_advisor",
+      "response_code": "ADVISOR_ESCALATION_REQUIRED",
+      "engine_executed": false,
+      "meaningful_result": "Official action deferred to an authorized academic advisor"
+    }
+  ],
+  "privacy_check": "The adapter builds prompts from message text and optional section references only. The dedicated regression suite covering prompt privacy passed; workload profile fields and student_id were not serialized into model prompts.",
+  "baseline_tests": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests\\test_llm_parser.py -q",
+    "exit_code": 0,
+    "result": "34 passed, 2 warnings in 6.06s"
+  },
+  "real_provider_access_checks": [
+    {
+      "attempt": 1,
+      "execution_context": "restricted Codex command sandbox",
+      "request": "Compare the workload of COP 4331 and MAP 3305.",
+      "outcome": "failure",
+      "exception_type": "ConnectError",
+      "underlying_cause_type": null,
+      "http_response_received": false,
+      "http_status": null,
+      "category": "connection",
+      "validated_output_returned": false,
+      "note": "The restricted network context makes provider attribution unsafe; this attempt does not establish an authentication failure."
+    },
+    {
+      "attempt": 2,
+      "execution_context": "narrowly approved outbound network access",
+      "request": "Compare the workload of COP 4331 and MAP 3305.",
+      "outcome": "failure",
+      "exception_type": "ServerError",
+      "underlying_cause_type": null,
+      "cause_chain_types": [
+        "ServerError"
+      ],
+      "http_response_received": true,
+      "http_status": 503,
+      "category": "http_error",
+      "validated_output_returned": false,
+      "note": "The request reached the official Gemini service and received HTTP 503. This is not an authentication result."
+    }
+  ],
+  "total_external_adapter_attempts": 2,
+  "sanitizer_fix": {
+    "change": "Connection-type exceptions are classified as Provider connection error before message-based authentication checks; HTTP 401/403 authentication categorization is preserved.",
+    "focused_test": "2 passed, 33 deselected, 2 warnings in 1.14s",
+    "full_suite": "167 passed, 2 warnings in 4.80s"
+  },
+  "continuation": {
+    "prior_external_adapter_attempts": 2,
+    "continuation_external_attempts": 1,
+    "continuation_budget": 5,
+    "current_model_retry": {
+      "model_id": "gemini-3.8-flash",
+      "outcome": "failure",
+      "exception_type": "ServerError",
+      "underlying_cause_type": null,
+      "http_response_received": true,
+      "http_status": 503,
+      "category": "http_error",
+      "validated_output_returned": false
+    },
+    "remaining_live_http_cases": "complete",
+    "proposed_alternative": {
+      "model_id": "gemini-3.5-flash-lite",
+      "configuration_scope": "process-local GEMINI_MODEL only",
+      "lifecycle": "stable",
+      "structured_outputs": "supported",
+      "free_tier": "input and output listed as free of charge",
+      "official_model_documentation": "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
+      "official_pricing_documentation": "https://ai.google.dev/gemini-api/docs/pricing",
+      "access_outcome": "successful validated generation through live HTTP case A"
+    },
+    "configuration_precedence_fix": {
+      "problem": "Hybrid mode read GEMINI_MODEL for metadata but did not pass it to the production adapter constructor.",
+      "correction": "HybridConversationalParser now constructs GeminiStructuredParser(model_name=model_name).",
+      "persistence": "none; GEMINI_MODEL was set only in each backend child process",
+      "focused_tests": "3 passed, 33 deselected, 2 warnings in 1.09s",
+      "full_suite": "168 passed, 2 warnings in 4.56s"
+    },
+    "alternative_live_http_attempts": 4,
+    "continuation_external_attempts_total": 5,
+    "overall_external_attempts_including_prior_runs": 7,
+    "acceptance_cases": [
+      {
+        "case": "A",
+        "request": {
+          "message": "Would enrolling in both COP 4331 and MAP 3305 exhaust my weekly capacity?",
+          "student_id": "Z24567901",
+          "recent_difficulty": 1,
+          "satisfied_with_performance": "yes",
+          "work_hours": 5.0,
+          "preferred_max_credits": 15.0,
+          "recent_courses": ["CDA4240C", "CDA4102", "MAC2313"]
+        },
+        "provider_prompt_scope": "message text only; student and workload context remained local",
+        "http_status": 200,
+        "latency_ms": 1966.35,
+        "attempted_model": "gemini-3.5-flash-lite",
+        "parser_source": "llm",
+        "fallback_used": false,
+        "validated_intent": "course_compatibility_check",
+        "validated_courses": ["COP4331", "MAP3305"],
+        "handler": "course_compatibility_engine",
+        "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+        "engine_executed": true,
+        "engine_result": "Potentially manageable based on the information provided",
+        "acceptance": "passed"
+      },
+      {
+        "case": "B",
+        "request": {
+          "message": "Do COP 3530C section 001 and MAC 2312 section 006 meet at the same time?",
+          "term": 202608
+        },
+        "provider_prompt_scope": "message text only; term remained local application context",
+        "http_status": 200,
+        "latency_ms": 1853.17,
+        "attempted_model": "gemini-3.5-flash-lite",
+        "parser_source": "llm",
+        "fallback_used": false,
+        "validated_intent": "schedule_conflict_check",
+        "validated_courses": ["COP3530C", "MAC2312"],
+        "validated_pairs": ["COP3530C section 001", "MAC2312 section 006"],
+        "handler": "scheduling_engine",
+        "response_code": "SCHEDULE_CONFLICT_FOUND",
+        "engine_executed": true,
+        "engine_result": "confirmed conflict; both resolved sections were term 202608",
+        "acceptance": "passed"
+      },
+      {
+        "case": "C",
+        "request": {
+          "message": "Can I take COP 4331 and MAP 3305 together?"
+        },
+        "provider_prompt_scope": "message text only",
+        "http_status": 200,
+        "latency_ms": 1572.92,
+        "attempted_model": "gemini-3.5-flash-lite",
+        "parser_source": "llm",
+        "fallback_used": false,
+        "validated_intent": "course_compatibility_check",
+        "validated_courses": ["COP4331", "MAP3305"],
+        "handler": "course_compatibility_engine",
+        "response_code": "MISSING_STUDENT_CONTEXT",
+        "missing_context": ["student_id", "recent_difficulty", "satisfied_with_performance", "work_hours"],
+        "engine_executed": false,
+        "acceptance": "passed"
+      },
+      {
+        "case": "D",
+        "request": {
+          "message": "Please approve an official prerequisite override for COP 3530."
+        },
+        "provider_prompt_scope": "message text only",
+        "provider_call_occurred": true,
+        "http_status": 200,
+        "latency_ms": 1601.06,
+        "attempted_model": "gemini-3.5-flash-lite",
+        "parser_source": "llm",
+        "fallback_used": false,
+        "validated_intent": "model output passed schema and grounding validation; its raw intent is not exposed by ConversationResponse",
+        "deterministic_policy_outcome": "advisor_escalation",
+        "validated_courses": ["COP3530"],
+        "handler": "academic_advisor",
+        "response_code": "ADVISOR_ESCALATION_REQUIRED",
+        "safe_to_route": false,
+        "engine_executed": false,
+        "acceptance": "passed"
+      }
+    ],
+    "task_1_status": "complete"
+  },
+  "provenance_note": "This 2026-10-25 re-verification is separate from the preserved 2026-10-19 HTTP 402 evidence in docs/task_010_live_http_evidence.json."
+}

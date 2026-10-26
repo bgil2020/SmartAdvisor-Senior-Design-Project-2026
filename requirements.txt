@@ -6,3 +6,4 @@ httpx
 pytest
 supabase>=2.32.0
 python-dotenv>=1.2.4
+google-genai>=2.0.0

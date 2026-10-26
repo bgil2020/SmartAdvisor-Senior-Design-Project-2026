@@ -2,6 +2,10 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load local environment variables from .env if present
+load_dotenv()
 
 from .alternative_section_search import find_alternative_sections
 from .compatibility_router import router as compatibility_router
