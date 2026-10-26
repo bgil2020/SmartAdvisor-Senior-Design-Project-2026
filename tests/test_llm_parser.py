@@ -289,6 +289,29 @@ class TestHybridConversationalParserFallback(unittest.TestCase):
                 self.assertEqual(res.intent, INTENT_COURSE_COMPATIBILITY)
                 self.assertEqual(res.course_codes, ["COP3530", "MAC2312"])
 
+    def test_hybrid_mode_passes_process_model_override_to_production_adapter(self):
+        llm_result = CanonicalParsingResult(
+            raw_message="Can I take COP 3530 and MAC 2312 together?",
+            intent=INTENT_COURSE_COMPATIBILITY,
+            course_codes=["COP3530", "MAC2312"],
+            parser_source="llm",
+            model_id="gemini-3.5-flash-lite",
+        )
+
+        with patch.dict(
+            os.environ,
+            {"GEMINI_API_KEY": "dummy-key", "GEMINI_MODEL": "gemini-3.5-flash-lite"},
+        ):
+            with patch("backend.app.conversational.hybrid_parser.GeminiStructuredParser") as parser_class:
+                parser_class.return_value.parse.return_value = llm_result
+                res = HybridConversationalParser(force_mode=MODE_HYBRID).parse(
+                    "Can I take COP 3530 and MAC 2312 together?"
+                )
+
+        parser_class.assert_called_once_with(model_name="gemini-3.5-flash-lite")
+        self.assertEqual(res.parser_source, "llm")
+        self.assertEqual(res.model_id, "gemini-3.5-flash-lite")
+
     def test_hybrid_mode_timeout_falls_back(self):
         mock_gemini = MagicMock()
         mock_gemini._client = True
@@ -380,6 +403,21 @@ class TestHybridConversationalParserFallback(unittest.TestCase):
             self.assertEqual(res.parser_source, "fallback")
             self.assertTrue(res.fallback_used)
             self.assertEqual(res.fallback_reason, "Provider authentication or permission error")
+
+    def test_hybrid_mode_connection_error_is_not_mislabeled_as_auth(self):
+        class ConnectError(RuntimeError):
+            pass
+
+        mock_gemini = MagicMock()
+        mock_gemini._client = True
+        mock_gemini.parse.side_effect = ConnectError("Connection failed for request containing api_key parameter")
+
+        hybrid = HybridConversationalParser(gemini_parser=mock_gemini, force_mode=MODE_HYBRID)
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "dummy-key"}):
+            res = hybrid.parse("Can I take COP 3530 and MAC 2312 together?")
+            self.assertEqual(res.parser_source, "fallback")
+            self.assertTrue(res.fallback_used)
+            self.assertEqual(res.fallback_reason, "Provider connection error")
 
     def test_hybrid_mode_schema_validation_failure_falls_back(self):
         mock_gemini = MagicMock()

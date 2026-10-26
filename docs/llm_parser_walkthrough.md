@@ -1,13 +1,13 @@
 # SmartAdvisor LLM Structured Parser & Fallback Walkthrough Guide
 
-**Document Version:** 1.2.0
+**Document Version:** 1.3.0
 **Task Reference:** TASK-010 Entity Grounding & Real Gemini Verification
 **Baseline SHA:** `4ad964f20fc6e20623c75cf92e8bfa30aef361af`
 **Feature Branch:** `feature/llm-structured-parser`
 **Python Environment:** Dedicated project `.venv` (`D:\Projects\SmartAdvisor-Senior-Design-Project-2026\.venv\Scripts\python.exe`)
 **Provider / Model:** Google Gemini Developer API (`google-genai==2.31.0`), `gemini-3.8-flash`
 **Primary Endpoint:** `POST /conversation`
-**Live HTTP Verification Artifact:** `docs/task_010_live_http_evidence.json`
+**Live HTTP Verification Artifacts:** historical provider-failure capture in `docs/task_010_live_http_evidence.json`; successful bounded re-verification in `docs/evidence/llm_parser_live_reverification_2026-10-25.json`
 
 ---
 
@@ -267,6 +267,27 @@ For weekly reports and documentation packages:
 
 | Screenshot / Evidence | Target Display | What to Capture |
 | :--- | :--- | :--- |
-| **Screenshot 1: Real Gemini Fallback & Live HTTP** | `.\.venv\Scripts\python.exe scripts/verify_task_010_live_http.py` | Shows deterministic mode success (`COMPATIBILITY_EVALUATION_COMPLETE`, `SCHEDULE_CONFLICT_FOUND`) and hybrid mode fallback with quota error (`docs/task_010_live_http_evidence.json`). |
-| **Screenshot 2: Grounding Regressions** | `.\.venv\Scripts\python.exe -m pytest tests/test_llm_parser.py -v` | Shows all 34 parser and grounding tests passing, including suffix preservation and bound pairs. |
-| **Screenshot 3: Full Test Suite** | Terminal running `.\.venv\Scripts\python.exe -m pytest` | Shows all 166 backend tests passing (`166 passed in 4.99s`). |
+| **Screenshot 1: Recorded Live LLM Acceptance** | Read cases `A` and `B` from `docs/evidence/llm_parser_live_reverification_2026-10-25.json` | Shows successful `parser_source=llm`, `gemini-3.5-flash-lite`, grounded entities, and real compatibility/scheduling engine results without making new provider calls. |
+| **Screenshot 2: Grounding Regressions** | `.\.venv\Scripts\python.exe -m pytest tests/test_llm_parser.py -v` | Shows all 36 parser, fallback, precedence, and grounding tests passing, including suffix preservation and bound pairs. |
+| **Screenshot 3: Full Test Suite** | Terminal running `.\.venv\Scripts\python.exe -m pytest -q` | Shows all 168 backend tests passing. |
+
+---
+
+## 8. Bounded Re-verification (October 25, 2026)
+
+The free-tier re-verification used the production `GeminiStructuredParser` with the configured `gemini-3.8-flash` model, a 10-second timeout, and SDK retry attempts fixed at one. The key was present. The first invocation ran in the restricted Codex command sandbox and returned `ConnectError` without an HTTP response, so it could not establish a provider authentication failure. One narrowly approved follow-up invocation reached Gemini and received HTTP 503 (`ServerError`), also without validated structured output. No more external model requests were made.
+
+Useful offline verification continued through a real localhost Uvicorn `/conversation` endpoint:
+
+| Case | Provider activity | Parser source | HTTP / result |
+| :--- | :--- | :--- | :--- |
+| Controlled injected provider failure, explicit compatibility request | One local injected failure; zero external calls | `fallback` | HTTP 200; `COMPATIBILITY_EVALUATION_COMPLETE`; compatibility engine executed |
+| Scheduling request with term `202608` | None | `deterministic` | HTTP 200; `SCHEDULE_CONFLICT_FOUND`; scheduling engine executed |
+| Compatibility request missing workload context | None | `deterministic` | HTTP 200; `MISSING_STUDENT_CONTEXT`; clarification, no engine execution |
+| Official prerequisite override request | None | `deterministic` | HTTP 200; `ADVISOR_ESCALATION_REQUIRED`; no core engine execution |
+
+The compact sanitized record for this run, including distinct provenance for both access attempts and the offline HTTP cases, is stored in `docs/evidence/llm_parser_live_reverification_2026-10-25.json`. The historical October 19 HTTP 402 capture remains unchanged in `docs/task_010_live_http_evidence.json`. Real hybrid application cases remain blocked until an access check returns validated output; mocked or fallback output is not presented as proof of model understanding.
+
+A continuation retry with approved outbound access again reached `gemini-3.8-flash` but received HTTP 503 (`ServerError`). Current official Google documentation identifies stable `gemini-3.5-flash-lite` as supporting structured outputs, while the pricing page lists free-tier input and output. After owner approval, a process-local `GEMINI_MODEL=gemini-3.5-flash-lite` override successfully completed all four live HTTP acceptance cases. The override was inherited by each backend process and confirmed by returned `model_id`; repository defaults and `.env` remained unchanged.
+
+The live results established real `parser_source=llm` routing into both the compatibility and scheduling engines, deterministic missing-context clarification without engine execution, and advisor escalation without core-engine execution. The advisor request did invoke the model before the deterministic safety policy. Controlled fallback evidence from the prior run remains valid. Task 1 acceptance is complete; explanation guardrails and evaluation were not started.

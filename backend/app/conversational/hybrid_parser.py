@@ -126,7 +126,7 @@ class HybridConversationalParser:
             return fallback_res
 
         # Attempt Gemini structured parsing
-        parser = self.gemini_parser or GeminiStructuredParser()
+        parser = self.gemini_parser or GeminiStructuredParser(model_name=model_name)
         start_time = time.time()
         try:
             llm_result = parser.parse(message, context=context)
@@ -156,6 +156,11 @@ class HybridConversationalParser:
 
         if isinstance(exc, (TimeoutError, concurrent.futures.TimeoutError)) or "timeout" in err_type.lower() or "timeout" in err_str or "timed out" in err_str:
             return "Provider request timed out"
+        # Transport connection failures can include credential-bearing query
+        # parameter names in their message. Classify by exception type first so
+        # those names cannot turn a ConnectError into a false auth diagnosis.
+        if "connect" in err_type.lower() or "connection" in err_type.lower():
+            return "Provider connection error"
         if "quota" in err_str or "429" in err_str or "402" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str or "resourceexhausted" in err_type.lower():
             return "Provider rate limit or quota exceeded"
         if "auth" in err_str or "api_key" in err_str or "permission" in err_str or "403" in err_str or "permissiondenied" in err_type.lower():
