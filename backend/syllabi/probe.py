@@ -31,7 +31,7 @@ def probe_documents(documents: list[dict], *, config: FetchConfig | None = None,
             classification = classify_page(response.text, str(response.url), response.status_code)
             if response.status_code in {403, 429}:
                 stopped = True
-            results.append({**document, "status": "restricted" if classification == "restricted" else classification, "http_status": response.status_code, "final_url": str(response.url), "rendering_required": classification == "library_shell"})
+            results.append({**document, "status": classification, "http_status": response.status_code, "final_url": str(response.url), "rendering_required": classification == "javascript_shell_awaiting_render"})
             if stopped:
                 break
     finally:
