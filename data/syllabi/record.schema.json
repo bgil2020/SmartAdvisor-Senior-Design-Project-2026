@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:smartadvisor:syllabus-record:1.0",
+  "title": "SmartAdvisor syllabus record adapter",
+  "type": "object",
+  "required": ["record_id", "record_version", "record_category", "course_code", "course_scope", "term_scope", "section_scope", "title", "document_text", "exact_source_text", "academic_sections", "source", "fetched_at", "observed_access", "raw_evidence_ref", "raw_sha256", "content_sha256", "parser_version", "schema_version", "unknowns", "limitations"],
+  "properties": {
+    "record_id": {"type": "string", "pattern": "^fau-simple-syllabus:syllabus:"},
+    "record_version": {"type": "integer", "minimum": 1},
+    "record_category": {"const": "syllabus"},
+    "course_code": {"type": "string"}, "course_scope": {"type": "object"},
+    "term_scope": {"type": "object"}, "section_scope": {"type": "object"},
+    "title": {"type": "string"}, "document_text": {"type": "string"}, "exact_source_text": {"type": "string"},
+    "academic_sections": {"type": "array"}, "source": {"type": "object"}, "fetched_at": {"type": "string"},
+    "observed_access": {"type": "string"}, "raw_evidence_ref": {"type": "string"},
+    "raw_sha256": {"type": "string"}, "content_sha256": {"type": "string"}, "parser_version": {"type": "string"},
+    "schema_version": {"const": "1.0"}, "unknowns": {"type": "object"}, "limitations": {"type": "array"}
+  }
+}

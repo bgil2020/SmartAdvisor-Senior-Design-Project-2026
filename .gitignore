@@ -40,6 +40,12 @@ data/course_descriptions/raw/
 data/course_descriptions/candidates/
 data/course_descriptions/.history/
 
+# Generated syllabus acquisition artifacts (may contain third-party text/session state)
+data/syllabi/raw/
+data/syllabi/candidates/
+data/syllabi/.history/
+data/syllabi/browser-profile/
+
 # Local environment and secrets
 .env
 .env.*
