@@ -1,0 +1,28 @@
+{
+  "manifest_version": "1.0",
+  "source": {
+    "title": "Florida Atlantic University Catalog",
+    "publisher": "Florida Atlantic University",
+    "listing_url": "https://catalog.fau.edu/courses/",
+    "robots_url": "https://catalog.fau.edu/robots.txt",
+    "sitemap_url": "https://catalog.fau.edu/sitemap.xml",
+    "access_checked_at": "2026-10-30",
+    "automated_access_finding": "robots.txt allows all paths and advertises the sitemap; no supported public data API was documented on the catalog page",
+    "redistribution_finding": "No content-redistribution license was identified; live raw pages and normalized text are generated locally and are not included in this manifest."
+  },
+  "selection_rule": "Five distinct CECS-related course codes present in both data/FAU_Courses.xlsx and the active compatibility catalog, chosen across CAP, CDA, COP, EEL, and EGN prefixes. Catalog presence does not imply current-term availability.",
+  "selected_courses": [
+    "CAP4773",
+    "CDA4102",
+    "COP4331",
+    "EEL3111",
+    "EGN4950C"
+  ],
+  "detail_urls_discovered_from_published_sitemap": {
+    "CAP4773": "https://catalog.fau.edu/courses/CAP4773",
+    "CDA4102": "https://catalog.fau.edu/courses/CDA4102",
+    "COP4331": "https://catalog.fau.edu/courses/COP4331",
+    "EEL3111": "https://catalog.fau.edu/courses/EEL3111",
+    "EGN4950C": "https://catalog.fau.edu/courses/EGN4950C"
+  }
+}

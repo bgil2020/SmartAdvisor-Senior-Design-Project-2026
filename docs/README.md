@@ -23,5 +23,6 @@ Welcome to the documentation for the **SmartAdvisor** academic planning and advi
 | **Conversational Response Policy** | [backend/docs/conversational_response_policy.md](../backend/docs/conversational_response_policy.md) | Deterministic routing decision, safety boundaries, and engine handoff specification. |
 | **Prompt Dataset Draft** | [docs/research/conversational_prompt_dataset_draft.md](research/conversational_prompt_dataset_draft.md) | Research draft and labeled evaluation prompts for conversational intents. |
 | **Course Dataset Dictionary** | [data/data_dictionary.md](../data/data_dictionary.md) | Field definitions and metadata for `data/FAU_Courses.xlsx`. |
+| **Course Description Collector** | [course-description-collector.md](course-description-collector.md) | Bounded manual acquisition, validation, acceptance, rollback, and future RAG handoff. |
 | **Supabase Setup Reference** | [supabase/SETUP.md](../supabase/SETUP.md) | Database schema migrations, environment configuration, and seed utilities. |
 | **Legacy Prototypes Reference** | [examples/legacy/README.md](../examples/legacy/README.md) | Documentation for historical prototypes and standalone CLI scripts. |
