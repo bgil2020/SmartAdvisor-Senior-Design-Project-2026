@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 from .models import BATCH_ID_RE, COURSE_RE, SCHEMA_VERSION, normalize_course_code, read_json, sha256_text, stable_record_id, utc_now, write_json
@@ -77,7 +77,7 @@ def _content_by_id(batch: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def compare_batches(accepted: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     old, new = _content_by_id(accepted), _content_by_id(candidate)
-    result = {"added": [], "changed": [], "unchanged": [], "omitted": [], "not_found": [], "ambiguous": [], "failed": []}
+    result = {"added": [], "changed": [], "unchanged": [], "omitted": [], "not_found": [], "restricted": [], "ambiguous": [], "failed": []}
     for record_id, record in new.items():
         if record_id not in old:
             result["added"].append(record_id)
@@ -88,7 +88,7 @@ def compare_batches(accepted: dict[str, Any], candidate: dict[str, Any]) -> dict
     result["omitted"] = sorted(set(old) - set(new))
     for item in candidate.get("outcomes", []):
         status = item.get("status")
-        if status in {"not_found", "ambiguous", "failed"}:
+        if status in {"not_found", "restricted", "ambiguous", "failed"}:
             result[status].append(item.get("course_code"))
     for key in result:
         result[key] = sorted(value for value in result[key] if value)
@@ -96,9 +96,16 @@ def compare_batches(accepted: dict[str, Any], candidate: dict[str, Any]) -> dict
     return result
 
 
-def accept_batch(candidate_path: Path, accepted_path: Path, history_dir: Path) -> dict[str, Any]:
+def accept_batch(
+    candidate_path: Path,
+    accepted_path: Path,
+    history_dir: Path,
+    *,
+    validator: Callable[[Any], dict[str, Any]] = validate_batch,
+    dataset_id: str = "smartadvisor-course-descriptions",
+) -> dict[str, Any]:
     candidate = read_json(candidate_path)
-    validation = validate_batch(candidate)
+    validation = validator(candidate)
     if not validation["valid"]:
         raise ValueError(f"Candidate is invalid: {validation['errors']}")
     accepted = read_json(accepted_path)
@@ -121,7 +128,7 @@ def accept_batch(candidate_path: Path, accepted_path: Path, history_dir: Path) -
         shutil.copy2(accepted_path, history_path)
     output = {
         "schema_version": SCHEMA_VERSION,
-        "dataset_id": "smartadvisor-course-descriptions",
+        "dataset_id": dataset_id,
         "accepted_batch_id": candidate["batch_id"],
         "accepted_at": utc_now(),
         "previous_accepted_batch_id": previous_batch_id,
