@@ -23,6 +23,6 @@ def parse_offline_batch(manifest_path: Path, raw_dir: Path, candidate_path: Path
         else:
             records.append(record)
             outcomes.append({"course_code": item["course_code"], "source_document_id": item["source_document_id"], "status": "parsed", "record_id": record["record_id"]})
-    batch = {"schema_version": SCHEMA_VERSION, "batch_id": batch_id, "delivery_mode": "partial", "created_at": utc_now(), "source_manifest": manifest_path.as_posix(), "records": records, "outcomes": outcomes, "limitations": ["Missing or restricted documents remain outcomes and never delete accepted records."]}
+    batch = {"schema_version": SCHEMA_VERSION, "batch_id": batch_id, "delivery_mode": "partial", "created_at": utc_now(), "source_manifest": manifest_path.as_posix(), "records": records, "outcomes": outcomes, "limitations": ["Missing, access-denied, or otherwise failed documents remain outcomes and never delete accepted records."]}
     write_json(candidate_path, batch)
     return batch

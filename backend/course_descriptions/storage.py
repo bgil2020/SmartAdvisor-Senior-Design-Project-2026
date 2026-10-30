@@ -77,7 +77,7 @@ def _content_by_id(batch: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def compare_batches(accepted: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     old, new = _content_by_id(accepted), _content_by_id(candidate)
-    result = {"added": [], "changed": [], "unchanged": [], "omitted": [], "not_found": [], "restricted": [], "ambiguous": [], "failed": []}
+    result = {"added": [], "changed": [], "unchanged": [], "omitted": [], "not_found": [], "restricted": [], "generic_access_denied": [], "ambiguous": [], "failed": []}
     for record_id, record in new.items():
         if record_id not in old:
             result["added"].append(record_id)
@@ -88,7 +88,7 @@ def compare_batches(accepted: dict[str, Any], candidate: dict[str, Any]) -> dict
     result["omitted"] = sorted(set(old) - set(new))
     for item in candidate.get("outcomes", []):
         status = item.get("status")
-        if status in {"not_found", "restricted", "ambiguous", "failed"}:
+        if status in {"not_found", "restricted", "generic_access_denied", "ambiguous", "failed"}:
             result[status].append(item.get("course_code"))
     for key in result:
         result[key] = sorted(value for value in result[key] if value)

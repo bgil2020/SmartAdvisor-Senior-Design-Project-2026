@@ -6,23 +6,24 @@
     "library_url": "https://fau.simplesyllabus.com/en-US/syllabus-library",
     "robots_url": "https://fau.simplesyllabus.com/robots.txt",
     "access_checked_at": "2026-10-30",
-    "access_finding": "The anonymous library listed these exact documents, but a fresh isolated browser received HTTP 403 for each full-document payload. Direct HTTP returned only the JavaScript shell. No login, credentials, private API calls, or bypass was used.",
+    "robots_finding": "One logical GET to the canonical root URL redirected through /ui/locale-redirect?/robots.txt to /en-US/robots.txt (HTTP 302, 302, 200). The final text disallows all paths only for GPTBot, Google-Extended, CCBot, and ChatGPT-User. The identified SmartAdvisorSyllabusCollector/1.0 HTTP client and the clean browser's native Chrome user agent do not match those named tokens. That observation does not establish authorization to automate collection or redistribute documents.",
+    "access_finding": "The anonymous library listed these exact documents. Direct manifest-link navigation and library initialization followed by the same exact link both left an empty JavaScript shell; the browser-generated essential document request returned HTTP 403. No login redirect or visible sign-in/access-denied message appeared, so this is a generic anonymous access denial of unknown policy cause, not proof of an explicit login requirement. No login, credentials, private API construction, or bypass was used.",
     "redistribution_finding": "No redistribution license was identified. This tracked manifest contains identifiers and public page URLs only; complete documents and extracted text are excluded."
   },
   "selection_rule": "Three exact Fall 2026 sections overlapping the five-course description sample; no term or section substitution.",
   "documents": [
     {
-      "course_code": "CAP4773", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "001", "instructor": "Raquel Assis", "source_document_id": "fjhz2vvga", "observed_access": "restricted",
+      "course_code": "CAP4773", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "001", "instructor": "Raquel Assis", "source_document_id": "fjhz2vvga", "observed_access": "generic_access_denied",
       "view_url": "https://fau.simplesyllabus.com/doc/fjhz2vvga/Fall-2026-1-Full-Term-CAP-4773-001-Intro-Data-Science-Analytics?mode=view",
       "print_url": "https://fau.simplesyllabus.com/doc/fjhz2vvga/Fall-2026-1-Full-Term-CAP-4773-001-Intro-Data-Science-Analytics?mode=view&print=true"
     },
     {
-      "course_code": "COP4331", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "002", "instructor": "Ionut Cardei", "source_document_id": "sb4d8l8wb", "observed_access": "restricted",
+      "course_code": "COP4331", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "002", "instructor": "Ionut Cardei", "source_document_id": "sb4d8l8wb", "observed_access": "generic_access_denied",
       "view_url": "https://fau.simplesyllabus.com/doc/sb4d8l8wb/Fall-2026-1-Full-Term-COP-4331-002-Object-Oriented-Design-%26-Prog?mode=view",
       "print_url": "https://fau.simplesyllabus.com/doc/sb4d8l8wb/Fall-2026-1-Full-Term-COP-4331-002-Object-Oriented-Design-%26-Prog?mode=view&print=true"
     },
     {
-      "course_code": "EEL3111", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "001", "instructor": "Rabia Shahid", "source_document_id": "a4bh2nqsq", "observed_access": "restricted",
+      "course_code": "EEL3111", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "001", "instructor": "Rabia Shahid", "source_document_id": "a4bh2nqsq", "observed_access": "generic_access_denied",
       "view_url": "https://fau.simplesyllabus.com/doc/a4bh2nqsq/Fall-2026-1-Full-Term-EEL-3111-001-Circuits-1?mode=view",
       "print_url": "https://fau.simplesyllabus.com/doc/a4bh2nqsq/Fall-2026-1-Full-Term-EEL-3111-001-Circuits-1?mode=view&print=true"
     }
