@@ -100,3 +100,12 @@ The exact risk-rule schema will be finalized with the team.
 Course retrieval, meeting-time normalization, conflict detection, and alternative-section search are implemented in the Python backend.
 
 The tables described here are a proposed database schema. The Supabase tables and database import pipeline still need to be implemented and verified.
+
+## 10. Course Description Records
+
+`data/course_descriptions/accepted.json` is a separate, versioned descriptive-data
+boundary. It does not replace `FAU_Courses.xlsx` and is not read by current engines.
+Its canonical JSON records preserve stable course identity, exact published text,
+separate prerequisite text when identifiable, source locators, collection time,
+content/evidence hashes, versions, explicit unknowns, and course/term/section scope.
+See `record.schema.json` and `docs/course-description-collector.md`.
