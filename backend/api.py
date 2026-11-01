@@ -374,6 +374,12 @@ def get_alternatives(
     crn: str = Query(...),
     selected_crns: str | None = Query(default=None),
 ):
+    if not crn.strip().isdigit():
+        raise HTTPException(
+            status_code=422,
+            detail="CRN must be a non-empty numeric value.",
+        )
+
     selected = []
 
     if selected_crns:
