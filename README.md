@@ -23,8 +23,50 @@ SmartAdvisor is an academic course-planning and advising decision-support system
 | **LLM & Vector RAG** | Planned Boundary | Informational queries are categorized with `future_rag_candidate=true` and safe `RAG_INACTIVE` guidance. No generative models or vector databases are connected. |
 | **Session Persistence** | In-Memory (Client) | Active schedule and chat history are held in React state; refreshing the browser resets the session. |
 
+---## SmartAdvisor Demo and Prototype Versions
+
+SmartAdvisor uses Git tags and branches to maintain separate code versions.
+
+### Original Approved Demo (v1.0-demo)
+
+The `v1.0-demo` tag preserves the approved original prototype at commit `a2b1656`. This allows teammates to retrieve the same code version after development continues.
+
+To access the original demo:
+
+```bash
+git fetch origin --tags
+git switch --detach v1.0-demo
+```
+
+### Prototype V2 (smartadvisor-prototype-v2)
+
+This branch is intended for future development without changing the original release tag.
+
+```bash
+git fetch origin
+git switch smartadvisor-prototype-v2
+```
+
+If the branch is not yet on your computer:
+
+```bash
+git switch --track origin/smartadvisor-prototype-v2
+```
+
+After choosing a version, follow the Clean-Clone Quick Start instructions below to run the application.
+
+### Release and Deployment Safety
+
+- Do not move or overwrite the `v1.0-demo` tag.
+- Develop new features on branches, not on the release tag.
+- Git versions do not automatically create separate deployed websites or databases.
+- Use separate deployment environments and databases for V2 experimentation.
+- Never commit passwords, API keys, or `.env` files.
+- Obtain team approval before deploying a new release.
+
 ---
 ##Recent Development Updates
+
 --
 
 ## Requirements
