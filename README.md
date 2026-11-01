@@ -23,51 +23,68 @@ SmartAdvisor is an academic course-planning and advising decision-support system
 | **LLM & Vector RAG** | Planned Boundary | Informational queries are categorized with `future_rag_candidate=true` and safe `RAG_INACTIVE` guidance. No generative models or vector databases are connected. |
 | **Session Persistence** | In-Memory (Client) | Active schedule and chat history are held in React state; refreshing the browser resets the session. |
 
----## SmartAdvisor Demo and Prototype Versions
+---
 
-SmartAdvisor uses Git tags and branches to maintain separate code versions.
+## SmartAdvisor Demo and Prototype Versions
 
-### Original Approved Demo (v1.0-demo)
+SmartAdvisor uses Git tags and branches to maintain separate code versions. Tags identify fixed code checkpoints; branches allow continued development.
 
-The `v1.0-demo` tag preserves the approved original prototype at commit `a2b1656`. This allows teammates to retrieve the same code version after development continues.
+### Original Approved Demo (`v1.0-demo`)
 
-To access the original demo:
+The `v1.0-demo` tag preserves the approved original prototype at commit `a2b1656`. Retrieve it in an existing clone with:
 
 ```bash
 git fetch origin --tags
 git switch --detach v1.0-demo
 ```
 
-### Prototype V2 (smartadvisor-prototype-v2)
+The detached-HEAD state is expected when inspecting a tag. Do not make new feature commits on the tag.
 
-This branch is intended for future development without changing the original release tag.
+### Prototype V2 (`smartadvisor-prototype-v2`)
+
+This branch supports future development without changing the original release tag.
 
 ```bash
 git fetch origin
 git switch smartadvisor-prototype-v2
 ```
 
-If the branch is not yet on your computer:
+If the branch does not exist locally, use `git switch --track origin/smartadvisor-prototype-v2` instead. From a fresh clone, you can also specify `git clone --branch smartadvisor-prototype-v2 <repository-url>`.
 
-```bash
-git switch --track origin/smartadvisor-prototype-v2
-```
-
-After choosing a version, follow the Clean-Clone Quick Start instructions below to run the application.
+After selecting either version, follow the Clean-Clone Quick Start instructions below.
 
 ### Release and Deployment Safety
 
 - Do not move or overwrite the `v1.0-demo` tag.
-- Develop new features on branches, not on the release tag.
-- Git versions do not automatically create separate deployed websites or databases.
-- Use separate deployment environments and databases for V2 experimentation.
-- Never commit passwords, API keys, or `.env` files.
-- Obtain team approval before deploying a new release.
+- Develop changes on branches and request review before merging into `main`.
+- Tags and branches save code versions; they do not automatically create separate websites or databases.
+- Use separate deployments and isolated databases when experimenting with Prototype V2. Never run reset/seed scripts against a shared database without team approval.
+- Never commit `.env` files, passwords, API keys, or real student data.
+- Confirm the approved commit before creating any future demo release tags.
+
+### Prototype V2 Clean-Clone Verification
+
+A fresh clone of `smartadvisor-prototype-v2` was tested in a separate local folder and Python virtual environment.
+
+| Verification Check | Result |
+|---|---|
+| Fresh GitHub clone | Successful |
+| Python dependency installation | Successful |
+| Automated Python tests | 215 passed, 1 warning (47.45 seconds) |
+| FastAPI backend | Started successfully on port 8001 |
+| Swagger API documentation | HTTP 200 OK |
+| React frontend | Started successfully on port 5173 |
+| Frontend course catalog | Loaded 139 courses |
+| Course-section search | COP 4331 sections displayed successfully |
+
+Port 8000 was already occupied during the local test, so the backend was started with `python -m uvicorn backend.api:app --host 127.0.0.1 --port 8001`, and `frontend/.env.local` contained `VITE_API_URL=http://127.0.0.1:8001`. On PowerShell, `npm.cmd ci` and `npm.cmd run dev` work if `npm.ps1` is blocked by execution policy. These local configuration files should not be committed.
+
+The `v1.0-demo` tag remained unchanged. This is a local clean-clone verification, not a separate production deployment or concurrent-user load test. During dependency installation, `npm audit --omit=dev` reported zero production dependency vulnerabilities, while the unfiltered audit reported 14 findings requiring separate review.
 
 ---
-##Recent Development Updates
 
---
+## Recent Development Updates
+
 
 ## Requirements
 
