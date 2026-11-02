@@ -61,6 +61,7 @@ from .scheduling_service import (
     evaluate_schedule_conflict,
     evaluate_alternative_sections,
 )
+from .rag.service import answer_information_question
 
 router = APIRouter(tags=["Conversational Assistant"])
 
@@ -80,6 +81,7 @@ class ConversationRequest(BaseModel):
     preferred_max_credits: float | None = Field(default=None, ge=1, le=30, description="Max target credits")
     recent_courses: list[str] | None = Field(default=None, description="Previously completed recent course codes")
     term: int | str | None = Field(default=None, description="Term code for section lookups, e.g. 202608")
+    section: str | None = Field(default=None, description="Optional syllabus section filter, e.g. 001")
     sections: list[Any] | None = Field(
         default=None, description="Explicit list of sections to compare (CRNs or course+section dicts)"
     )
@@ -97,6 +99,8 @@ class ConversationResponse(BaseModel):
         "clarification",
         "escalation",
         "rag_inactive",
+        "rag_answered",
+        "no_relevant_evidence",
         "unsupported",
         "engine_unavailable",
         "engine_error",
@@ -124,6 +128,12 @@ class ConversationResponse(BaseModel):
     explanation_contract_version: str = EXPLANATION_CONTRACT_VERSION
     evidence_references: list[str] = Field(default_factory=list)
     explanation_limitations: list[str] = Field(default_factory=list)
+    rag_executed: bool = False
+    generation_source: Literal["provider", "source_excerpt_fallback", "none"] | None = None
+    generation_fallback_used: bool = False
+    generation_fallback_reason: str | None = None
+    rag_sources: list[dict] = Field(default_factory=list)
+    retrieved_evidence_count: int = 0
 
 
 @router.post("/conversation", response_model=ConversationResponse)
@@ -193,19 +203,42 @@ def handle_conversation(req: ConversationRequest):
             extracted_courses=extracted_courses,
         )
 
-    # 2. Informational RAG queries (Inactive prototype candidate)
+    # 2. Informational RAG queries. Retrieval is local; fetching/importing is a
+    # separate explicit workflow and never occurs while serving a question.
     if disposition == DISPOSITION_RAG:
-        return _build_response(
-            status="rag_inactive",
+        rag = answer_information_question(
+            message,
+            course_codes=extracted_courses,
+            term_id=str(req.term) if req.term is not None else None,
+            section=req.section,
+        )
+        status = {
+            "answered": "rag_answered",
+            "clarification": "clarification",
+            "no_relevant_evidence": "no_relevant_evidence",
+        }[rag.status]
+        return ConversationResponse(
+            status=status,
             raw_message=message,
             disposition=disposition,
             target_handler=target_handler,
-            response_code=response_code,
-            response_text=response_text,
-            actionable_guidance="Informational RAG retrieval is planned for a future milestone and is not active in this prototype.",
-            safe_to_route=False,
+            response_code={"answered": "RAG_ANSWERED", "clarification": "RAG_CLARIFICATION", "no_relevant_evidence": "RAG_NO_RELEVANT_EVIDENCE"}[rag.status],
+            response_text=rag.answer,
+            actionable_guidance=None if rag.status == "answered" else "Name a covered course or rebuild the local corpus with an applicable validated source.",
+            safe_to_route=rag.status == "answered",
             engine_executed=False,
             extracted_courses=extracted_courses,
+            parser_source=parser_source,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
+            model_id=rag.model_id or model_id,
+            rag_executed=True,
+            generation_source=rag.generation_source,
+            generation_fallback_used=rag.generation_fallback_used,
+            generation_fallback_reason=rag.generation_fallback_reason,
+            rag_sources=rag.sources,
+            retrieved_evidence_count=len(rag.retrieved_evidence),
+            explanation_limitations=rag.limitations,
         )
 
     # 3. Allow structured context to fill missing message details (do not require text to repeat valid context)

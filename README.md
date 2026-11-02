@@ -17,10 +17,10 @@ SmartAdvisor is an academic course-planning and advising decision-support system
 | **Weekly Schedule Calendar** | Integrated | Visual calendar rendering real section meeting days and times, plus separate evening/unscheduled section panels. |
 | **Course Compatibility Engine** | Integrated | Evaluates course combinations, credit load bounds, and workload difficulty against synthetic student profiles via `POST /compatibility`. |
 | **Online Override Evaluator** | Client-Side Guidance | Interactive questionnaire screening student circumstances (military, medical, transportation, other). Runs pure browser-side logic; does not submit official overrides. |
-| **Conversational Assistant** | Integrated (Deterministic) | Rule-based intent classification and entity extraction (`POST /conversation`). Automatically executes the Course Compatibility Engine when complete context is provided, requests missing workload fields, and escalates administrative requests to advisors. |
-| **Data Runtime** | File-Backed | Operates entirely from local Excel workbooks. No cloud databases, external APIs, or network credentials are required. |
+| **Conversational Assistant** | Integrated | Deterministic intent/entity parsing is the default. `POST /conversation` executes supported deterministic engines, escalates administrative requests, and routes informational questions to the development-branch RAG path when a local corpus is available. |
+| **Data Runtime** | File-Backed | Core scheduling/compatibility data remains local. RAG uses an explicitly built, ignored local corpus; live answer generation is optional and requires separately configured Gemini access. |
 | **Supabase Cloud Database** | Prepared (Inactive) | Database schema and migration scripts exist in `supabase/` and `scripts/`. Inactive at runtime; adding credentials does not alter backend behavior. |
-| **LLM & Vector RAG** | Planned Boundary | Informational queries are categorized with `future_rag_candidate=true` and safe `RAG_INACTIVE` guidance. No generative models or vector databases are connected. |
+| **RAG Information Engine v0** | Development Branch | `feature/rag-information-engine` provides validated local import, lexical retrieval, cited excerpt fallback, and optional grounded Gemini generation through `/conversation`. It is not merged or production-deployed; see `docs/rag-v0-walkthrough.md`. |
 | **Session Persistence** | In-Memory (Client) | Active schedule and chat history are held in React state; refreshing the browser resets the session. |
 
 ---

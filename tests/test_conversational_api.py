@@ -63,14 +63,15 @@ def test_advisor_escalation_does_not_execute_engine():
     assert data["target_handler"] == "academic_advisor"
 
 
-def test_inactive_rag_candidate_does_not_execute_engine():
-    """Informational questions are safely flagged as inactive candidate without execution."""
+def test_rag_missing_source_does_not_execute_core_engine():
+    """Informational questions fail closed when the local corpus lacks the course."""
     payload = {"message": "What topics are covered in COP 3530?"}
     resp = client.post("/conversation", json=payload)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "rag_inactive"
+    assert data["status"] == "no_relevant_evidence"
     assert data["engine_executed"] is False
+    assert data["rag_executed"] is True
     assert data["safe_to_route"] is False
     assert data["disposition"] == "future_rag_candidate"
 

@@ -1,12 +1,9 @@
 """Bounded, sequential HTTP acquisition for FAU course detail pages."""
 from __future__ import annotations
 
-import email.utils
 import json
 import logging
 import time
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -14,6 +11,7 @@ from xml.etree import ElementTree
 
 import httpx
 
+from .http import FetchConfig, FetchStopped, bounded_get
 from .models import BATCH_ID_RE, normalize_course_code, sha256_text, utc_now, write_json
 
 CATALOG_ORIGIN = "https://catalog.fau.edu"
@@ -24,32 +22,6 @@ USER_AGENT = "SmartAdvisorCourseCollector/1.0 (manual academic project; https://
 LOG = logging.getLogger(__name__)
 
 
-class FetchStopped(RuntimeError):
-    pass
-
-
-@dataclass
-class FetchConfig:
-    timeout_seconds: float = 20.0
-    pace_seconds: float = 1.0
-    max_retries: int = 2
-    max_retry_after_seconds: float = 30.0
-
-
-def _retry_delay(response: httpx.Response | None, attempt: int, maximum: float) -> float:
-    if response is not None and response.headers.get("Retry-After"):
-        value = response.headers["Retry-After"]
-        try:
-            return min(maximum, max(0.0, float(value)))
-        except ValueError:
-            try:
-                when = email.utils.parsedate_to_datetime(value)
-                return min(maximum, max(0.0, (when - datetime.now(timezone.utc)).total_seconds()))
-            except (TypeError, ValueError):
-                pass
-    return min(maximum, float(2**attempt))
-
-
 def _request(
     client: httpx.Client,
     url: str,
@@ -58,26 +30,7 @@ def _request(
     config: FetchConfig,
     sleep: Callable[[float], None],
 ) -> tuple[httpx.Response, int]:
-    if urlparse(url).hostname not in ALLOWED_HOSTS:
-        raise FetchStopped("Refusing request outside the explicit source allowlist")
-    requests = 0
-    for attempt in range(config.max_retries + 1):
-        response: httpx.Response | None = None
-        try:
-            requests += 1
-            response = client.get(url, headers=headers or {})
-            if response.url.host not in ALLOWED_HOSTS:
-                raise FetchStopped("Refusing redirect outside the explicit source allowlist")
-            if response.status_code not in {429, 500, 502, 503, 504}:
-                return response, requests
-        except (httpx.TimeoutException, httpx.TransportError):
-            if attempt == config.max_retries:
-                raise
-        if attempt == config.max_retries:
-            assert response is not None
-            return response, requests
-        sleep(_retry_delay(response, attempt, config.max_retry_after_seconds))
-    raise AssertionError("unreachable")
+    return bounded_get(client, url, allowed_hosts=ALLOWED_HOSTS, headers=headers, config=config, sleep=sleep)
 
 
 def discover_detail_urls(sitemap_text: str, course_codes: list[str]) -> dict[str, str]:

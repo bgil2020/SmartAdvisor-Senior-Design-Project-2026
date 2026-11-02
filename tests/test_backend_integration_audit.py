@@ -416,8 +416,8 @@ def test_case_f_advisor_escalation_official_actions():
         assert data["engine_result"] is None
 
 
-def test_case_g_informational_future_rag_candidate():
-    """Case G: Informational inquiries remain safely RAG-inactive without engine execution."""
+def test_case_g_informational_rag_missing_evidence():
+    """Case G: Informational inquiries fail closed when the course is absent."""
     payload = {
         "message": "What topics are covered in COP 3530?",
     }
@@ -427,11 +427,12 @@ def test_case_g_informational_future_rag_candidate():
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "rag_inactive"
+    assert data["status"] == "no_relevant_evidence"
     assert data["target_handler"] == "future_informational_rag"
-    assert data["response_code"] == "FUTURE_RAG_NOT_AVAILABLE"
+    assert data["response_code"] == "RAG_NO_RELEVANT_EVIDENCE"
     assert data["safe_to_route"] is False
     assert data["engine_executed"] is False
+    assert data["rag_executed"] is True
     assert data["engine_result"] is None
 
 
