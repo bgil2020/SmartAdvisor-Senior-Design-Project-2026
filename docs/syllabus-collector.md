@@ -2,7 +2,7 @@
 
 This increment adds a syllabus source adapter without treating a library listing or JavaScript shell as a complete syllabus. It is deliberately limited to three exact documents and shares the course-description pipeline's HTTP controls and candidate/accepted/version/rollback lifecycle.
 
-## Access finding (2026-10-30)
+## Initial access finding (2026-10-30)
 
 The test used a fresh anonymous HTTP client and an isolated Chrome profile with no FAU cookies or SSO state.
 
@@ -48,9 +48,15 @@ Selected exact results:
 - COP 4331, Fall 2026 1 Full Term (`202608`), section 002, document `sb4d8l8wb`.
 - EEL 3111, Fall 2026 1 Full Term (`202608`), section 001, document `a4bh2nqsq`.
 
-The tracked [manifest](../data/syllabi/sample-manifest.json) preserves exact identities, instructors displayed in the public listing, view/print URLs, and access outcomes. Requested: 3; complete documents fetched: 0; generic access denied: 3; missing: 0; failed: 0. The new clean-browser reproduction focused on EEL3111-001 as directed; CAP4773-001 and COP4331-002 were not re-probed after EEL failed.
+The tracked [manifest](../data/syllabi/sample-manifest.json) preserves exact identities, instructors displayed in the public listing, view/print URLs, and the initial access outcomes. In the October 30 run: requested 3; complete documents fetched 0; generic access denied 3; missing 0; failed 0. That reproduction focused on EEL3111-001; CAP4773-001 and COP4331-002 were not re-probed after EEL failed.
 
 Browser evidence for this correction used installed Chrome 156 with a brand-new temporary `--user-data-dir`, no imported profile, no FAU login, and no cookies supplied by the user. There were three document navigation attempts (one `--dump-dom` preflight that was terminated after a reload loop, one instrumented direct navigation, and one instrumented navigation after the library) plus one library navigation. The two instrumented document attempts observed 37 essential document-response 403s caused by the application's reload loop (28 during the 25-second direct observation and 9 during the bounded library-first observation). The preflight did not capture per-request telemetry and is not included in that request count. No private request was constructed or replayed.
+
+## Subsequent bounded EEL3111 result (2026-11-01)
+
+After the guard was corrected so successful initialization responses no longer consumed the failed-essential budget, one new anonymous EEL3111-001 attempt completed through the concrete manual Playwright driver. It used one navigation, a fresh nonpersistent browser context, installed Chrome, no login/profile/cookies/session reuse, no refresh or retry, and the same denial/response/deadline controls. The rendered page reached the expected `Course Evaluation Method` heading after 23 observed responses: one successful essential-document response, zero essential failures, zero access denials, and two redirects. A telemetry response returned 429 but did not invalidate otherwise complete academic content.
+
+The complete HTML, parsed candidate, and imported corpus remain ignored local artifacts. The candidate validated as one record for EEL3111 term `202608`, section `001`, source document `a4bh2nqsq`. This later success supersedes the earlier zero-coverage conclusion for that exact bounded attempt; it does not establish that every anonymous document is available or that redistribution is permitted.
 
 ### Browser circuit breaker
 
@@ -58,12 +64,13 @@ Browser evidence for this correction used installed Chrome 156 with a brand-new 
 
 - one logical document navigation per probe;
 - stop and cancel on the first essential-document HTTP 401 or 403;
-- at most two essential-document responses;
-- at most 20 total observed responses, counted separately from logical navigation;
+- at most two failed essential-document responses; successful initialization
+  responses remain observable but do not consume this failure budget;
+- at most 60 total observed responses, counted separately from logical navigation;
 - telemetry responses counted separately and never used to invalidate otherwise complete rendered content;
 - page/context closure on success, cancellation, stream exhaustion, or error.
 
-The guard consumes only sanitized events observed during normal page navigation; it does not construct or replay a private request. Its denial loop, budgets, telemetry handling, cancellation, error cleanup, and accepted-data isolation are tested offline with a mock session. It was intentionally **not** tested with another live document request during closeout. The repository does not currently ship a concrete automatic browser driver, and live fetching remains blocked.
+The guard consumes only sanitized events observed during normal page navigation; it does not construct or replay a private request. Its denial loop, budgets, telemetry handling, cancellation, error cleanup, and accepted-data isolation are tested offline with a mock session. `scripts/syllabus_browser_collect.py` is a concrete **manual** Playwright driver for one tracked document identity. It is optional, never runs in the question-serving path, and is not an automatic syllabus feed.
 
 ## Placement and shared contract
 
@@ -75,7 +82,7 @@ The guard consumes only sanitized events observed during normal page navigation;
 
 Both descriptions and syllabi use schema version 1.0 envelope fields: stable `record_id`, `record_category`, course/term/section scopes, exact source text, source URL/locators, evidence hash, content hash, timestamps, versions, unknowns, and limitations. Syllabus-specific content is not forced into `description`; it uses `document_text` and ordered `academic_sections`. This lets a future retrieval adapter consume both categories while retaining source identity and heading locators.
 
-The implemented ingestion path is deliberately manual and offline: an explicitly permitted complete rendered HTML file may be placed in the ignored raw batch directory, then parsed, validated, compared, and explicitly accepted. It is not a working automatic syllabus feed, and no live syllabus text has been accepted.
+The implemented ingestion path is deliberately manual: an explicitly permitted complete rendered HTML file may be placed in the ignored raw batch directory by the bounded browser command or by an authorized operator, then parsed, validated, compared, and explicitly accepted. It is not an automatic syllabus feed. The verified EEL3111 candidate was imported into an ignored local RAG corpus; no live syllabus text was committed to the tracked accepted dataset.
 
 ## Clean-checkout commands
 
@@ -94,7 +101,13 @@ python scripts/syllabi.py probe
 
 It diagnoses the server shell only. It does not claim to collect rendered text. To reproduce the browser finding, open the exact `view_url` from the manifest in a new Chrome Guest profile, confirm that no FAU session is present, and use DevTools Network plus Elements. Wait for either a document container with the expected course/section/term and academic headings, an explicit login/denial UI, or the essential document request to finish. Do not classify unrelated telemetry failures as document failures.
 
-A successful future access review may place one permitted, complete rendered HTML file at `data/syllabi/raw/<batch-id>/<source-document-id>.html`, then run:
+The optional bounded browser command can place one complete rendered file at `data/syllabi/raw/<batch-id>/<source-document-id>.html` when access succeeds:
+
+```powershell
+python scripts/syllabus_browser_collect.py --document-id a4bh2nqsq --batch-id <batch-id> --visible
+```
+
+It uses installed Chrome plus the separately installed optional Python `playwright` package. For normal offline parsing and tests, neither is required. After a permitted file exists, run:
 
 ```powershell
 python scripts/syllabi.py parse --batch-id <batch-id>
@@ -114,10 +127,10 @@ An authenticated adapter is a separate follow-up requiring explicit approval and
 
 ## Limitations and next retrieval step
 
-Coverage is currently zero complete live syllabi. The clean anonymous EEL attempt was generically denied at the essential browser request; the user's working page appears to have a different session state, as indicated by Logout, but no authenticated state was inspected or reused. Freshness is limited to the access check date. The smallest next RAG step remains a read-only retrieval interface after a permitted complete document is available; embeddings and answer generation remain out of scope.
+Verified local coverage is one complete EEL3111 Fall 2026 section 001 syllabus, collected anonymously in the later bounded attempt and imported into the local RAG corpus. CAP4773-001 and COP4331-002 remain manifest identities only. Freshness is limited to the recorded collection time, redistribution remains unresolved, and locally fetched content does not arrive with Git checkout.
 
-During the latest diagnostic run, EEL3111-001 was the only document re-probed. CAP4773-001 and COP4331-002 were not re-probed. During this closeout, no syllabus document was requested; the only live access was the single allowed canonical robots request (three HTTP responses including redirects). No account/session reuse, sign-in, or bypass was attempted.
+EEL3111-001 was the only document requested in the successful follow-up. CAP4773-001 and COP4331-002 were not re-probed. No account/session reuse, sign-in, credential use, or bypass was attempted.
 
 ## Unsent data-team handoff
 
-> The syllabus adapter is ready for permitted offline HTML, but the three Fall 2026 samples are listing-visible and have no anonymously collected full text. The clean EEL browser received a generic essential-request 403 without an explicit login prompt. Do not treat the manifest as collected syllabus text or infer that login is definitively required. Please review document visibility/redistribution authorization with the data owner. Never send credentials or session artifacts.
+> The bounded manual adapter produced one anonymous EEL3111-001 candidate in a later clean session; the other two manifest entries have no collected full text. The candidate and corpus remain local and ignored. Do not treat the manifest as syllabus text or infer that all documents share the same access result. Please review retention and redistribution with the data owner. Never send credentials or session artifacts.
