@@ -57,7 +57,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+# Shared parser/RAG default. This is the model verified by the bounded live
+# evaluation; explicit GEMINI_MODEL process overrides continue to take precedence.
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_GEMINI_TIMEOUT = 10.0
 
 SYSTEM_INSTRUCTION = """You are a strictly constrained intent and entity extractor for a university academic course advising assistant.
@@ -150,7 +152,7 @@ class GeminiStructuredParser(BaseConversationalParser):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_name: str = DEFAULT_GEMINI_MODEL,
+        model_name: Optional[str] = None,
         timeout_seconds: float = DEFAULT_GEMINI_TIMEOUT,
         client: Optional[Any] = None,
     ):

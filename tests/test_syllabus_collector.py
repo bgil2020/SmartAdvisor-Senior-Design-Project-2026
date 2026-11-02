@@ -14,6 +14,7 @@ from backend.syllabi.browser_probe import BrowserProbeLimits, probe_browser_sess
 from backend.syllabi.parser import SyllabusParseError, classify_browser_observation, classify_page, parse_rendered_syllabus
 from backend.syllabi.probe import probe_documents
 from backend.syllabi.storage import accept_batch, rollback_accepted, validate_batch
+from scripts.syllabus_browser_collect import classify_response_role
 
 FIXTURES = Path(__file__).parent / "syllabi" / "fixtures"
 
@@ -101,19 +102,42 @@ def test_browser_probe_stops_first_repeating_denial_and_reports_request_counts()
     assert session.cancelled and session.closed
 
 
-def test_browser_probe_enforces_essential_budget_separately_from_telemetry():
+def test_playwright_driver_labels_only_identity_or_denial_as_essential():
+    assert classify_response_role("https://fau.simplesyllabus.com/api/doc/a4bh2nqsq", 200, "fetch", "a4bh2nqsq") == "essential_document"
+    assert classify_response_role("https://fau.simplesyllabus.com/api/bootstrap", 200, "xhr", "a4bh2nqsq") == "other"
+    assert classify_response_role("https://fau.simplesyllabus.com/api/bootstrap", 403, "xhr", "a4bh2nqsq") == "essential_document"
+    assert classify_response_role("https://sentry.io/store", 429, "fetch", "a4bh2nqsq") == "telemetry"
+
+
+def test_browser_probe_enforces_essential_failure_budget_separately_from_telemetry():
     session = FakeBrowserSession([
         {"kind": "response", "role": "telemetry", "status": 429},
         {"kind": "response", "role": "essential_document", "status": 500},
         {"kind": "response", "role": "essential_document", "status": 500},
         {"kind": "response", "role": "essential_document", "status": 500},
     ])
-    result = probe_browser_session(session, "https://fau.simplesyllabus.com/doc/exact?mode=view", limits=BrowserProbeLimits(essential_request_budget=2))
-    assert result["stop_reason"] == "essential_request_budget_exhausted"
+    result = probe_browser_session(session, "https://fau.simplesyllabus.com/doc/exact?mode=view", limits=BrowserProbeLimits(essential_failure_budget=2))
+    assert result["stop_reason"] == "essential_failure_budget_exhausted"
     assert result["actual_observed_responses"] == 3
     assert result["essential_document_requests"] == 2
+    assert result["essential_document_failures"] == 2
     assert result["telemetry_responses"] == 1
     assert session.cancelled and session.closed
+
+
+def test_successful_essential_initialization_does_not_consume_failure_budget():
+    html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
+    session = FakeBrowserSession([
+        {"kind": "response", "role": "essential_document", "status": 200},
+        {"kind": "response", "role": "essential_document", "status": 204},
+        {"kind": "snapshot", "html": html, "final_url": "https://fau.simplesyllabus.com/doc/exact?mode=view"},
+    ])
+    result = probe_browser_session(session, "https://fau.simplesyllabus.com/doc/exact?mode=view")
+    assert result["status"] == "anonymous_full_document"
+    assert result["stop_reason"] == "rendered_document_ready"
+    assert result["essential_document_requests"] == 2
+    assert result["essential_document_failures"] == 0
+    assert not session.cancelled and session.closed
 
 
 def test_browser_probe_enforces_total_response_budget():
