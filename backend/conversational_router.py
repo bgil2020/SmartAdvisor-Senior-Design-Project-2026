@@ -17,6 +17,7 @@ try:
         HANDLER_COMPATIBILITY,
         HANDLER_SCHEDULING,
         HANDLER_OVERRIDE,
+        reconcile_informational_scope,
     )
     from backend.app.conversational.intent_classifier import (
         SCHEDULE_CONFLICT,
@@ -40,6 +41,7 @@ except ImportError:
         HANDLER_COMPATIBILITY,
         HANDLER_SCHEDULING,
         HANDLER_OVERRIDE,
+        reconcile_informational_scope,
     )
     from app.conversational.intent_classifier import (
         SCHEDULE_CONFLICT,
@@ -80,6 +82,7 @@ class ConversationRequest(BaseModel):
     work_hours: float | None = Field(default=None, ge=0, le=80, description="Hours worked per week")
     preferred_max_credits: float | None = Field(default=None, ge=1, le=30, description="Max target credits")
     recent_courses: list[str] | None = Field(default=None, description="Previously completed recent course codes")
+    course_code: str | None = Field(default=None, description="Optional explicit course scope for an informational RAG request")
     term: int | str | None = Field(default=None, description="Term code for section lookups, e.g. 202608")
     section: str | None = Field(default=None, description="Optional syllabus section filter, e.g. 001")
     sections: list[Any] | None = Field(
@@ -134,6 +137,14 @@ class ConversationResponse(BaseModel):
     generation_fallback_reason: str | None = None
     rag_sources: list[dict] = Field(default_factory=list)
     retrieved_evidence_count: int = 0
+    evidence_decision: str | None = None
+    evidence_reason: str | None = None
+    resolved_scope: dict[str, str | None] = Field(default_factory=dict)
+    required_source_categories: list[str] = Field(default_factory=list)
+    supporting_source_ids: list[str] = Field(default_factory=list)
+    missing_evidence_categories: list[str] = Field(default_factory=list)
+    acquisition_eligible: bool = False
+    acquisition_plan: dict | None = None
 
 
 @router.post("/conversation", response_model=ConversationResponse)
@@ -206,11 +217,53 @@ def handle_conversation(req: ConversationRequest):
     # 2. Informational RAG queries. Retrieval is local; fetching/importing is a
     # separate explicit workflow and never occurs while serving a question.
     if disposition == DISPOSITION_RAG:
+        scope = reconcile_informational_scope(
+            entities,
+            explicit_course_code=req.course_code,
+            explicit_term=req.term,
+            explicit_section=req.section,
+        )
+        if scope["conflicts"] or scope["ambiguity"]:
+            issue = scope["conflicts"] or scope["ambiguity"]
+            return ConversationResponse(
+                status="clarification",
+                raw_message=message,
+                disposition=disposition,
+                target_handler=target_handler,
+                response_code="RAG_CLARIFICATION",
+                response_text=f"Please resolve the conflicting or ambiguous informational scope: {', '.join(issue)}.",
+                actionable_guidance="Provide one consistent course, term, and section through the message and explicit request fields.",
+                safe_to_route=False,
+                missing_context=["consistent_informational_scope"],
+                extracted_courses=extracted_courses,
+                parser_source=parser_source,
+                fallback_used=fallback_used,
+                fallback_reason=fallback_reason,
+                model_id=model_id,
+                rag_executed=True,
+                generation_source="none",
+                evidence_decision="conflicting_scope",
+                evidence_reason="Parsed and explicit scope conflict or contain multiple identities.",
+                resolved_scope={key: scope[key] for key in ("course_code", "term_id", "section")},
+                acquisition_eligible=False,
+                acquisition_plan={
+                    "execute": False,
+                    "eligible": False,
+                    "evidence_gap": "conflicting_scope",
+                    "collector_capability": "No acquisition should run until scope is consistent.",
+                    "clarification_required": True,
+                    "manual_action_required": True,
+                    "course_code": scope["course_code"],
+                    "source_categories": [],
+                    "term_id": scope["term_id"],
+                    "section": scope["section"],
+                },
+            )
         rag = answer_information_question(
             message,
-            course_codes=extracted_courses,
-            term_id=str(req.term) if req.term is not None else None,
-            section=req.section,
+            course_codes=[scope["course_code"]] if scope["course_code"] else [],
+            term_id=scope["term_id"],
+            section=scope["section"],
         )
         status = {
             "answered": "rag_answered",
@@ -239,6 +292,14 @@ def handle_conversation(req: ConversationRequest):
             rag_sources=rag.sources,
             retrieved_evidence_count=len(rag.retrieved_evidence),
             explanation_limitations=rag.limitations,
+            evidence_decision=rag.evidence_decision,
+            evidence_reason=rag.evidence_reason,
+            resolved_scope=rag.resolved_scope,
+            required_source_categories=rag.required_source_categories,
+            supporting_source_ids=rag.supporting_source_ids,
+            missing_evidence_categories=rag.missing_evidence_categories,
+            acquisition_eligible=rag.acquisition_eligible,
+            acquisition_plan=rag.acquisition_plan.model_dump() if rag.acquisition_plan else None,
         )
 
     # 3. Allow structured context to fill missing message details (do not require text to repeat valid context)

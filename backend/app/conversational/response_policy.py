@@ -81,7 +81,7 @@ def requires_advisor_escalation(message: str) -> bool:
 
 def is_future_rag_candidate(message: str, extractor_result: dict) -> bool:
     msg = message.lower()
-    if re.search(r'\btopics?\b.*\bcovered\b', msg):
+    if re.search(r'\btopics?\b.*\b(cover|covered|course)\b', msg) or re.search(r'\b(cover|covered)\b.*\btopics?\b', msg):
         return True
     if re.search(r'\bprerequisites?\b', msg):
         return True
@@ -89,7 +89,65 @@ def is_future_rag_candidate(message: str, extractor_result: dict) -> bool:
         return True
     if re.search(r'\bcatalog description\b', msg):
         return True
+    if re.search(r'\bdoes\s+[a-z]{3}[\s-]*\d{4}[a-z]?\s+(cover|include)\b', msg) and not re.search(r'\b(workload|hard|risky|compatible|together)\b', msg):
+        return True
+    assessment = r'(quiz(?:zes)?|tests?|exams?|assignments?|projects?)'
+    detail = r'(graded|grading|grade|weights?|weighted|percent(?:age)?|points?|policy|late|missed|make[ -]?up|drop(?:ped)?|best|count)'
+    if re.search(rf'\b{assessment}\b.*\b{detail}\b', msg) or re.search(rf'\b{detail}\b.*\b{assessment}\b', msg):
+        return True
     return False
+
+
+def reconcile_informational_scope(
+    entities: dict,
+    *,
+    explicit_course_code: str | None = None,
+    explicit_term: int | str | None = None,
+    explicit_section: str | None = None,
+) -> dict:
+    """Reconcile parsed and explicit RAG scope without silently choosing one."""
+    normalize_course = lambda value: re.sub(r"[^A-Z0-9]", "", str(value).upper()) if value else None
+    normalize_section = lambda value: str(value).strip().upper().zfill(3) if value is not None and str(value).strip().isdigit() and len(str(value).strip()) <= 3 else (str(value).strip().upper() if value is not None else None)
+    parsed_courses = list(dict.fromkeys(normalize_course(value) for value in entities.get("course_codes", []) if value))
+    explicit_course = normalize_course(explicit_course_code)
+    conflicts: list[str] = []
+    ambiguity: list[str] = []
+
+    if explicit_course and parsed_courses and explicit_course not in parsed_courses:
+        conflicts.append("course_code")
+    if len(parsed_courses) > 1:
+        ambiguity.append("course_code")
+    course_code = explicit_course or (parsed_courses[0] if len(parsed_courses) == 1 else None)
+
+    parsed_sections: list[str] = []
+    for pair in entities.get("course_section_pairs", []):
+        if not course_code or normalize_course(pair.get("course")) == course_code:
+            section_value = normalize_section(pair.get("section"))
+            if section_value and section_value not in parsed_sections:
+                parsed_sections.append(section_value)
+    for value in entities.get("section_identifiers", []):
+        section_value = normalize_section(value)
+        if section_value and section_value not in parsed_sections:
+            parsed_sections.append(section_value)
+    explicit_section_value = normalize_section(explicit_section)
+    if explicit_section_value and parsed_sections and explicit_section_value not in parsed_sections:
+        conflicts.append("section")
+    if len(parsed_sections) > 1:
+        ambiguity.append("section")
+    section = explicit_section_value or (parsed_sections[0] if len(parsed_sections) == 1 else None)
+
+    parsed_term = str(entities.get("term")).strip() if entities.get("term") is not None else None
+    explicit_term_value = str(explicit_term).strip() if explicit_term is not None else None
+    if explicit_term_value and parsed_term and explicit_term_value != parsed_term:
+        conflicts.append("term_id")
+    term_id = explicit_term_value or parsed_term
+    return {
+        "course_code": course_code,
+        "term_id": term_id,
+        "section": section,
+        "conflicts": list(dict.fromkeys(conflicts)),
+        "ambiguity": list(dict.fromkeys(ambiguity)),
+    }
 
 def is_ambiguous_single_course_workload(message: str, entities: dict) -> bool:
     intent = entities.get("intent")
@@ -192,7 +250,11 @@ def build_conversation_response(message: str, parsed_result: Any = None) -> dict
         text = "Please choose one goal: compare course workload, check schedule/sections, or screen an online override."
         reason = "Missing required details or ambiguous intent."
 
-        if is_ambiguous_single_course_workload(message, entities):
+        if re.search(r'\b(another|that|the other)\s+course\b', message, re.I) and not entities.get("course_codes"):
+            code = CODE_AMBIGUOUS_REQUEST
+            text = "Please name the course code and the information you want; this request has no resolved conversational course reference."
+            reason = "No implemented conversation context resolves the course reference."
+        elif is_ambiguous_single_course_workload(message, entities):
             code = CODE_AMBIGUOUS_REQUEST
             text = "Are you asking about the general difficulty/workload of this course, or whether it is compatible with another course? If comparing, please provide the other course code."
             reason = "Ambiguous single-course workload/compatibility question."

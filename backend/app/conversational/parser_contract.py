@@ -100,6 +100,7 @@ class CanonicalParsingResult(BaseModel):
             "section_identifiers": self.section_identifiers,
             "course_section_pairs": pairs,
             "crns": self.crns,
+            "term": self.term,
             "schedule_constraints": self.schedule_constraints.model_dump(),
             "modality_preference": self.modality_preference,
             "missing_fields": sorted(list(set(self.missing_fields))),

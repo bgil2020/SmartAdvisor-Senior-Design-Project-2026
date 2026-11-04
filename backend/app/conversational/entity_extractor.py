@@ -105,7 +105,7 @@ def extract_course_section_pairs(text: str) -> List[Dict[str, str]]:
     seen = set()
 
     # Pattern 1: COURSE ... section/sec/sect SECT (e.g. 'COP 3530C section 001')
-    p1 = r'\b([a-zA-Z]{3}[\s-]*\d{4}[a-zA-Z]?)\b[\s,]*(?:section|sec|sect)?\s*([0-9]{1,4}[a-zA-Z]?)\b'
+    p1 = r'\b([a-zA-Z]{3}[\s-]*\d{4}[a-zA-Z]?)\b[\s,-]*(?:section|sec|sect)?\s*([0-9]{1,4}[a-zA-Z]?)\b'
     for m in re.finditer(p1, text, re.IGNORECASE):
         c, s = m.groups()
         if s and (s.isdigit() or len(s) <= 4):
