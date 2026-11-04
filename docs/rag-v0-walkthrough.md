@@ -2,8 +2,9 @@
 
 > **Development-branch classroom demonstration; not production deployment.**
 >
-> This guide applies to `feature/rag-information-engine`. The branch is not
-> merged into `main`, and locally acquired source data is not distributed by Git.
+> Core RAG v0 is merged into `main`. The evidence-readiness extension in this
+> guide applies to `feature/rag-evidence-readiness`; it is not production
+> deployment. Locally acquired source data is not distributed by Git.
 
 ## A. What the demo shows
 
@@ -37,6 +38,49 @@ The previously verified full local corpus contained 6 documents, 19 chunks, 5
 course codes, 5 catalog descriptions, and 1 syllabus. Those counts describe a
 prepared local corpus, not files delivered by checkout.
 
+### Request and evidence decision path
+
+The active backend path reuses existing contracts rather than creating a second
+router or provider stack:
+
+1. `frontend/src/services/api.ts` can send the existing basic message payload,
+   but the current UI does not expose readiness diagnostics or explicit RAG
+   scope controls.
+2. `backend/conversational_router.py` defines `ConversationRequest` and
+   `ConversationResponse`, calls the parser, and dispatches the established
+   policy result.
+3. `backend/app/conversational/hybrid_parser.py` selects deterministic parsing or
+   bounded Gemini parsing/fallback. `response_policy.py` preserves advisor and
+   core-engine precedence and reconciles parsed RAG scope with optional API
+   fields `course_code`, `term`, and `section`.
+4. `backend/rag/readiness.py` classifies bounded evidence requirements and checks
+   source applicability separately from passage support.
+5. `backend/rag/service.py` loads `RAG_CORPUS_PATH`, invokes the existing lexical
+   retriever, and permits `generation.py` only when every required part is ready.
+6. The same `/conversation` response returns trusted corpus URLs/locators and
+   generation provenance. The provider never invents source links.
+
+Supported requirement categories are deliberately small: broad or specific
+course topics require a Course Description; published prerequisites require a
+Prerequisites passage; quiz/test/exam/assignment/project grading or policy
+questions require an applicable syllabus plus term and section. A combined
+topics/assessment request requires both. Scheduling, compatibility, eligibility,
+and advisor actions remain outside RAG.
+
+Readiness decisions distinguish `ready`, `clarification_required`,
+`corpus_unavailable`, `appropriate_source_absent`,
+`requested_detail_not_located`, `partially_supported`, and conflicting or
+unsupported scope. A search score alone is never treated as sufficient support.
+Unknown freshness remains `unknown`.
+
+Machine-readable response fields include `evidence_decision`, `evidence_reason`,
+`resolved_scope`, `required_source_categories`, `supporting_source_ids`,
+`missing_evidence_categories`, `acquisition_eligible`, and `acquisition_plan`.
+Plans always have `execute=false`: they identify the bounded existing collector
+and unresolved gap but never perform a network request. Missing source can be
+eligible for later controlled acquisition; requested content not located in an
+already applicable document is not an automatic refetch trigger.
+
 ## B. Reproducible checkout
 
 The repository documents Python 3.11+ and `requirements.txt`:
@@ -58,19 +102,19 @@ Protect local work first. Do not discard changes or force-switch:
 
 ```powershell
 git status --short --branch
-git fetch origin feature/rag-information-engine
-git switch feature/rag-information-engine
+git fetch origin feature/rag-evidence-readiness
+git switch feature/rag-evidence-readiness
 git branch --show-current
 git rev-parse HEAD
-git rev-parse origin/feature/rag-information-engine
+git rev-parse origin/feature/rag-evidence-readiness
 ```
 
 If status is not clean or Git refuses the switch, stop. Commit the work on its
 own branch or use a separate worktree; do not reset or clean it:
 
 ```powershell
-git worktree add ..\SmartAdvisor-rag-v0 origin/feature/rag-information-engine
-Set-Location ..\SmartAdvisor-rag-v0
+git worktree add ..\SmartAdvisor-rag-readiness origin/feature/rag-evidence-readiness
+Set-Location ..\SmartAdvisor-rag-readiness
 ```
 
 That worktree is detached, which is sufficient for a demo. Create a new local
@@ -79,13 +123,13 @@ branch before making changes there.
 ### Fresh clone
 
 ```powershell
-git clone https://github.com/bgil2020/SmartAdvisor-Senior-Design-Project-2026.git SmartAdvisor-rag-v0
-Set-Location SmartAdvisor-rag-v0
-git fetch origin feature/rag-information-engine
-git switch --track origin/feature/rag-information-engine
+git clone https://github.com/bgil2020/SmartAdvisor-Senior-Design-Project-2026.git SmartAdvisor-rag-readiness
+Set-Location SmartAdvisor-rag-readiness
+git fetch origin feature/rag-evidence-readiness
+git switch --track origin/feature/rag-evidence-readiness
 git branch --show-current
 git rev-parse HEAD
-git rev-parse origin/feature/rag-information-engine
+git rev-parse origin/feature/rag-evidence-readiness
 ```
 
 The two hashes should match immediately after checkout.
@@ -342,7 +386,8 @@ official sources.”
 
 ## F. API and frontend status
 
-The backend path is verified. The existing frontend calls `/conversation` and
+The backend path is verified. The API accepts optional `course_code`, `term`, and
+`section` scope and returns readiness diagnostics. The existing frontend calls `/conversation` and
 shows `response_text`, but its TypeScript response union/status card does not yet
 model `rag_answered`, `no_relevant_evidence`, `rag_sources`, provider provenance,
 or citation cards. Frontend build/tests alone are not RAG UI integration.
@@ -383,7 +428,9 @@ Demonstrate with PowerShell, `scripts/rag.py`, or FastAPI docs at
 | --- | --- | --- |
 | Collection | raw batch absent or result denied/incomplete | No source evidence acquired. |
 | Validation/import | invalid candidate or corpus absent | Evidence was not admitted to the RAG corpus. |
-| Retrieval | corpus exists but `no_relevant_evidence` | No applicable matching chunk. |
+| Readiness | `appropriate_source_absent` | Required validated document/scope is absent; a later bounded acquisition may be eligible. |
+| Readiness | `requested_detail_not_located` | Applicable source exists but checked passages do not support the detail; do not repeatedly refetch unchanged content. |
+| Readiness | `partially_supported` | At least one requested part lacks support; no combined generation runs. |
 | Generation | sources exist but fallback reported | Retrieval worked; provider generation did not. |
 
 ## H. Classroom backup plan
@@ -408,7 +455,8 @@ Excerpt fallback proves retrieval and traceability, not live Gemini generation.
 - Lexical retrieval is small and does not establish completeness.
 - Retention/redistribution are unresolved; source evidence stays local/ignored.
 - The frontend does not expose RAG provenance/source cards.
-- This is an unmerged development feature, not production deployment.
+- Core RAG v0 is merged; the evidence-readiness extension remains an unmerged
+  development feature and is not production deployment.
 
 Stop the server with `Ctrl+C`. Inspect local evidence before any cleanup:
 
@@ -420,16 +468,16 @@ Do not use broad cleanup commands. If local policy authorizes removal, delete
 only a specifically reviewed batch/candidate and `data/rag/local-corpus.json`.
 Git cannot restore ignored evidence.
 
-This guide is branch-scoped. Before a future merge to `main`, the team must
-explicitly decide whether to merge, relocate, revise, or remove it and must
-separately decide third-party data treatment.
+This readiness update is branch-scoped. Before merging it to `main`, the team
+must review the acquisition contract and separately decide third-party data
+treatment. Automatic acquisition remains a later task.
 
 ## Verification and contribution record
 
-Historical pre-publication results were 31 focused and 236 full backend tests.
-Publication handoff/PR must state newly executed results instead of presenting
-those historical counts as fresh. Automated tests are offline; live collection
-and provider calls are deliberately excluded.
+Historical RAG-v0 results remain historical. The readiness branch handoff/PR must
+state newly executed baseline, focused, full-suite, real-corpus, and HTTP results
+instead of presenting older counts as fresh. Automated tests remain offline;
+live collection and provider calls are separate explicitly reported activities.
 
 The syllabus parser/browser guard builds on bounded adapter and circuit-breaker
 work from the peer's `test/syllabus-parser` branch. Selected commits were
