@@ -12,6 +12,7 @@ Welcome to the documentation for the **SmartAdvisor** academic planning and advi
 | [API Reference](api.md) | Complete REST API specification for backend endpoints, request/response formats, and synthetic payloads. |
 | [Development Guide](development.md) | Contributor setup, directory layout conventions, environment management, and branch workflows. |
 | [Testing Guide](testing.md) | Automated testing suites (pytest & Node test runner), manual smoke checklists, and verification procedures. |
+| [RAG Storage and Coverage Assessment](rag-storage-coverage-assessment.md) | Measured file/corpus costs, discovery coverage, deployment trade-offs, and the recommended pre-acquisition storage contract. |
 
 ---
 
