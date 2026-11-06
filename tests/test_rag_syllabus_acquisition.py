@@ -285,6 +285,7 @@ def test_conversation_success_repeat_no_refetch_and_existing_detail_gap(tmp_path
     assert first["initial_evidence_decision"] == "appropriate_source_absent"
     assert first["acquisition_outcome"] == "published"
     assert first["acquisition_document_id"] == "a4bh2nqsq"
+    assert first["acquisition_diagnostic_id"].startswith("api-eel3111-202608-001-")
     assert first["post_acquisition_evidence_decision"] == "ready"
     assert first["generation_source"] == "source_excerpt_fallback"
     assert first["rag_sources"][0]["record_category"] == "syllabus"

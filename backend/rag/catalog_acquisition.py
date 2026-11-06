@@ -114,6 +114,7 @@ class CatalogAcquisitionResult:
     stop_reason: str | None = None
     browser_response_count: int = 0
     essential_request_count: int = 0
+    diagnostic_id: str | None = None
 
     def public_dict(self) -> dict[str, Any]:
         return asdict(self)

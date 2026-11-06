@@ -132,6 +132,7 @@ def run_browser_subprocess(
         "--batch-id", batch_id,
         "--chrome", str(settings.chrome_path),
         "--raw-root", str(settings.data_root / "raw"),
+        "--diagnostics-root", str(settings.data_root / "diagnostics"),
         "--deadline-seconds", str(settings.browser_deadline_seconds),
     ]
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
@@ -247,9 +248,10 @@ class SyllabusAcquisitionCoordinator:
             settings=self.settings,
             cancelled=cancelled,
         )
+        diagnostic_id = browser.get("diagnostic_id") or batch_id
         if browser.get("outcome") != "collected":
             if browser.get("outcome") in {"cancelled", "timeout", "browser_unavailable", "browser_error"}:
-                return CatalogAcquisitionResult(browser["outcome"], course, attempted=True, reason=browser.get("reason"), **scoped)
+                return CatalogAcquisitionResult(browser["outcome"], course, attempted=True, reason=browser.get("reason"), diagnostic_id=diagnostic_id, **scoped)
             probe = browser.get("probe", {})
             status = probe.get("status")
             outcome = {
@@ -263,6 +265,7 @@ class SyllabusAcquisitionCoordinator:
                 stop_reason=probe.get("stop_reason"),
                 browser_response_count=int(probe.get("actual_observed_responses", 0)),
                 essential_request_count=int(probe.get("essential_document_requests", 0)),
+                diagnostic_id=diagnostic_id,
                 **scoped,
             )
         probe = browser.get("probe", {})
@@ -304,6 +307,7 @@ class SyllabusAcquisitionCoordinator:
             stop_reason=probe.get("stop_reason"),
             browser_response_count=int(probe.get("actual_observed_responses", 0)),
             essential_request_count=int(probe.get("essential_document_requests", 0)),
+            diagnostic_id=diagnostic_id,
             **scoped,
         )
 

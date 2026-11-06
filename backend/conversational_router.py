@@ -173,6 +173,7 @@ class ConversationResponse(BaseModel):
     acquisition_stop_reason: str | None = None
     acquisition_browser_response_count: int = 0
     acquisition_essential_request_count: int = 0
+    acquisition_diagnostic_id: str | None = None
     post_acquisition_evidence_decision: str | None = None
     active_corpus_generation: str | None = None
 
@@ -440,6 +441,7 @@ def _handle_conversation_sync(
             acquisition_stop_reason=acquisition.stop_reason,
             acquisition_browser_response_count=acquisition.browser_response_count,
             acquisition_essential_request_count=acquisition.essential_request_count,
+            acquisition_diagnostic_id=acquisition.diagnostic_id,
             post_acquisition_evidence_decision=rag.evidence_decision,
             active_corpus_generation=active_generation,
         )

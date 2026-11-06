@@ -43,6 +43,7 @@ data/course_descriptions/.history/
 # Generated syllabus acquisition artifacts (may contain third-party text/session state)
 data/syllabi/raw/
 data/syllabi/candidates/
+data/syllabi/diagnostics/
 data/syllabi/.history/
 data/syllabi/browser-profile/
 
