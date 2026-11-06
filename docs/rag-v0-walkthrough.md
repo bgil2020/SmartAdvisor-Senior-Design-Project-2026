@@ -243,6 +243,28 @@ operator-launched collection and prepared-data RAG demonstration, not as verifie
 unattended acquisition. This does not change the earlier EEL3111 denial or add
 generic discovery.
 
+“Operator-launched” does not mean that text was copied manually. After launch, the
+visible browser workflow navigated, waited for the academic readiness marker,
+captured rendered HTML/PDF, and closed without human interaction. The rendered
+HTML—not PDF-extracted text—supplied the normalized candidate. The PDF was reviewed
+visually but was not independently machine-text compared for completeness.
+
+The saved CAP4613 store has also completed one grounded live-generation check
+without source acquisition. A real `/conversation` request with explicit
+`CAP4613` / `202701` / `042` scope returned `ready`, `acquisition_attempted=false`,
+provider generation from `gemini-3.5-flash-lite`, no fallback, and a citation to
+`heading:Course Evaluation Method`. The supported answer states that weekly
+quizzes are 10% of the final grade.
+
+A headed deployment worker is technically possible but not currently a supported
+production topology. Windows requires the measured installed Chrome/display
+environment. Linux headed execution would require an explicitly provisioned
+display such as Xvfb plus matching browser dependencies. The backend owner must
+confirm the host, persistent storage, display-capable worker, and single-process
+coordination model; the source owner must separately confirm whether this browser
+workflow is permitted or whether an institutional integration/export is required.
+Do not implement headless-denied-to-headed fallback.
+
 Offline retrieval/excerpt mode:
 
 ```powershell

@@ -150,10 +150,14 @@ generation, citations, source URL, and generation fallback fields.
 The browser must yield a full rendered academic document, not a shell, thumbnail,
 navigation page, or login. The existing parser and validator enforce course,
 term, section, document identity, academic headings, source URL/locators, hashes,
-and provenance. The parser excludes the `Instructor Information` section from
-retrieval so email, meeting links, and similar contact details do not enter the
-candidate. PDF export is optional local evidence: a PDF failure does not invalidate
-otherwise complete HTML, and a PDF success does not bypass HTML validation.
+and provenance. Candidates preserve validated heading-scoped source text for
+auditability and compatibility. Corpus construction—not parsing—excludes
+`Instructor Information`, `Code of Academic Integrity`, `Policy on the Recording
+of Lectures`, and `Artificial Intelligence Preamble` from retrieval. Existing
+candidates that retain those sections remain valid, and no historical record or
+hash is rewritten. PDF export is optional local evidence: a PDF failure does not
+invalidate otherwise complete HTML, and a PDF success does not bypass HTML
+validation.
 
 Outcomes distinguish `missing_required_scope`, `source_unresolved`, `disabled`,
 `manual_collection_required`, `browser_unavailable`, `access_denied`, `timeout`,
@@ -192,8 +196,12 @@ readiness, both essential responses were HTTP 200, and no access denial occurred
 The same session produced complete rendered HTML and a seven-page PDF. The PDF
 visually confirmed CAP4613-042, Spring 2027 1 Full Term, course/evaluation/policy/
 topical-outline content, and no shell or login page. The HTML parser produced one
-valid record with 12 retained academic sections and excluded instructor contact
-details.
+valid record. The saved candidate has 12 retained academic sections because the
+then-current parser omitted `Instructor Information`; the later compatibility
+review restored the historical rule that candidates may retain it while corpus
+construction excludes it. The saved candidate and accepted generation were not
+rewritten. The PDF was reviewed visually page by page, but its text was not
+independently machine-extracted and compared with the HTML candidate.
 
 The separate headless `/conversation` attempt used the same installed Chrome 156,
 service-worker setting, exact mapping, fresh context, and bounds. Readiness first
@@ -204,6 +212,63 @@ main frame, and was not served by a service worker. No candidate, publication, o
 runtime swap occurred. This is a genuine denied essential request under the
 current classifier; it does not explain why headed and headless access differed.
 No retry or browser-setting matrix was run.
+
+### Headed worker feasibility and decision boundary
+
+The successful run was operator-launched but noninteractive after process start.
+The collector itself supplied the URL, waited for bounded academic readiness,
+captured HTML/PDF, and closed the fresh context/browser. This is automated
+collection with a visible browser, not manual text extraction.
+
+It is technically possible to run the same explicit headed mode as a dedicated
+worker. That does not make it part of the supported deployment or establish source
+authorization:
+
+- **Current Windows development host:** Playwright 1.64.1, installed Chrome 156,
+  an interactive operating-system desktop/display session, writable ignored
+  evidence storage, and the existing killable child-process wrapper are sufficient
+  for the measured setup.
+- **Possible Linux host:** Playwright documents that headed Linux execution needs
+  a display such as Xvfb (`xvfb-run`) and matching browser/OS dependencies. Its
+  browser documentation also requires a browser compatible with the installed
+  Playwright version. The repository does not currently define a container, Xvfb
+  service, or production host that supplies these prerequisites.
+- **Lifecycle:** keep collection outside the publication lock; enforce one child,
+  exact mapping, one navigation, response/deadline/denial limits, process-tree
+  termination, `finally` cleanup, validation, then the existing single-process
+  publication/runtime swap.
+- **Deployment model:** operational publication remains supported only for one
+  backend process on one host with persistent writable storage and one coordinated
+  writer. Multiple workers/replicas or ephemeral storage need a different reviewed
+  coordination/persistence design.
+- **Secrets:** the browser path/display configuration is non-secret. Provider and
+  other credentials remain server-side environment settings and must not be put in
+  browser profiles, command logs, source artifacts, or Git.
+
+Official references: [Playwright browsers and system dependencies](https://playwright.dev/python/docs/browsers),
+[headed CI/Xvfb guidance](https://playwright.dev/python/docs/ci#running-headed),
+and [service-worker routing behavior](https://playwright.dev/python/docs/service-workers).
+
+The current headless result remains `headless_access_denied`. The explicit manifest
+state makes the block reviewable and reversible, but no automatic
+headless-denied-to-headed retry exists or is proposed. Enabling a headed worker
+would require a deliberate configuration and separate deployment/source approval.
+
+Backend-owner questions:
+
+1. What operating system, host, and runtime will run FastAPI?
+2. Will it provide a persistent writable volume across restarts and deploys?
+3. Can it support a dedicated browser/display-capable worker, including installed
+   browser dependencies and Xvfb or an equivalent display on Linux?
+4. Can the deployment preserve one backend process/replica and the current
+   single-writer/process-local runtime coordination assumption?
+
+Source-access question to draft, not send:
+
+> Is anonymous, noninteractive Playwright navigation to the exact public syllabus
+> document, using a fresh browser context and bounded request limits, a permitted
+> and supported integration for this project? If not, should the team use an
+> institutional API, export, or approved document-transfer workflow instead?
 
 ## Reconciliation with the earlier successful session
 
@@ -263,6 +328,15 @@ requests with acquisition enabled reported `not_needed`, zero browser responses,
 and the same active generation. This verifies operator-launched collection,
 validated publication, retrieval, citation propagation, and reuse; it does not
 verify unattended acquisition.
+
+One saved-data generation check then ran through real HTTP with deterministic
+request parsing, acquisition disabled, and exactly one Gemini call. For “For
+CAP4613 section 042 in Spring 2027, how are weekly quizzes weighted?”, readiness
+was `ready`, acquisition was not attempted, and `gemini-3.5-flash-lite` returned
+provider output with no fallback: weekly quizzes are 10% of the final grade. The
+answer cited only `heading:Course Evaluation Method` from the exact `202701` / `042`
+syllabus URL. That material claim matches the retained evidence. No university
+request occurred.
 
 Generic syllabus discovery, bulk collection, scheduled refresh, authenticated
 access, and arbitrary document acquisition remain unimplemented.
