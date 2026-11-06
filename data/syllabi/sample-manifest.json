@@ -10,7 +10,7 @@
     "access_finding": "The anonymous library listed these exact documents. Initial EEL3111 checks on 2026-10-30 ended at an empty JavaScript shell after an essential HTTP 403. A corrected bounded follow-up on 2026-11-01 completed the same EEL3111 document anonymously in one clean nonpersistent browser session with no login, profile, cookies, refresh, retry, private API construction, or bypass. CAP4773 and COP4331 were not re-probed, so their initial generic-access-denied observations remain.",
     "redistribution_finding": "No redistribution license was identified. This tracked manifest contains identifiers and public page URLs only; complete documents and extracted text are excluded."
   },
-  "selection_rule": "Three exact Fall 2026 sections overlapping the five-course description sample; no term or section substitution.",
+  "selection_rule": "Exact curated course/term/section/document mappings only; no generic discovery and no term or section substitution.",
   "documents": [
     {
       "course_code": "CAP4773", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "001", "instructor": "Raquel Assis", "source_document_id": "fjhz2vvga", "observed_access": "generic_access_denied",
@@ -26,6 +26,11 @@
       "course_code": "EEL3111", "term_id": "202608", "term_name": "Fall 2026 1 Full Term", "section": "001", "instructor": "Rabia Shahid", "source_document_id": "a4bh2nqsq", "observed_access": "anonymous_full_document",
       "view_url": "https://fau.simplesyllabus.com/doc/a4bh2nqsq/Fall-2026-1-Full-Term-EEL-3111-001-Circuits-1?mode=view",
       "print_url": "https://fau.simplesyllabus.com/doc/a4bh2nqsq/Fall-2026-1-Full-Term-EEL-3111-001-Circuits-1?mode=view&print=true"
+    },
+    {
+      "course_code": "CAP4613", "term_id": "202701", "term_name": "Spring 2027 1 Full Term", "section": "042", "instructor": null, "source_document_id": "7w22o8n31", "observed_access": "anonymous_full_document", "unattended_access": "headless_access_denied",
+      "browser_runtime": "installed_chrome", "service_workers": "allow", "readiness_text": "Course Evaluation Method",
+      "view_url": "https://fau.simplesyllabus.com/en-US/doc/7w22o8n31/Spring-2027-1-Full-Term-CAP-4613-042-Intro-to-Deep-Learning?mode=view"
     }
   ]
 }

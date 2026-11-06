@@ -231,6 +231,18 @@ automatic syllabus collection as live-verified. Prepare authorized validated
 evidence before class using `rag.py operational-import`; the linked guide records
 the comparison and exact commands.
 
+CAP4613 Spring 2027 section 042 now provides a second prepared-syllabus example.
+A bounded visible Chrome 156 session loaded the exact curated document without
+human interaction after launch, saved complete HTML plus an optional seven-page
+PDF, and produced a validated candidate. Importing that candidate into an ignored
+operational root yielded one document/nine chunks; repeated real HTTP quiz-grading
+requests were cited from the same local generation with zero collection activity.
+The separately bounded headless API request reached the exact source but stopped
+on an essential XHR 403 before candidate creation. Present CAP4613 as an
+operator-launched collection and prepared-data RAG demonstration, not as verified
+unattended acquisition. This does not change the earlier EEL3111 denial or add
+generic discovery.
+
 Offline retrieval/excerpt mode:
 
 ```powershell

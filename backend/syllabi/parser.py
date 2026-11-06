@@ -160,7 +160,12 @@ def parse_rendered_syllabus(
         raise SyllabusParseError("section_identity_mismatch", "Expected section is absent from the document")
     if normalize_course_code(term_name) not in visible and normalize_course_code(term_id) not in visible:
         raise SyllabusParseError("term_identity_mismatch", "Expected term is absent from the document")
-    sections = [{"heading": heading, "text": body, "locator": f"heading:{heading}"} for heading, body in parser.sections if heading != title]
+    excluded_headings = {"instructor information"}
+    sections = [
+        {"heading": heading, "text": body, "locator": f"heading:{heading}"}
+        for heading, body in parser.sections
+        if heading != title and heading.casefold() not in excluded_headings
+    ]
     if not sections:
         raise SyllabusParseError("missing_academic_text", "No heading-scoped academic text was found")
     headings = [item["heading"].casefold() for item in sections]
@@ -193,7 +198,7 @@ def parse_rendered_syllabus(
         "parser_version": PARSER_VERSION,
         "schema_version": SCHEMA_VERSION,
         "unknowns": {"published_at": "Not explicitly stated", "updated_at": "Not explicitly stated"},
-        "limitations": ["Parser preserves heading-scoped text and does not infer missing academic sections."],
+        "limitations": ["Parser preserves heading-scoped academic text, excludes instructor contact details, and does not infer missing academic sections."],
     }
     record["content_sha256"] = syllabus_content_hash(record)
     return record

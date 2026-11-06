@@ -58,6 +58,29 @@ def test_extracts_complete_document_identity_sections_and_locators():
     assert validate_batch(batch("parsed-one", [item]))["valid"] is True
 
 
+def test_locale_prefixed_document_url_is_allowed_and_instructor_contact_section_is_excluded():
+    html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
+    html = html.replace(
+        "<h2>Course Description</h2>",
+        "<h2>Instructor Information</h2><p>Email: private@example.test Password: private-value</p><h2>Course Description</h2>",
+    )
+    item = parse_rendered_syllabus(
+        html,
+        course_code="COP4331",
+        term_id="202608",
+        term_name="Fall 2026 1 Full Term",
+        section="002",
+        source_document_id="sb4d8l8wb",
+        source_url="https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/COP-4331?mode=view",
+        fetched_at="2026-11-06T00:00:00Z",
+        raw_evidence_ref="synthetic-test-fixture",
+    )
+    assert "Instructor Information" not in [section["heading"] for section in item["academic_sections"]]
+    assert "private@example.test" not in item["document_text"]
+    assert "private-value" not in item["document_text"]
+    assert validate_batch(batch("locale-prefixed", [item]))["valid"] is True
+
+
 def test_rejects_library_shell_login_redirect_and_missing_or_ambiguous_text():
     shell = (FIXTURES / "library_shell.html").read_text(encoding="utf-8")
     assert classify_page(shell, "https://fau.simplesyllabus.com/en-US/syllabus-library") == "javascript_shell_awaiting_render"

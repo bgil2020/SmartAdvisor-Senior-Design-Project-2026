@@ -131,6 +131,9 @@ def run_browser_subprocess(
         "--document-id", mapping["source_document_id"],
         "--batch-id", batch_id,
         "--chrome", str(settings.chrome_path),
+        "--browser-runtime", str(mapping.get("browser_runtime", "installed_chrome")),
+        "--service-workers", str(mapping.get("service_workers", "block")),
+        "--readiness-text", str(mapping.get("readiness_text", "Course Evaluation Method")),
         "--raw-root", str(settings.data_root / "raw"),
         "--diagnostics-root", str(settings.data_root / "diagnostics"),
         "--deadline-seconds", str(settings.browser_deadline_seconds),
@@ -213,6 +216,8 @@ class SyllabusAcquisitionCoordinator:
         scoped = {**scope, "document_id": document_id, "source_url": mapping["view_url"]}
         if mapping.get("observed_access") != "anonymous_full_document":
             return CatalogAcquisitionResult("manual_collection_required", course, reason="The exact mapping has no verified anonymous full-document access result.", **scoped)
+        if mapping.get("unattended_access") == "headless_access_denied":
+            return CatalogAcquisitionResult("manual_collection_required", course, reason="Operator-launched collection is verified, but the bounded headless API workflow is access-blocked.", **scoped)
         snapshot = runtime_store.snapshot()
         if snapshot is None:
             return CatalogAcquisitionResult("storage_uninitialized", course, reason="Initialize operational storage explicitly before acquisition.", **scoped)

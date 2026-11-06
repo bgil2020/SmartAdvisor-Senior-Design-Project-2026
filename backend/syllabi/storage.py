@@ -39,7 +39,8 @@ def validate_record(record: Any) -> list[str]:
     for field in ("title", "document_text", "exact_source_text"):
         if not isinstance(record.get(field), str) or not record[field].strip(): errors.append(f"{field} must be non-empty text")
     parsed = urlparse(str(source.get("url", "")))
-    if parsed.scheme != "https" or parsed.hostname != "fau.simplesyllabus.com" or not parsed.path.startswith("/doc/"):
+    allowed_path = parsed.path.startswith("/doc/") or parsed.path.startswith("/en-US/doc/")
+    if parsed.scheme != "https" or parsed.hostname != "fau.simplesyllabus.com" or not allowed_path:
         errors.append("source.url must be an allowed FAU Simple Syllabus document URL")
     sections = record.get("academic_sections")
     if not isinstance(sections, list) or not sections or any(not isinstance(item, dict) or not item.get("heading") or not item.get("text") or not item.get("locator") for item in sections):

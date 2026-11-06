@@ -1,6 +1,7 @@
 """Offline verification for exact-mapping syllabus fetch-on-miss."""
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 
@@ -137,6 +138,16 @@ def test_exact_mapping_only_and_denied_mapping_requires_manual_collection(tmp_pa
     assert denied.outcome == "manual_collection_required"
     assert denied.document_id == "sb4d8l8wb"
 
+    cap = resolve_exact_mapping("CAP4613", "202701", "042")
+    assert cap["source_document_id"] == "7w22o8n31"
+    assert cap["browser_runtime"] == "installed_chrome"
+    assert cap["service_workers"] == "allow"
+    assert resolve_exact_mapping("CAP4613", "202608", "042") is None
+    assert resolve_exact_mapping("CAP4613", "202701", "001") is None
+    cap_result = executor.execute(plan(course="CAP4613", term="202701", section="042"), runtime_store=store)
+    assert cap_result.outcome == "manual_collection_required"
+    assert "headless API workflow is access-blocked" in cap_result.reason
+
 
 def test_success_publishes_exact_identity_activates_and_answers(tmp_path):
     store = seeded_store(tmp_path)
@@ -265,6 +276,40 @@ def test_subprocess_cancellation_terminates_before_result(monkeypatch, tmp_path)
     result = run_browser_subprocess(resolve_exact_mapping("EEL3111", "202608", "001"), batch_id="fixture-cancel", settings=settings(tmp_path), cancelled=cancelled)
     assert result["outcome"] == "cancelled"
     assert terminated == [12345]
+
+
+def test_cap4613_subprocess_uses_curated_browser_config_and_pdf_is_optional(monkeypatch, tmp_path):
+    captured = []
+
+    class FakeProcess:
+        pid = 12346
+        returncode = 0
+        def poll(self): return self.returncode
+        def communicate(self):
+            return (json.dumps({
+                "probe": {"status": "anonymous_full_document"},
+                "saved_raw_evidence": "ignored/raw.html",
+                "pdf_saved": False,
+                "pdf_error": "Error",
+            }), "")
+
+    def popen(command, **kwargs):
+        captured.extend(command)
+        return FakeProcess()
+
+    monkeypatch.setattr(syllabus_module.subprocess, "Popen", popen)
+    mapping = resolve_exact_mapping("CAP4613", "202701", "042")
+    result = run_browser_subprocess(
+        mapping,
+        batch_id="fixture-cap4613-browser",
+        settings=settings(tmp_path),
+        cancelled=threading.Event(),
+    )
+    assert result["outcome"] == "collected"
+    assert result["pdf_saved"] is False
+    assert captured[captured.index("--browser-runtime") + 1] == "installed_chrome"
+    assert captured[captured.index("--service-workers") + 1] == "allow"
+    assert captured[captured.index("--readiness-text") + 1] == "Course Evaluation Method"
 
 
 def test_conversation_success_repeat_no_refetch_and_existing_detail_gap(tmp_path, monkeypatch):

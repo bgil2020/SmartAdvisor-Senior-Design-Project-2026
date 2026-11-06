@@ -38,18 +38,30 @@ def classify_response_role(url: str, status: int, resource_type: str, document_i
 
 
 class PlaywrightSession:
-    def __init__(self, *, chrome: Path, document_id: str, expected_url: str, readiness_text: str, visible: bool, deadline_seconds: float, diagnostics_path: Path, diagnostic_id: str):
+    def __init__(self, *, chrome: Path | None, browser_runtime: str, service_workers: str, document_id: str, expected_url: str, readiness_text: str, visible: bool, deadline_seconds: float, diagnostics_path: Path, diagnostic_id: str, pdf_output: Path | None = None):
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
             raise RuntimeError("Install the optional Python playwright package before manual browser collection") from exc
         self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(executable_path=str(chrome), headless=not visible)
-        self._context = self._browser.new_context(
-            accept_downloads=False,
-            service_workers="block",
-        )
-        self._page = self._context.new_page()
+        self._browser = None
+        try:
+            launch_options = {"headless": not visible}
+            if browser_runtime == "installed_chrome":
+                if chrome is None:
+                    raise RuntimeError("An installed Chrome path is required for this browser runtime")
+                launch_options["executable_path"] = str(chrome)
+            self._browser = self._pw.chromium.launch(**launch_options)
+            self._context = self._browser.new_context(
+                accept_downloads=False,
+                service_workers=service_workers,
+            )
+            self._page = self._context.new_page()
+        except Exception:
+            if self._browser is not None:
+                self._browser.close()
+            self._pw.stop()
+            raise
         self._document_id = document_id
         self._readiness_text = readiness_text
         self._deadline_seconds = deadline_seconds
@@ -59,6 +71,9 @@ class PlaywrightSession:
         self.last_html = ""
         self.final_url = ""
         self.readiness_visible = False
+        self.pdf_output = pdf_output
+        self.pdf_saved = False
+        self.pdf_error: str | None = None
         self.observed: Counter[tuple[str, int]] = Counter()
         self._diagnostics = SanitizedBrowserDiagnostics(
             destination=diagnostics_path,
@@ -66,11 +81,11 @@ class PlaywrightSession:
             document_id=document_id,
             expected_url=expected_url,
             launch={
-                "browser": "configured_installed_chrome",
+                "browser": browser_runtime,
                 "browser_version": self._browser.version,
                 "headless": not visible,
                 "nonpersistent_context": True,
-                "service_workers": "block",
+                "service_workers": service_workers,
                 "accept_downloads": False,
                 "working_directory": "repository_root",
                 "environment_capture": "none",
@@ -157,6 +172,19 @@ class PlaywrightSession:
                 if parsed.hostname != "fau.simplesyllabus.com" or not approved_document_path(parsed.path, self._document_id):
                     yield {"kind": "error", "error": "final browser URL left the exact verified syllabus mapping"}
                     return
+                if self.pdf_output is not None:
+                    try:
+                        self.pdf_output.parent.mkdir(parents=True, exist_ok=True)
+                        self._page.pdf(
+                            path=str(self.pdf_output),
+                            format="Letter",
+                            print_background=True,
+                            margin={"top": "0.5in", "bottom": "0.5in", "left": "0.5in", "right": "0.5in"},
+                        )
+                        self.pdf_saved = self.pdf_output.is_file() and self.pdf_output.stat().st_size > 0
+                    except Exception as exc:
+                        self.pdf_error = type(exc).__name__
+                        self._diagnostics.record_browser_error("pdf_export_error", exc)
                 yield {"kind": "snapshot", "html": self.last_html, "final_url": self.final_url}
                 return
         if not self._cancelled:
@@ -188,22 +216,29 @@ def main() -> int:
     parser.add_argument("--document-id", required=True, help="Document ID already present in data/syllabi/sample-manifest.json")
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--chrome", type=Path, default=DEFAULT_CHROME)
+    parser.add_argument("--browser-runtime", choices=("installed_chrome", "playwright_chromium"), default="installed_chrome")
+    parser.add_argument("--service-workers", choices=("block", "allow"), default="block")
     parser.add_argument("--raw-root", type=Path, default=RAW, help="Ignored local raw-evidence root")
     parser.add_argument("--diagnostics-root", type=Path, default=ROOT / "data" / "syllabi" / "diagnostics", help="Ignored sanitized request-diagnostics root")
     parser.add_argument("--readiness-text", default="Course Evaluation Method")
     parser.add_argument("--deadline-seconds", type=float, default=20.0)
     parser.add_argument("--visible", action="store_true")
+    parser.add_argument("--pdf-output", type=Path, help="Optional ignored local PDF evidence from the same rendered session")
     args = parser.parse_args()
     documents = read_json(MANIFEST)["documents"]
     matches = [item for item in documents if item["source_document_id"] == args.document_id]
     if len(matches) != 1:
         parser.error("document ID must identify exactly one tracked manifest entry")
-    if not args.chrome.is_file():
+    if args.browser_runtime == "installed_chrome" and not args.chrome.is_file():
         parser.error("Chrome executable was not found; no browser runtime is downloaded automatically")
+    if args.pdf_output is not None and not args.pdf_output.resolve().is_relative_to(args.raw_root.resolve()):
+        parser.error("PDF output must remain inside the configured ignored raw-evidence root")
     item = matches[0]
     diagnostic_id = args.batch_id
     session = PlaywrightSession(
-        chrome=args.chrome,
+        chrome=args.chrome if args.browser_runtime == "installed_chrome" else None,
+        browser_runtime=args.browser_runtime,
+        service_workers=args.service_workers,
         document_id=args.document_id,
         expected_url=item["view_url"],
         readiness_text=args.readiness_text,
@@ -211,6 +246,7 @@ def main() -> int:
         deadline_seconds=args.deadline_seconds,
         diagnostics_path=args.diagnostics_root / f"{diagnostic_id}.json",
         diagnostic_id=diagnostic_id,
+        pdf_output=args.pdf_output,
     )
     result = probe_browser_session(session, item["view_url"], limits=BrowserProbeLimits())
     saved = None
@@ -222,11 +258,20 @@ def main() -> int:
             saved = destination.resolve().relative_to(ROOT.resolve()).as_posix()
         except ValueError:
             saved = destination.resolve().as_posix()
+    pdf_saved_ref = None
+    if session.pdf_saved and args.pdf_output:
+        try:
+            pdf_saved_ref = args.pdf_output.resolve().relative_to(ROOT.resolve()).as_posix()
+        except ValueError:
+            pdf_saved_ref = args.pdf_output.name
     output = {
         "document": {key: item[key] for key in ("course_code", "term_id", "term_name", "section", "source_document_id", "view_url")},
         "probe": result,
         "final_url": session.final_url,
         "readiness_visible": session.readiness_visible,
+        "pdf_saved": session.pdf_saved,
+        "pdf_error": session.pdf_error,
+        "pdf_output": pdf_saved_ref,
         "saved_raw_evidence": saved,
         "diagnostic_id": diagnostic_id,
         "diagnostic_ref": f"diagnostics/{diagnostic_id}.json",

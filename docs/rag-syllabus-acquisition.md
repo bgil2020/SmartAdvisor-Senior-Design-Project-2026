@@ -14,13 +14,16 @@ course, term, and section plus an exact tracked manifest mapping. The executor
 does not derive document IDs, construct URLs, accept user/model URLs, infer a
 term from cached evidence, or substitute another section.
 
-The current manifest contains three exact Fall 2026 identities:
+The current manifest contains three Fall 2026 identities and one curated Spring
+2027 identity. The schedule workbook remains Fall 2026-only; the CAP4613 entry
+is an explicit source mapping, not scheduling coverage or generic discovery.
 
 | Scope | Document ID | Automatic treatment |
 | --- | --- | --- |
 | EEL3111 / `202608` / `001` | `a4bh2nqsq` | Eligible because a prior bounded session verified anonymous full-document access. |
 | CAP4773 / `202608` / `001` | `fjhz2vvga` | `manual_collection_required`; the recorded observation is access denied. |
 | COP4331 / `202608` / `002` | `sb4d8l8wb` | `manual_collection_required`; the recorded observation is access denied. |
+| CAP4613 / `202701` / `042` | `7w22o8n31` | Operator-launched anonymous collection is verified; the headless API attempt remains access-denied. |
 
 No mapping means `source_unresolved` and zero browser activity. Existing
 applicable syllabus evidence means no acquisition. An existing syllabus whose
@@ -51,7 +54,13 @@ outside the operational publication lock.
 The existing collector runs headless in a separate process using an installed
 Chrome executable and optional Playwright Python package. It creates a fresh
 nonpersistent context with no profile, imported cookies, login, stealth, or
-download support. Service workers are blocked.
+download support. Browser behavior is part of each exact mapping: the original
+Fall 2026 mappings block service workers; CAP4613 uses installed Chrome with
+service workers allowed because that is the configuration reproduced
+successfully in the operator-launched session. Context-level diagnostics observe
+service-worker responses, but Playwright routing does not govern requests handled
+inside a service worker. Exact top-level navigation/final-URL checks and rendered
+identity validation still apply.
 
 Only the exact tracked HTTPS `fau.simplesyllabus.com/doc/<document-id>/...` URL
 is supplied. Top-level navigation and final document URL must stay on that host
@@ -102,7 +111,9 @@ Syllabus acquisition has an independent switch:
 
 Operational storage must already be initialized and healthy. The browser package
 and configured Chrome executable must already exist; the API never installs or
-downloads a runtime.
+downloads a runtime. On the measured workstation Playwright 1.64.1 was installed,
+its managed Chromium executable was absent, and installed Chrome `156.0.8078.80`
+was used instead.
 
 ```powershell
 $env:RAG_OPERATIONAL_ROOT = "<ignored-operational-root>"
@@ -139,8 +150,10 @@ generation, citations, source URL, and generation fallback fields.
 The browser must yield a full rendered academic document, not a shell, thumbnail,
 navigation page, or login. The existing parser and validator enforce course,
 term, section, document identity, academic headings, source URL/locators, hashes,
-and provenance. Existing corpus rules exclude instructor-contact and repeated
-boilerplate headings from retrieval.
+and provenance. The parser excludes the `Instructor Information` section from
+retrieval so email, meeting links, and similar contact details do not enter the
+candidate. PDF export is optional local evidence: a PDF failure does not invalidate
+otherwise complete HTML, and a PDF success does not bypass HTML validation.
 
 Outcomes distinguish `missing_required_scope`, `source_unresolved`, `disabled`,
 `manual_collection_required`, `browser_unavailable`, `access_denied`, `timeout`,
@@ -161,6 +174,36 @@ No candidate was published and the active generation remained unchanged. The
 identical second request was served from the process-local denial cooldown and
 launched no browser. This verifies the executor and safe failure path, not live
 automatic syllabus collection.
+
+### CAP4613 Spring 2027 result
+
+On 2026-11-06, the user-reported PDF was not present in the scoped project or
+attachment locations, so it could not be treated as independently validated.
+The literal default `p.chromium.launch()` reproduction also could not start
+because Playwright's managed Chromium executable was absent; it made zero source
+requests. No browser runtime was installed.
+
+One bounded operator-launched reproduction then used the already installed Chrome
+156, a visible fresh nonpersistent context, service workers allowed, the exact
+CAP4613 `202701` / `042` / `7w22o8n31` URL, one navigation, a 20-second browser
+deadline, and the existing 60-response/first-essential-denial guard. It completed
+without human interaction after launch: 24 responses were observed before
+readiness, both essential responses were HTTP 200, and no access denial occurred.
+The same session produced complete rendered HTML and a seven-page PDF. The PDF
+visually confirmed CAP4613-042, Spring 2027 1 Full Term, course/evaluation/policy/
+topical-outline content, and no shell or login page. The HTML parser produced one
+valid record with 12 retained academic sections and excluded instructor contact
+details.
+
+The separate headless `/conversation` attempt used the same installed Chrome 156,
+service-worker setting, exact mapping, fresh context, and bounds. Readiness first
+reported `appropriate_source_absent`, then the browser stopped on an essential
+XHR 403 after 23 observed responses. The denied request was on the approved host,
+carried the expected document identity, was not a navigation, was owned by the
+main frame, and was not served by a service worker. No candidate, publication, or
+runtime swap occurred. This is a genuine denied essential request under the
+current classifier; it does not explain why headed and headless access differed.
+No retry or browser-setting matrix was run.
 
 ## Reconciliation with the earlier successful session
 
@@ -211,6 +254,15 @@ saved EEL3111 candidate into an isolated store. Inspection reported 6 documents,
 `ready`, used one cited syllabus passage in excerpt-fallback mode, and reported
 `acquisition_attempted=false` / `acquisition_outcome=not_needed`. No source or
 provider request occurred.
+
+The CAP4613 prepared path used a separate ignored operational root. Explicit
+import of the validated candidate produced one document and nine chunks. Real
+HTTP `/conversation` requests for quiz grading at `202701` / `042` returned
+`ready` with exact syllabus citations in excerpt-fallback mode. Two identical
+requests with acquisition enabled reported `not_needed`, zero browser responses,
+and the same active generation. This verifies operator-launched collection,
+validated publication, retrieval, citation propagation, and reuse; it does not
+verify unattended acquisition.
 
 Generic syllabus discovery, bulk collection, scheduled refresh, authenticated
 access, and arbitrary document acquisition remain unimplemented.
