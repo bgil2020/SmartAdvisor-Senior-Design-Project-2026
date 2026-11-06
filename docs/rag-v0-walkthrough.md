@@ -149,9 +149,25 @@ take precedence over both.
 | `GEMINI_TIMEOUT_SECONDS` | `5.0` | Bounded provider timeout. |
 | `RAG_GENERATION_MODE` | `fallback` | `fallback` returns cited excerpts; `gemini` permits live generation. |
 | `RAG_CORPUS_PATH` | `data/rag/local-corpus.json` | Local corpus path, relative to the repository root unless made absolute. |
+| `RAG_OPERATIONAL_ROOT` | unset (`data/rag/operational` for operational CLI commands) | Enables the ignored, versioned operational accepted/corpus store. When configured, it takes precedence over `RAG_CORPUS_PATH` unless code/CLI supplies an explicit corpus path. |
 
 Start a new server after changing settings. Imports load `.env` at process
 startup, and an existing server will not reliably reflect later changes.
+
+For the safe operational lifecycle, publish already validated candidates and
+inspect the committed generation:
+
+```powershell
+python scripts/rag.py operational-import `
+  --course-batch data/course_descriptions/candidates/<course-batch>.json `
+  --syllabus-batch data/syllabi/candidates/<syllabus-batch>.json
+python scripts/rag.py operational-inspect
+$env:RAG_OPERATIONAL_ROOT = "data/rag/operational"
+```
+
+See [RAG operational storage and atomic publication](rag-operational-storage.md)
+for commit-point, recovery, restart, and concurrency guarantees. This remains a
+manual operator action and does not implement automatic acquisition.
 
 Offline retrieval/excerpt mode:
 
