@@ -200,6 +200,27 @@ See [Controlled Catalog Fetch-on-Miss](rag-catalog-acquisition.md) for failure
 meanings, cancellation behavior, storage initialization, and deployment limits.
 Syllabus fetch-on-miss and generic syllabus discovery remain unimplemented.
 
+### Optional exact-mapping syllabus fetch-on-miss
+
+On `feature/rag-syllabus-acquisition`, syllabus execution has a separate default-
+off switch and requires installed Playwright, an existing supported Chrome
+executable, initialized operational storage, and an exact tracked course/term/
+section/document mapping:
+
+```powershell
+$env:RAG_OPERATIONAL_ROOT = "<ignored-operational-root>"
+$env:RAG_SYLLABUS_ACQUISITION_ROOT = "<ignored-syllabus-root>"
+$env:RAG_SYLLABUS_ACQUISITION_ENABLED = "true"
+$env:RAG_GENERATION_MODE = "fallback"
+```
+
+Use explicit `course_code`, `term`, and `section` fields. Show the exact document
+ID, browser stop reason/counts, initial and final readiness, active generation,
+source URL, citation, and fallback status. A denial or incomplete document is a
+collection limitation, not proof that no syllabus/policy exists. Generic syllabus
+discovery remains unimplemented. See
+[Controlled Exact-Mapping Syllabus Fetch-on-Miss](rag-syllabus-acquisition.md).
+
 Offline retrieval/excerpt mode:
 
 ```powershell

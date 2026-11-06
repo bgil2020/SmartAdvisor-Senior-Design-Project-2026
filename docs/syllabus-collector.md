@@ -70,7 +70,7 @@ The complete HTML, parsed candidate, and imported corpus remain ignored local ar
 - telemetry responses counted separately and never used to invalidate otherwise complete rendered content;
 - page/context closure on success, cancellation, stream exhaustion, or error.
 
-The guard consumes only sanitized events observed during normal page navigation; it does not construct or replay a private request. Its denial loop, budgets, telemetry handling, cancellation, error cleanup, and accepted-data isolation are tested offline with a mock session. `scripts/syllabus_browser_collect.py` is a concrete **manual** Playwright driver for one tracked document identity. It is optional, never runs in the question-serving path, and is not an automatic syllabus feed.
+The guard consumes only sanitized events observed during normal page navigation; it does not construct or replay a private request. Its denial loop, budgets, telemetry handling, cancellation, error cleanup, and accepted-data isolation are tested offline with a mock session. `scripts/syllabus_browser_collect.py` is the concrete Playwright driver for one tracked document identity. It remains available manually; on `feature/rag-syllabus-acquisition`, the opt-in API executor runs it headlessly in a killable child process for an exact manifest mapping only.
 
 ## Placement and shared contract
 

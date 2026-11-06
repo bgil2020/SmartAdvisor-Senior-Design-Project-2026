@@ -60,7 +60,7 @@ Settings are read at request/process startup. Restart the server after changes.
 | `RAG_CATALOG_MAX_REQUESTS` | `6` | Total discovery/detail/redirect/retry request limit. |
 | `RAG_CATALOG_MAX_RESPONSE_BYTES` | `8388608` | Per-response streamed byte limit. |
 | `RAG_CATALOG_MAX_REDIRECTS` | `1` | Per-request redirect limit. |
-| `RAG_CATALOG_MAX_CONCURRENT` | `1` | Process-local external acquisition slots. |
+| Shared external-source slot | fixed `1` | Catalog and syllabus work share one process-wide slot; this is not environment-configurable. |
 | `RAG_CATALOG_FAILURE_COOLDOWN_SECONDS` | `60` | Temporary failure/no-result cooldown. |
 | `RAG_CATALOG_COORDINATION_CACHE_SIZE` | `128` | Maximum process-local cooldown entries. |
 
@@ -170,4 +170,6 @@ never runs until readiness is `ready`; provider failure uses the existing cited
 excerpt fallback.
 
 Syllabus acquisition remains the next increment. Generic syllabus discovery is
-separate and unimplemented.
+separate and unimplemented. On the stacked syllabus branch, only exact tracked
+mappings use the same shared slot; see
+[Controlled Exact-Mapping Syllabus Fetch-on-Miss](rag-syllabus-acquisition.md).
