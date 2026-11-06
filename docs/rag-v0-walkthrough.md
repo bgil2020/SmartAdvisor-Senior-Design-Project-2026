@@ -25,8 +25,9 @@ boundaries.
   separate from the optional provider call that writes a grounded answer.
 - **Live generation** uses Gemini and must cite retrieved source IDs. The
   offline-safe default is a labeled source-excerpt fallback.
-- **Manual acquisition** is an operator action. Asking a question never fetches
-  missing data or performs automatic fetch-on-miss.
+- **Manual acquisition** is an operator action. On the stacked acquisition
+  branches, `/conversation` can also perform default-off bounded catalog fetch
+  or exact-mapping syllabus fetch; generic syllabus discovery is not implemented.
 - **Implemented:** validated import, stable chunks, applicability filters,
   inspectable retrieval, provider citation validation, excerpt fallback, CLI
   access, and the `/conversation` information route.
@@ -76,10 +77,10 @@ Unknown freshness remains `unknown`.
 Machine-readable response fields include `evidence_decision`, `evidence_reason`,
 `resolved_scope`, `required_source_categories`, `supporting_source_ids`,
 `missing_evidence_categories`, `acquisition_eligible`, and `acquisition_plan`.
-Plans always have `execute=false`: they identify the bounded existing collector
-and unresolved gap but never perform a network request. Missing source can be
-eligible for later controlled acquisition; requested content not located in an
-already applicable document is not an automatic refetch trigger.
+Plans always have `execute=false`: readiness describes the gap but does not
+execute network work itself. The acquisition coordinator may execute one eligible
+plan only when its independent feature switch is enabled. Requested content not
+located in an already applicable document is not an automatic refetch trigger.
 
 ## B. Reproducible checkout
 
@@ -198,7 +199,8 @@ source requests. Expected values are illustrative; do not hard-code answer text.
 
 See [Controlled Catalog Fetch-on-Miss](rag-catalog-acquisition.md) for failure
 meanings, cancellation behavior, storage initialization, and deployment limits.
-Syllabus fetch-on-miss and generic syllabus discovery remain unimplemented.
+Generic syllabus discovery remains unimplemented. The stacked syllabus branch
+adds only exact verified mappings as described next.
 
 ### Optional exact-mapping syllabus fetch-on-miss
 
@@ -220,6 +222,14 @@ source URL, citation, and fallback status. A denial or incomplete document is a
 collection limitation, not proof that no syllabus/policy exists. Generic syllabus
 discovery remains unimplemented. See
 [Controlled Exact-Mapping Syllabus Fetch-on-Miss](rag-syllabus-acquisition.md).
+
+The historical November 1 visible manual run completed EEL3111 anonymously, but
+the November 6 headless automatic child received an essential 403 for the same
+literal mapped URL. Saved evidence does not establish which observed execution
+difference caused that result, so do not retry, relax the denial guard, or present
+automatic syllabus collection as live-verified. Prepare authorized validated
+evidence before class using `rag.py operational-import`; the linked guide records
+the comparison and exact commands.
 
 Offline retrieval/excerpt mode:
 
@@ -245,8 +255,9 @@ python -m uvicorn backend.api:app --host 127.0.0.1 --port 8000
 Do not echo or screenshot the key. The parser can remain deterministic while RAG
 generation uses Gemini; these are separate decisions.
 
-Only manual syllabus acquisition needs Playwright. It is intentionally absent
-from `requirements.txt`; install it only in a collection environment:
+Manual and exact-mapping automatic syllabus acquisition need Playwright. It is
+intentionally absent from `requirements.txt`; install it only in a collection
+environment:
 
 ```powershell
 python -m pip install playwright
@@ -518,7 +529,9 @@ Excerpt fallback proves retrieval and traceability, not live Gemini generation.
 ## I. Limitations and cleanup
 
 - Coverage is five descriptions and one EEL3111 syllabus, not the full catalog.
-- Fetching is manual and bounded; there is no fetch-on-miss.
+- Catalog fetch-on-miss is live-verified. Exact-mapping syllabus fetch-on-miss is
+  implemented but currently access-blocked for the verified EEL3111 source;
+  generic syllabus discovery is absent.
 - Live generation depends on provider/network/quota/model/key availability.
 - Lexical retrieval is small and does not establish completeness.
 - Retention/redistribution are unresolved; source evidence stays local/ignored.
@@ -536,9 +549,9 @@ Do not use broad cleanup commands. If local policy authorizes removal, delete
 only a specifically reviewed batch/candidate and `data/rag/local-corpus.json`.
 Git cannot restore ignored evidence.
 
-This readiness update is branch-scoped. Before merging it to `main`, the team
-must review the acquisition contract and separately decide third-party data
-treatment. Automatic acquisition remains a later task.
+This stacked acquisition update is branch-scoped. Before merging it to `main`,
+the team must review the acquisition contracts and separately decide third-party
+data treatment and deployed single-process storage assumptions.
 
 ## Verification and contribution record
 

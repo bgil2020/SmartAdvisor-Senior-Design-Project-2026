@@ -156,5 +156,55 @@ identical second request was served from the process-local denial cooldown and
 launched no browser. This verifies the executor and safe failure path, not live
 automatic syllabus collection.
 
+## Reconciliation with the earlier successful session
+
+The November 1 and November 6 results are both retained. They used the same
+tracked EEL3111 identity and the same literal manifest `view_url`, including the
+descriptive path and `?mode=view`. Both used installed Chrome 156, a fresh
+nonpersistent context, one navigation, no login/profile/cookie reuse, and the
+same readiness heading and denial guard.
+
+The saved evidence records these ordinary execution differences:
+
+| November 1 manual success | November 6 automatic denial |
+| --- | --- |
+| Visible Playwright browser run directly by an operator. | Headless Playwright browser run in a killable child process. |
+| Default service-worker behavior and no Playwright route handler. | Service workers blocked; top-level navigation constrained to the exact mapped document path. |
+| 23 responses: one successful essential response, no essential failure, two redirects, and an unrelated telemetry 429. | 25 responses; four classified as essential before processing stopped at an essential 403. |
+| Complete rendered page reached `Course Evaluation Method`. | No complete document was saved, parsed, or published. |
+
+The automatic run retained only the sanitized `essential_document` category and
+403 status, not the failing endpoint. Saved evidence therefore does not establish
+that headless mode, service-worker handling, route interception, timing, or a
+source-side change caused the difference. It also does not establish that the 403
+was misclassified. There is no evidence-supported integration correction, so the
+denial remains an access-denied result and no additional source probe was made.
+
+### Supported prepared-syllabus path
+
+When an authorized, previously validated candidate is already available locally,
+publish it explicitly to ignored operational storage before starting the API.
+This is not automatic acquisition and does not grant retention or redistribution
+permission:
+
+```powershell
+python scripts/syllabi.py validate data/syllabi/candidates/<syllabus-batch>.json
+
+python scripts/rag.py operational-import `
+  --course-batch data/course_descriptions/candidates/<course-batch>.json `
+  --syllabus-batch data/syllabi/candidates/<syllabus-batch>.json `
+  --root <ignored-operational-root>
+
+python scripts/rag.py operational-inspect --root <ignored-operational-root>
+$env:RAG_OPERATIONAL_ROOT = "<ignored-operational-root>"
+```
+
+The reconciled offline check imported the saved five-description batch and the
+saved EEL3111 candidate into an isolated store. Inspection reported 6 documents,
+19 chunks, and EEL3111 `202608`/`001`. A real `/conversation` request then returned
+`ready`, used one cited syllabus passage in excerpt-fallback mode, and reported
+`acquisition_attempted=false` / `acquisition_outcome=not_needed`. No source or
+provider request occurred.
+
 Generic syllabus discovery, bulk collection, scheduled refresh, authenticated
 access, and arbitrary document acquisition remain unimplemented.
