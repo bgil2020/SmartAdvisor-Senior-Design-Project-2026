@@ -80,6 +80,12 @@ so a stopped child cannot later publish. Success, denial, incomplete extraction,
 normal error, and timeout all close the page/context/browser during normal script
 cleanup; forced termination is the bounded fallback.
 
+Each attempt also writes bounded sanitized request diagnostics to the ignored
+acquisition root. The response exposes an opaque `acquisition_diagnostic_id`, not
+a local path. See [Exact-Mapping Syllabus Acquisition Diagnostic Checkpoint](rag-syllabus-diagnostics.md)
+for the redaction contract, offline defects found, official documentation review,
+and the proposed one-attempt verification gate.
+
 ## Configuration and setup
 
 Syllabus acquisition has an independent switch:

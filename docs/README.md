@@ -16,6 +16,7 @@ Welcome to the documentation for the **SmartAdvisor** academic planning and advi
 | [RAG Operational Storage](rag-operational-storage.md) | Atomic accepted/corpus generations, safe import and recovery, runtime retriever swapping, and concurrency limits. |
 | [Controlled Catalog Fetch-on-Miss](rag-catalog-acquisition.md) | Opt-in one-course catalog acquisition through `/conversation`, bounded source access, diagnostics, and reuse behavior. |
 | [Controlled Exact-Mapping Syllabus Fetch-on-Miss](rag-syllabus-acquisition.md) | Opt-in exact-manifest syllabus acquisition, headless browser safety, validation, and failure behavior. |
+| [Syllabus Acquisition Diagnostic Checkpoint](rag-syllabus-diagnostics.md) | Sanitized browser lifecycle diagnostics, offline defect findings, supported alternatives, and the live-verification approval gate. |
 
 ---
 
