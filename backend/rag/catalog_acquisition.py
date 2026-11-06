@@ -85,7 +85,8 @@ class CatalogAcquisitionSettings:
             max_requests=_int_environment("RAG_CATALOG_MAX_REQUESTS", 6, minimum=2),
             max_response_bytes=_int_environment("RAG_CATALOG_MAX_RESPONSE_BYTES", 8 * 1024 * 1024, minimum=1024),
             max_redirects=_int_environment("RAG_CATALOG_MAX_REDIRECTS", 1, minimum=0),
-            max_concurrent=_int_environment("RAG_CATALOG_MAX_CONCURRENT", 1, minimum=1),
+            # Catalog and syllabus acquisition share one fixed process-wide slot.
+            max_concurrent=1,
             failure_cooldown_seconds=_float_environment("RAG_CATALOG_FAILURE_COOLDOWN_SECONDS", 60.0, minimum=0.0),
             coordination_cache_size=_int_environment("RAG_CATALOG_COORDINATION_CACHE_SIZE", 128, minimum=1),
         )
@@ -107,6 +108,12 @@ class CatalogAcquisitionResult:
     redirect_count: int = 0
     retry_count: int = 0
     cooldown_seconds: float | None = None
+    term_id: str | None = None
+    section: str | None = None
+    document_id: str | None = None
+    stop_reason: str | None = None
+    browser_response_count: int = 0
+    essential_request_count: int = 0
 
     def public_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -131,6 +138,8 @@ def _has_course_description(store: RuntimeGenerationStore, course_code: str) -> 
 class CatalogAcquisitionCoordinator:
     """Coalesce per-course work and bound same-process external acquisition."""
 
+    _shared_external_slot = threading.BoundedSemaphore(1)
+
     def __init__(
         self,
         settings: CatalogAcquisitionSettings,
@@ -144,31 +153,41 @@ class CatalogAcquisitionCoordinator:
         self._guard = threading.Lock()
         self._flights: dict[str, _Flight] = {}
         self._cooldowns: OrderedDict[str, tuple[float, CatalogAcquisitionResult]] = OrderedDict()
-        self._external_slots = threading.BoundedSemaphore(settings.max_concurrent)
+        # Catalog HTTP and syllabus browser work intentionally share one global
+        # process-local source slot. Multiple processes/replicas remain unsupported.
+        self._external_slots = self._shared_external_slot
 
-    def _cooldown_result(self, course_code: str) -> CatalogAcquisitionResult | None:
+    def _cooldown_result(self, key: str) -> CatalogAcquisitionResult | None:
         now = self.clock()
         expired = [key for key, (until, _) in self._cooldowns.items() if until <= now]
         for key in expired:
             self._cooldowns.pop(key, None)
-        item = self._cooldowns.get(course_code)
+        item = self._cooldowns.get(key)
         if item is None:
             return None
         until, prior = item
-        self._cooldowns.move_to_end(course_code)
-        return CatalogAcquisitionResult(
+        self._cooldowns.move_to_end(key)
+        return replace(
+            prior,
             outcome="cooldown_active",
-            course_code=course_code,
+            attempted=False,
+            coalesced=False,
             reason=f"A recent bounded acquisition ended as {prior.outcome}; retry is temporarily cooled down.",
             cooldown_seconds=max(0.0, round(until - now, 3)),
+            request_count=0,
+            redirect_count=0,
+            retry_count=0,
+            browser_response_count=0,
+            essential_request_count=0,
+            stop_reason="cooldown_active",
         )
 
-    def _remember_failure(self, course_code: str, result: CatalogAcquisitionResult) -> None:
+    def _remember_failure(self, key: str, result: CatalogAcquisitionResult) -> None:
         if result.outcome in {"published", "unchanged", "local_evidence_available", "cancelled"}:
             return
         with self._guard:
-            self._cooldowns[course_code] = (self.clock() + self.settings.failure_cooldown_seconds, result)
-            self._cooldowns.move_to_end(course_code)
+            self._cooldowns[key] = (self.clock() + self.settings.failure_cooldown_seconds, result)
+            self._cooldowns.move_to_end(key)
             while len(self._cooldowns) > self.settings.coordination_cache_size:
                 self._cooldowns.popitem(last=False)
 
@@ -180,7 +199,6 @@ class CatalogAcquisitionCoordinator:
         supported_courses: set[str],
         cancelled: threading.Event | None = None,
     ) -> CatalogAcquisitionResult:
-        cancel_event = cancelled or threading.Event()
         course_code = normalize_course_code(plan.course_code or "")
         if not self.settings.enabled:
             return CatalogAcquisitionResult("disabled", course_code or None, reason="Catalog acquisition is opt-in and disabled.")
@@ -197,14 +215,36 @@ class CatalogAcquisitionCoordinator:
         if _has_course_description(runtime_store, course_code):
             return CatalogAcquisitionResult("local_evidence_available", course_code, reason="Another request already published this course description.")
 
+        return self.execute_coordinated(
+            key=f"catalog:{course_code}",
+            course_code=course_code,
+            local_check=lambda: _has_course_description(runtime_store, course_code),
+            local_result=lambda: CatalogAcquisitionResult("local_evidence_available", course_code, reason="Evidence became available before collection started."),
+            work=lambda cancel_event: self._execute_once(course_code, runtime_store=runtime_store, cancelled=cancel_event),
+            cancelled=cancelled,
+        )
+
+    def execute_coordinated(
+        self,
+        *,
+        key: str,
+        course_code: str,
+        local_check: Callable[[], bool],
+        local_result: Callable[[], CatalogAcquisitionResult],
+        work: Callable[[threading.Event], CatalogAcquisitionResult],
+        cancelled: threading.Event | None = None,
+    ) -> CatalogAcquisitionResult:
+        """Shared process-local coalescing/cooldown/source-slot primitive."""
+        cancel_event = cancelled or threading.Event()
+
         with self._guard:
-            cooldown = self._cooldown_result(course_code)
+            cooldown = self._cooldown_result(key)
             if cooldown is not None:
                 return cooldown
-            flight = self._flights.get(course_code)
+            flight = self._flights.get(key)
             if flight is None:
                 flight = _Flight(threading.Event())
-                self._flights[course_code] = flight
+                self._flights[key] = flight
                 leader = True
             else:
                 leader = False
@@ -227,17 +267,17 @@ class CatalogAcquisitionCoordinator:
                     result = CatalogAcquisitionResult("temporarily_unavailable", course_code, reason="Timed out waiting for the bounded external acquisition slot.")
                     return result
             try:
-                if _has_course_description(runtime_store, course_code):
-                    result = CatalogAcquisitionResult("local_evidence_available", course_code, reason="Evidence became available before collection started.")
+                if local_check():
+                    result = local_result()
                 else:
-                    result = self._execute_once(course_code, runtime_store=runtime_store, cancelled=cancel_event)
+                    result = work(cancel_event)
             finally:
                 self._external_slots.release()
-            self._remember_failure(course_code, result)
+            self._remember_failure(key, result)
             return result
         finally:
             with self._guard:
-                active = self._flights.pop(course_code, None)
+                active = self._flights.pop(key, None)
                 if active is not None:
                     # A return from the try block is materialized before finally.
                     active.result = locals().get("result") or CatalogAcquisitionResult(

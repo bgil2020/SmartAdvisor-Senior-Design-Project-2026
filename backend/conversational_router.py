@@ -74,6 +74,10 @@ from .rag.catalog_acquisition import (
     get_catalog_acquisition_coordinator,
 )
 from .rag.operational_storage import OperationalStorageError, default_operational_root, get_runtime_store
+from .rag.syllabus_acquisition import (
+    SyllabusAcquisitionSettings,
+    get_syllabus_acquisition_coordinator,
+)
 
 router = APIRouter(tags=["Conversational Assistant"])
 
@@ -165,6 +169,10 @@ class ConversationResponse(BaseModel):
     acquisition_request_count: int = 0
     acquisition_redirect_count: int = 0
     acquisition_retry_count: int = 0
+    acquisition_document_id: str | None = None
+    acquisition_stop_reason: str | None = None
+    acquisition_browser_response_count: int = 0
+    acquisition_essential_request_count: int = 0
     post_acquisition_evidence_decision: str | None = None
     active_corpus_generation: str | None = None
 
@@ -291,7 +299,14 @@ def _handle_conversation_sync(
         )
         initial_evidence_decision = rag.evidence_decision
         initial_acquisition_plan = rag.acquisition_plan.model_dump() if rag.acquisition_plan else None
-        acquisition_settings = CatalogAcquisitionSettings.from_environment()
+        catalog_settings = CatalogAcquisitionSettings.from_environment()
+        syllabus_settings = SyllabusAcquisitionSettings.from_environment()
+        initial_categories = rag.required_source_categories
+        acquisition_enabled = (
+            catalog_settings.enabled if initial_categories == ["course_description"]
+            else syllabus_settings.enabled if initial_categories == ["syllabus"]
+            else False
+        )
         acquisition = CatalogAcquisitionResult(
             outcome="not_needed" if rag.status == "answered" else "not_eligible",
             course_code=scope["course_code"],
@@ -308,7 +323,7 @@ def _handle_conversation_sync(
                 runtime_store = get_runtime_store(default_operational_root(Path(__file__).resolve().parents[1]))
             except OperationalStorageError as exc:
                 storage_error = f"Operational storage could not be loaded ({type(exc).__name__})."
-        if acquisition_settings.enabled and rag.evidence_decision == "corpus_unavailable":
+        if acquisition_enabled and rag.evidence_decision == "corpus_unavailable":
             if storage_error is not None:
                 acquisition = CatalogAcquisitionResult("storage_unusable", scope["course_code"], reason=storage_error)
             elif runtime_store is None:
@@ -327,9 +342,9 @@ def _handle_conversation_sync(
                     reason="Repair the operational generation before acquisition.",
                 )
         elif rag.status != "answered" and rag.acquisition_plan is not None and rag.acquisition_eligible:
-            if not acquisition_settings.enabled:
+            if not acquisition_enabled:
                 acquisition = CatalogAcquisitionResult(
-                    "disabled", scope["course_code"], reason="Catalog acquisition is opt-in and disabled."
+                    "disabled", scope["course_code"], reason="The required source acquisition path is opt-in and disabled."
                 )
             elif storage_error is not None:
                 acquisition = CatalogAcquisitionResult(
@@ -341,17 +356,29 @@ def _handle_conversation_sync(
                     reason="RAG_OPERATIONAL_ROOT must identify initialized operational storage before acquisition.",
                 )
             else:
-                catalog = get_course_catalog()
-                supported_courses = {
-                    normalize_course_code(value)
-                    for value in catalog["COURSE"].dropna().astype(str).tolist()
-                }
-                acquisition = get_catalog_acquisition_coordinator(acquisition_settings).execute(
-                    rag.acquisition_plan,
-                    runtime_store=runtime_store,
-                    supported_courses=supported_courses,
-                    cancelled=cancellation,
-                )
+                if rag.acquisition_plan.source_categories == ["course_description"]:
+                    catalog = get_course_catalog()
+                    supported_courses = {
+                        normalize_course_code(value)
+                        for value in catalog["COURSE"].dropna().astype(str).tolist()
+                    }
+                    acquisition = get_catalog_acquisition_coordinator(catalog_settings).execute(
+                        rag.acquisition_plan,
+                        runtime_store=runtime_store,
+                        supported_courses=supported_courses,
+                        cancelled=cancellation,
+                    )
+                elif rag.acquisition_plan.source_categories == ["syllabus"]:
+                    acquisition = get_syllabus_acquisition_coordinator(syllabus_settings).execute(
+                        rag.acquisition_plan,
+                        runtime_store=runtime_store,
+                        cancelled=cancellation,
+                    )
+                else:
+                    acquisition = CatalogAcquisitionResult(
+                        "unsupported_mixed_plan", scope["course_code"],
+                        reason="This increment executes only one catalog or one exact-mapping syllabus source.",
+                    )
                 if acquisition.outcome in {"published", "unchanged", "local_evidence_available"}:
                     # Exactly one post-publication readiness/retrieval attempt.
                     rag = answer_information_question(
@@ -401,7 +428,7 @@ def _handle_conversation_sync(
             acquisition_plan=rag.acquisition_plan.model_dump() if rag.acquisition_plan else None,
             initial_evidence_decision=initial_evidence_decision,
             initial_acquisition_plan=initial_acquisition_plan,
-            acquisition_enabled=acquisition_settings.enabled,
+            acquisition_enabled=acquisition_enabled,
             acquisition_attempted=acquisition.attempted,
             acquisition_outcome=acquisition.outcome,
             acquisition_reason=acquisition.reason,
@@ -409,6 +436,10 @@ def _handle_conversation_sync(
             acquisition_request_count=acquisition.request_count,
             acquisition_redirect_count=acquisition.redirect_count,
             acquisition_retry_count=acquisition.retry_count,
+            acquisition_document_id=acquisition.document_id,
+            acquisition_stop_reason=acquisition.stop_reason,
+            acquisition_browser_response_count=acquisition.browser_response_count,
+            acquisition_essential_request_count=acquisition.essential_request_count,
             post_acquisition_evidence_decision=rag.evidence_decision,
             active_corpus_generation=active_generation,
         )

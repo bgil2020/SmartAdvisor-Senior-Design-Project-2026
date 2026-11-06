@@ -103,9 +103,11 @@ def test_browser_probe_stops_first_repeating_denial_and_reports_request_counts()
 
 
 def test_playwright_driver_labels_only_identity_or_denial_as_essential():
+    assert classify_response_role("https://fau.simplesyllabus.com/doc/a4bh2nqsq/", 200, "document", "a4bh2nqsq") == "essential_document"
     assert classify_response_role("https://fau.simplesyllabus.com/api/doc/a4bh2nqsq", 200, "fetch", "a4bh2nqsq") == "essential_document"
     assert classify_response_role("https://fau.simplesyllabus.com/api/bootstrap", 200, "xhr", "a4bh2nqsq") == "other"
     assert classify_response_role("https://fau.simplesyllabus.com/api/bootstrap", 403, "xhr", "a4bh2nqsq") == "essential_document"
+    assert classify_response_role("https://example.com/doc/a4bh2nqsq/", 403, "document", "a4bh2nqsq") == "other"
     assert classify_response_role("https://sentry.io/store", 429, "fetch", "a4bh2nqsq") == "telemetry"
 
 

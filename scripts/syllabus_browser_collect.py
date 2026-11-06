@@ -32,7 +32,7 @@ def classify_response_role(url: str, status: int, resource_type: str, document_i
     if any(token in lower for token in ("sentry", "analytics", "telemetry", "google-analytics")):
         return "telemetry"
     same_host = urlparse(url).hostname == "fau.simplesyllabus.com"
-    if same_host and resource_type in {"xhr", "fetch"} and (status in {401, 403} or document_id in url):
+    if same_host and resource_type in {"document", "xhr", "fetch"} and (status in {401, 403} or document_id in url):
         return "essential_document"
     return "other"
 
@@ -45,7 +45,10 @@ class PlaywrightSession:
             raise RuntimeError("Install the optional Python playwright package before manual browser collection") from exc
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(executable_path=str(chrome), headless=not visible)
-        self._context = self._browser.new_context()
+        self._context = self._browser.new_context(
+            accept_downloads=False,
+            service_workers="block",
+        )
         self._page = self._context.new_page()
         self._document_id = document_id
         self._readiness_text = readiness_text
@@ -58,6 +61,17 @@ class PlaywrightSession:
         self.readiness_visible = False
         self.observed: Counter[tuple[str, int]] = Counter()
         self._page.on("response", self._on_response)
+        self._page.route("**/*", self._route_request)
+
+    def _route_request(self, route, request) -> None:
+        if request.is_navigation_request() and request.frame == self._page.main_frame:
+            parsed = urlparse(request.url)
+            expected_prefix = f"/doc/{self._document_id}/"
+            if parsed.scheme != "https" or parsed.hostname != "fau.simplesyllabus.com" or not parsed.path.startswith(expected_prefix):
+                self._queue.append({"kind": "error", "error": "blocked navigation outside the exact verified syllabus mapping"})
+                route.abort()
+                return
+        route.continue_()
 
     def _on_response(self, response) -> None:
         role = classify_response_role(response.url, response.status, response.request.resource_type, self._document_id)
@@ -65,8 +79,11 @@ class PlaywrightSession:
         self._queue.append({"kind": "response", "status": response.status, "role": role})
 
     def navigate(self, url: str) -> None:
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or parsed.hostname != "fau.simplesyllabus.com" or not parsed.path.startswith(f"/doc/{self._document_id}/"):
+            raise RuntimeError("Refusing browser navigation outside the exact verified syllabus mapping")
         self.final_url = url
-        self._page.goto(url, wait_until="commit", timeout=15000)
+        self._page.goto(url, wait_until="commit", timeout=min(15000, int(self._deadline_seconds * 1000)))
 
     def events(self):
         seen = 0
@@ -86,6 +103,10 @@ class PlaywrightSession:
             if self.readiness_visible:
                 self.last_html = self._page.content()
                 self.final_url = self._page.url
+                parsed = urlparse(self.final_url)
+                if parsed.hostname != "fau.simplesyllabus.com" or not parsed.path.startswith(f"/doc/{self._document_id}/"):
+                    yield {"kind": "error", "error": "final browser URL left the exact verified syllabus mapping"}
+                    return
                 yield {"kind": "snapshot", "html": self.last_html, "final_url": self.final_url}
                 return
         if not self._cancelled:
@@ -114,6 +135,7 @@ def main() -> int:
     parser.add_argument("--document-id", required=True, help="Document ID already present in data/syllabi/sample-manifest.json")
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--chrome", type=Path, default=DEFAULT_CHROME)
+    parser.add_argument("--raw-root", type=Path, default=RAW, help="Ignored local raw-evidence root")
     parser.add_argument("--readiness-text", default="Course Evaluation Method")
     parser.add_argument("--deadline-seconds", type=float, default=20.0)
     parser.add_argument("--visible", action="store_true")
@@ -129,10 +151,13 @@ def main() -> int:
     result = probe_browser_session(session, item["view_url"], limits=BrowserProbeLimits())
     saved = None
     if result["status"] == "anonymous_full_document" and session.last_html:
-        destination = RAW / args.batch_id / f"{args.document_id}.html"
+        destination = args.raw_root / args.batch_id / f"{args.document_id}.html"
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(session.last_html, encoding="utf-8")
-        saved = destination.relative_to(ROOT).as_posix()
+        try:
+            saved = destination.resolve().relative_to(ROOT.resolve()).as_posix()
+        except ValueError:
+            saved = destination.resolve().as_posix()
     output = {
         "document": {key: item[key] for key in ("course_code", "term_id", "term_name", "section", "source_document_id", "view_url")},
         "probe": result,

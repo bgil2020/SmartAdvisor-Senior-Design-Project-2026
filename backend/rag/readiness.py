@@ -167,7 +167,7 @@ def _plan(requirement: EvidenceRequirement, *, categories: list, gap: str, eligi
     if categories == ["course_description"]:
         capability = "Bounded manual catalog collector: scripts/course_descriptions.py"
     elif categories == ["syllabus"]:
-        capability = "Bounded one-document manual syllabus collector: scripts/syllabus_browser_collect.py"
+        capability = "Bounded exact-mapping syllabus collector: scripts/syllabus_browser_collect.py; execution remains opt-in."
     elif categories:
         capability = "Use the bounded catalog and/or one-document syllabus collectors for the listed source categories."
     else:
