@@ -9,6 +9,7 @@ import pytest
 from backend.course_descriptions.http import FetchConfig
 from backend.course_descriptions.models import SCHEMA_VERSION, read_json, write_json
 from backend.course_descriptions.storage import compare_batches
+from backend.rag.corpus import chunks_from_record
 from backend.syllabi.models import syllabus_content_hash
 from backend.syllabi.browser_probe import BrowserProbeLimits, probe_browser_session
 from backend.syllabi.parser import SyllabusParseError, classify_browser_observation, classify_page, parse_rendered_syllabus
@@ -58,7 +59,7 @@ def test_extracts_complete_document_identity_sections_and_locators():
     assert validate_batch(batch("parsed-one", [item]))["valid"] is True
 
 
-def test_locale_prefixed_document_url_is_allowed_and_instructor_contact_section_is_excluded():
+def test_locale_prefixed_url_preserves_source_section_but_retrieval_excludes_contact_details():
     html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
     html = html.replace(
         "<h2>Course Description</h2>",
@@ -75,9 +76,13 @@ def test_locale_prefixed_document_url_is_allowed_and_instructor_contact_section_
         fetched_at="2026-11-06T00:00:00Z",
         raw_evidence_ref="synthetic-test-fixture",
     )
-    assert "Instructor Information" not in [section["heading"] for section in item["academic_sections"]]
-    assert "private@example.test" not in item["document_text"]
-    assert "private-value" not in item["document_text"]
+    assert "Instructor Information" in [section["heading"] for section in item["academic_sections"]]
+    assert "private@example.test" in item["document_text"]
+    assert "private-value" in item["document_text"]
+    searchable = chunks_from_record(item)
+    assert "heading:Instructor Information" not in [chunk["locator"] for chunk in searchable]
+    assert all("private@example.test" not in chunk["text"] for chunk in searchable)
+    assert all("private-value" not in chunk["text"] for chunk in searchable)
     assert validate_batch(batch("locale-prefixed", [item]))["valid"] is True
 
 
