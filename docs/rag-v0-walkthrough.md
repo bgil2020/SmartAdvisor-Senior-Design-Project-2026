@@ -169,6 +169,37 @@ See [RAG operational storage and atomic publication](rag-operational-storage.md)
 for commit-point, recovery, restart, and concurrency guarantees. This remains a
 manual operator action and does not implement automatic acquisition.
 
+### Optional controlled catalog fetch-on-miss
+
+On `feature/rag-catalog-acquisition`, a missing course description can be
+collected through `/conversation` only after the operational store has been
+initialized and the feature is explicitly enabled:
+
+```powershell
+$env:RAG_OPERATIONAL_ROOT = "data/rag/operational"
+$env:RAG_CATALOG_ACQUISITION_ROOT = "data/course_descriptions"
+$env:RAG_CATALOG_ACQUISITION_ENABLED = "true"
+$env:RAG_GENERATION_MODE = "fallback"
+python -m uvicorn backend.api:app --host 127.0.0.1 --port 8000
+```
+
+The course must already be present in the project schedule dataset and resolve
+exactly through the published FAU catalog sitemap. The executor permits one
+course-description source per eligible request, uses a 30-second total deadline,
+10-second request timeout, six-request budget, one retry, one redirect, 8 MiB
+per-response limit, one external acquisition at a time, a 60-second temporary
+failure cooldown, and at most 128 cooldown entries.
+
+On the first request, show `initial_evidence_decision`, `acquisition_outcome`,
+request/redirect/retry counts, `post_acquisition_evidence_decision`, the active
+generation, source URL, citation ID, and fallback status. Repeat the same request
+and show `acquisition_attempted=false`, `acquisition_outcome=not_needed`, and zero
+source requests. Expected values are illustrative; do not hard-code answer text.
+
+See [Controlled Catalog Fetch-on-Miss](rag-catalog-acquisition.md) for failure
+meanings, cancellation behavior, storage initialization, and deployment limits.
+Syllabus fetch-on-miss and generic syllabus discovery remain unimplemented.
+
 Offline retrieval/excerpt mode:
 
 ```powershell

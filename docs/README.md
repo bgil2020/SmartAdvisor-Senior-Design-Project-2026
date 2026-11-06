@@ -14,6 +14,7 @@ Welcome to the documentation for the **SmartAdvisor** academic planning and advi
 | [Testing Guide](testing.md) | Automated testing suites (pytest & Node test runner), manual smoke checklists, and verification procedures. |
 | [RAG Storage and Coverage Assessment](rag-storage-coverage-assessment.md) | Measured file/corpus costs, discovery coverage, deployment trade-offs, and the recommended pre-acquisition storage contract. |
 | [RAG Operational Storage](rag-operational-storage.md) | Atomic accepted/corpus generations, safe import and recovery, runtime retriever swapping, and concurrency limits. |
+| [Controlled Catalog Fetch-on-Miss](rag-catalog-acquisition.md) | Opt-in one-course catalog acquisition through `/conversation`, bounded source access, diagnostics, and reuse behavior. |
 
 ---
 

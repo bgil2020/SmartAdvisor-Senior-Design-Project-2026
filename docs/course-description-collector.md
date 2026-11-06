@@ -42,8 +42,10 @@ owner should confirm the repository's redistribution decision.
 
 Collection is sequential with one-second default pacing, 20-second timeouts, two
 bounded retries, capped `Retry-After` handling, a source-domain allowlist, and a
-finite request budget. Persistent 403, 429, or server failures stop the remaining
-course requests. Successful responses are cached; ETag or Last-Modified validators
+45-second collection deadline. Each streamed response is limited to 8 MiB;
+at most two allowlisted redirects are followed, and redirects count against the
+finite request budget shown by `plan`. Persistent 403, 429, or server failures
+stop the remaining course requests. Successful responses are cached; ETag or Last-Modified validators
 are sent on later runs when the server provides them. Current pages did not expose
 these validators during the initial check.
 
