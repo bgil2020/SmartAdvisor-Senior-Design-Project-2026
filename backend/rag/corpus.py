@@ -70,6 +70,40 @@ def chunks_from_record(record: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def build_corpus(
+    records: list[dict[str, Any]],
+    *,
+    inputs: list[dict[str, Any]] | None = None,
+    accepted_snapshot_sha256: str | None = None,
+    generation_id: str | None = None,
+) -> dict[str, Any]:
+    """Build the existing self-contained corpus shape from validated records.
+
+    Validation belongs to the caller because records may originate from either
+    a candidate batch or an already validated operational snapshot.
+    """
+    chunks = [chunk for record in records for chunk in chunks_from_record(record)]
+    output: dict[str, Any] = {
+        "corpus_version": CORPUS_VERSION,
+        "created_at": utc_now(),
+        "acceptance": "Locally validated explicit import; redistribution in Git is not authorized by this artifact.",
+        "inputs": inputs or [],
+        "document_count": len(records),
+        "chunk_count": len(chunks),
+        "course_coverage": sorted({record["course_code"] for record in records}),
+        "syllabus_coverage": [
+            {"course_code": record["course_code"], "term": record["term_scope"], "section": record["section_scope"]}
+            for record in records if record["record_category"] == "syllabus"
+        ],
+        "chunks": chunks,
+    }
+    if accepted_snapshot_sha256 is not None:
+        output["accepted_snapshot_sha256"] = accepted_snapshot_sha256
+    if generation_id is not None:
+        output["generation_id"] = generation_id
+    return output
+
+
 def import_validated_corpus(
     *,
     course_batches: list[Path],
@@ -95,21 +129,7 @@ def import_validated_corpus(
                 records.append(record)
             inputs.append({"category": category, "path": path.as_posix(), "batch_id": batch.get("batch_id") or batch.get("accepted_batch_id"), "record_count": len(batch.get("records", []))})
 
-    chunks = [chunk for record in records for chunk in chunks_from_record(record)]
-    output = {
-        "corpus_version": CORPUS_VERSION,
-        "created_at": utc_now(),
-        "acceptance": "Locally validated explicit import; redistribution in Git is not authorized by this artifact.",
-        "inputs": inputs,
-        "document_count": len(records),
-        "chunk_count": len(chunks),
-        "course_coverage": sorted({record["course_code"] for record in records}),
-        "syllabus_coverage": [
-            {"course_code": record["course_code"], "term": record["term_scope"], "section": record["section_scope"]}
-            for record in records if record["record_category"] == "syllabus"
-        ],
-        "chunks": chunks,
-    }
+    output = build_corpus(records, inputs=inputs)
     write_json(output_path, output)
     return {key: output[key] for key in ("document_count", "chunk_count", "course_coverage", "syllabus_coverage")}
 

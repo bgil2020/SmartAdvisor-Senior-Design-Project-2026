@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .generation import BaseRAGProvider, provider_from_environment
 from .models import AcquisitionPlan, EvidenceAssessment, RAGResult, RetrievedEvidence
+from .operational_storage import OperationalStorageError, default_operational_root, get_runtime_store
 from .readiness import assess_evidence, classify_evidence_requirement
 from .retriever import LexicalRetriever, Retriever
 
@@ -125,7 +126,48 @@ def answer_information_question(
                 clarification_required=True,
             ),
         )
+    operational_failure: tuple[str, str] | None = None
+    if retriever is None and corpus_path is None and os.getenv("RAG_OPERATIONAL_ROOT"):
+        operational_root = default_operational_root(ROOT)
+        try:
+            runtime_snapshot = get_runtime_store(operational_root).snapshot()
+            if runtime_snapshot is None:
+                operational_failure = (
+                    "The configured operational RAG store is empty.",
+                    "No current operational generation has been published.",
+                )
+            else:
+                # One immutable retriever reference is captured for this request.
+                # A concurrent process-local activation cannot change it in flight.
+                retriever = runtime_snapshot.retriever
+        except OperationalStorageError as exc:
+            operational_failure = (
+                "The configured operational RAG store could not be read safely.",
+                f"Operational generation load failed ({type(exc).__name__}).",
+            )
     if retriever is None:
+        if operational_failure is not None:
+            answer, reason = operational_failure
+            return RAGResult(
+                status="no_relevant_evidence",
+                answer=f"{answer} Repair or explicitly publish validated local data before assessing this question.",
+                generation_source="none",
+                limitations=["An empty or unreadable operational store does not prove that requested evidence is absent."],
+                evidence_decision="corpus_unavailable",
+                evidence_reason=reason,
+                resolved_scope=scope,
+                required_source_categories=categories,
+                missing_evidence_categories=categories,
+                acquisition_plan=AcquisitionPlan(
+                    eligible=False,
+                    course_code=requirement.course_code,
+                    source_categories=categories,
+                    term_id=requirement.term_id,
+                    section=requirement.section,
+                    evidence_gap="operational_corpus_unavailable",
+                    collector_capability="Explicitly publish validated candidates; no automatic acquisition is enabled.",
+                ),
+            )
         if not path.exists():
             return RAGResult(
                 status="no_relevant_evidence",
