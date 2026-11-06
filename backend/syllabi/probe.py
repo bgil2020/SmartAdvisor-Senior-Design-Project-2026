@@ -20,14 +20,16 @@ def probe_documents(documents: list[dict], *, config: FetchConfig | None = None,
     config = config or FetchConfig(max_retries=1)
     owned = client is None
     client = client or httpx.Client(timeout=config.timeout_seconds, follow_redirects=True, headers={"User-Agent": USER_AGENT})
-    results, request_count = [], 0
+    results, request_count, redirect_count, retry_count = [], 0, 0, 0
     stopped = False
     try:
         for index, document in enumerate(documents):
             if index:
                 sleep(config.pace_seconds)
             response, used = bounded_get(client, document["view_url"], allowed_hosts=ALLOWED_HOSTS, headers=None, config=config, sleep=sleep)
-            request_count += used
+            request_count += used.requests
+            redirect_count += used.redirects
+            retry_count += used.retries
             classification = classify_page(response.text, str(response.url), response.status_code)
             if response.status_code in {403, 429}:
                 stopped = True
@@ -37,4 +39,12 @@ def probe_documents(documents: list[dict], *, config: FetchConfig | None = None,
     finally:
         if owned:
             client.close()
-    return {"requested": len(documents), "live_request_count": request_count, "request_budget": len(documents) * (config.max_retries + 1), "stopped_on_access_block": stopped, "results": results}
+    return {
+        "requested": len(documents),
+        "live_request_count": request_count,
+        "redirect_count": redirect_count,
+        "retry_count": retry_count,
+        "request_budget": len(documents) * (config.max_retries + 1),
+        "stopped_on_access_block": stopped,
+        "results": results,
+    }

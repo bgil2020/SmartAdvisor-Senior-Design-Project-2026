@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 import httpx
 
-from .http import FetchConfig, FetchStopped, bounded_get
+from .http import FetchConfig, FetchStats, bounded_get
 from .models import BATCH_ID_RE, normalize_course_code, sha256_text, utc_now, write_json
 
 CATALOG_ORIGIN = "https://catalog.fau.edu"
@@ -29,8 +29,16 @@ def _request(
     headers: dict[str, str] | None,
     config: FetchConfig,
     sleep: Callable[[float], None],
-) -> tuple[httpx.Response, int]:
-    return bounded_get(client, url, allowed_hosts=ALLOWED_HOSTS, headers=headers, config=config, sleep=sleep)
+    deadline: float,
+    cancelled: Callable[[], bool],
+    remaining_requests: int,
+    max_response_bytes: int | None = None,
+) -> tuple[httpx.Response, FetchStats]:
+    return bounded_get(
+        client, url, allowed_hosts=ALLOWED_HOSTS, headers=headers, config=config,
+        sleep=sleep, deadline=deadline, cancelled=cancelled,
+        remaining_requests=remaining_requests, max_response_bytes=max_response_bytes,
+    )
 
 
 def discover_detail_urls(sitemap_text: str, course_codes: list[str]) -> dict[str, str]:
@@ -63,11 +71,14 @@ def fetch_courses(
     config: FetchConfig | None = None,
     client: httpx.Client | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    cancelled: Callable[[], bool] | None = None,
 ) -> dict:
     config = config or FetchConfig()
     if not BATCH_ID_RE.fullmatch(batch_id):
         raise ValueError("batch_id must be 3-80 safe identifier characters")
-    if config.timeout_seconds <= 0 or config.pace_seconds < 0 or config.max_retries < 0:
+    if (config.timeout_seconds <= 0 or config.total_deadline_seconds <= 0 or
+            config.pace_seconds < 0 or config.max_retries < 0 or
+            config.max_response_bytes <= 0 or config.max_redirects < 0):
         raise ValueError("Timeout must be positive; pacing and retries must be non-negative")
     codes = list(dict.fromkeys(normalize_course_code(code) for code in course_codes))
     if not codes or len(codes) > MAX_COURSES:
@@ -77,13 +88,24 @@ def fetch_courses(
     shared_cache = cache_dir / "_cache"
     shared_cache.mkdir(parents=True, exist_ok=True)
     owned_client = client is None
-    client = client or httpx.Client(timeout=config.timeout_seconds, follow_redirects=True, headers={"User-Agent": USER_AGENT})
+    client = client or httpx.Client(timeout=config.timeout_seconds, follow_redirects=False, headers={"User-Agent": USER_AGENT})
+    cancelled = cancelled or (lambda: False)
+    deadline = time.monotonic() + config.total_deadline_seconds
+    request_budget = config.max_requests or (1 + len(codes)) * (config.max_retries + 1) + config.max_redirects * (1 + len(codes))
     request_count = 0
+    redirect_count = 0
+    retry_count = 0
     results: list[dict] = []
     stopped = False
     try:
-        sitemap_response, used = _request(client, SITEMAP_URL, headers=None, config=config, sleep=sleep)
-        request_count += used
+        sitemap_response, used = _request(
+            client, SITEMAP_URL, headers=None, config=config, sleep=sleep,
+            deadline=deadline, cancelled=cancelled,
+            remaining_requests=request_budget - request_count,
+        )
+        request_count += used.requests
+        redirect_count += used.redirects
+        retry_count += used.retries
         sitemap_response.raise_for_status()
         urls = discover_detail_urls(sitemap_response.text, codes)
         for index, code in enumerate(codes):
@@ -103,13 +125,18 @@ def fetch_courses(
                 if prior.get("last_modified"):
                     conditional["If-Modified-Since"] = prior["last_modified"]
             try:
-                response, used = _request(client, url, headers=conditional, config=config, sleep=sleep)
+                response, used = _request(
+                    client, url, headers=conditional, config=config, sleep=sleep,
+                    deadline=deadline, cancelled=cancelled,
+                    remaining_requests=request_budget - request_count,
+                )
             except (httpx.TimeoutException, httpx.TransportError) as exc:
-                request_count += config.max_retries + 1
                 results.append({"course_code": code, "status": "failed", "source_url": url, "error": type(exc).__name__})
                 stopped = True
                 break
-            request_count += used
+            request_count += used.requests
+            redirect_count += used.redirects
+            retry_count += used.retries
             if response.status_code in {429, 403} or response.status_code >= 500:
                 results.append({"course_code": code, "status": "failed", "source_url": url, "http_status": response.status_code})
                 stopped = True
@@ -152,8 +179,13 @@ def fetch_courses(
     manifest = {
         "batch_id": batch_id,
         "requested_courses": codes,
-        "request_budget": (1 + len(codes)) * (config.max_retries + 1),
+        "request_budget": request_budget,
         "live_request_count": request_count,
+        "redirect_count": redirect_count,
+        "retry_count": retry_count,
+        "configured_request_limit": request_budget,
+        "response_size_limit_bytes": config.max_response_bytes,
+        "total_deadline_seconds": config.total_deadline_seconds,
         "stopped_on_persistent_access_failure": stopped,
         "results": results,
     }

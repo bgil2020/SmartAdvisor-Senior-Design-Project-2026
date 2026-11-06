@@ -58,7 +58,9 @@ def main() -> int:
         courses = list(dict.fromkeys(normalize_course_code(value) for value in (args.courses or manifest["selected_courses"])))
         if not courses or len(courses) > 5:
             parser.error("plan requires between 1 and 5 unique course codes")
-        show({"network": False, "courses": courses, "course_limit": 5, "request_budget": 3 * (1 + len(set(courses))), "requests": ["published sitemap", "one exact detail page per discovered course"], "accepted_data_will_change": False})
+        config = FetchConfig()
+        request_budget = (1 + len(set(courses))) * (config.max_retries + 1) + config.max_redirects * (1 + len(set(courses)))
+        show({"network": False, "courses": courses, "course_limit": 5, "request_budget": request_budget, "requests": ["published sitemap", "one exact detail page per discovered course", "allowlisted redirects count against the budget"], "accepted_data_will_change": False})
     elif args.command == "fetch":
         batch_id = args.batch_id or default_batch_id()
         show(fetch_courses(args.courses, cache_dir=RAW, batch_id=batch_id, config=FetchConfig(pace_seconds=args.pace_seconds)))

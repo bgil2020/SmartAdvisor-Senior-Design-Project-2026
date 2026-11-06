@@ -1,7 +1,11 @@
+import asyncio
 import logging
+import os
 import re
+import threading
+from pathlib import Path
 from typing import Any, Literal
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -64,6 +68,12 @@ from .scheduling_service import (
     evaluate_alternative_sections,
 )
 from .rag.service import answer_information_question
+from .rag.catalog_acquisition import (
+    CatalogAcquisitionResult,
+    CatalogAcquisitionSettings,
+    get_catalog_acquisition_coordinator,
+)
+from .rag.operational_storage import OperationalStorageError, default_operational_root, get_runtime_store
 
 router = APIRouter(tags=["Conversational Assistant"])
 
@@ -145,10 +155,24 @@ class ConversationResponse(BaseModel):
     missing_evidence_categories: list[str] = Field(default_factory=list)
     acquisition_eligible: bool = False
     acquisition_plan: dict | None = None
+    initial_evidence_decision: str | None = None
+    initial_acquisition_plan: dict | None = None
+    acquisition_enabled: bool = False
+    acquisition_attempted: bool = False
+    acquisition_outcome: str | None = None
+    acquisition_reason: str | None = None
+    acquisition_coalesced: bool = False
+    acquisition_request_count: int = 0
+    acquisition_redirect_count: int = 0
+    acquisition_retry_count: int = 0
+    post_acquisition_evidence_decision: str | None = None
+    active_corpus_generation: str | None = None
 
 
-@router.post("/conversation", response_model=ConversationResponse)
-def handle_conversation(req: ConversationRequest):
+def _handle_conversation_sync(
+    req: ConversationRequest,
+    cancellation: threading.Event | None = None,
+) -> ConversationResponse:
     """
     Evaluates student prompt using conversational parser (deterministic or hybrid Gemini)
     and deterministic response policy.
@@ -265,6 +289,81 @@ def handle_conversation(req: ConversationRequest):
             term_id=scope["term_id"],
             section=scope["section"],
         )
+        initial_evidence_decision = rag.evidence_decision
+        initial_acquisition_plan = rag.acquisition_plan.model_dump() if rag.acquisition_plan else None
+        acquisition_settings = CatalogAcquisitionSettings.from_environment()
+        acquisition = CatalogAcquisitionResult(
+            outcome="not_needed" if rag.status == "answered" else "not_eligible",
+            course_code=scope["course_code"],
+            reason=(
+                "Local evidence already supports the request."
+                if rag.status == "answered"
+                else "The readiness result is not eligible for this bounded catalog executor."
+            ),
+        )
+        runtime_store = None
+        storage_error: str | None = None
+        if os.getenv("RAG_OPERATIONAL_ROOT"):
+            try:
+                runtime_store = get_runtime_store(default_operational_root(Path(__file__).resolve().parents[1]))
+            except OperationalStorageError as exc:
+                storage_error = f"Operational storage could not be loaded ({type(exc).__name__})."
+        if acquisition_settings.enabled and rag.evidence_decision == "corpus_unavailable":
+            if storage_error is not None:
+                acquisition = CatalogAcquisitionResult("storage_unusable", scope["course_code"], reason=storage_error)
+            elif runtime_store is None:
+                acquisition = CatalogAcquisitionResult(
+                    "storage_not_configured", scope["course_code"],
+                    reason="RAG_OPERATIONAL_ROOT must identify initialized operational storage before acquisition.",
+                )
+            elif runtime_store.snapshot() is None:
+                acquisition = CatalogAcquisitionResult(
+                    "storage_uninitialized", scope["course_code"],
+                    reason="Initialize operational storage explicitly before acquisition.",
+                )
+            else:
+                acquisition = CatalogAcquisitionResult(
+                    "storage_recovery_required", scope["course_code"],
+                    reason="Repair the operational generation before acquisition.",
+                )
+        elif rag.status != "answered" and rag.acquisition_plan is not None and rag.acquisition_eligible:
+            if not acquisition_settings.enabled:
+                acquisition = CatalogAcquisitionResult(
+                    "disabled", scope["course_code"], reason="Catalog acquisition is opt-in and disabled."
+                )
+            elif storage_error is not None:
+                acquisition = CatalogAcquisitionResult(
+                    "storage_unusable", scope["course_code"], reason=storage_error
+                )
+            elif runtime_store is None:
+                acquisition = CatalogAcquisitionResult(
+                    "storage_not_configured", scope["course_code"],
+                    reason="RAG_OPERATIONAL_ROOT must identify initialized operational storage before acquisition.",
+                )
+            else:
+                catalog = get_course_catalog()
+                supported_courses = {
+                    normalize_course_code(value)
+                    for value in catalog["COURSE"].dropna().astype(str).tolist()
+                }
+                acquisition = get_catalog_acquisition_coordinator(acquisition_settings).execute(
+                    rag.acquisition_plan,
+                    runtime_store=runtime_store,
+                    supported_courses=supported_courses,
+                    cancelled=cancellation,
+                )
+                if acquisition.outcome in {"published", "unchanged", "local_evidence_available"}:
+                    # Exactly one post-publication readiness/retrieval attempt.
+                    rag = answer_information_question(
+                        message,
+                        course_codes=[scope["course_code"]] if scope["course_code"] else [],
+                        term_id=scope["term_id"],
+                        section=scope["section"],
+                    )
+        active_generation = None
+        if runtime_store is not None:
+            active_snapshot = runtime_store.snapshot()
+            active_generation = active_snapshot.generation_id if active_snapshot else None
         status = {
             "answered": "rag_answered",
             "clarification": "clarification",
@@ -300,6 +399,18 @@ def handle_conversation(req: ConversationRequest):
             missing_evidence_categories=rag.missing_evidence_categories,
             acquisition_eligible=rag.acquisition_eligible,
             acquisition_plan=rag.acquisition_plan.model_dump() if rag.acquisition_plan else None,
+            initial_evidence_decision=initial_evidence_decision,
+            initial_acquisition_plan=initial_acquisition_plan,
+            acquisition_enabled=acquisition_settings.enabled,
+            acquisition_attempted=acquisition.attempted,
+            acquisition_outcome=acquisition.outcome,
+            acquisition_reason=acquisition.reason,
+            acquisition_coalesced=acquisition.coalesced,
+            acquisition_request_count=acquisition.request_count,
+            acquisition_redirect_count=acquisition.redirect_count,
+            acquisition_retry_count=acquisition.retry_count,
+            post_acquisition_evidence_decision=rag.evidence_decision,
+            active_corpus_generation=active_generation,
         )
 
     # 3. Allow structured context to fill missing message details (do not require text to repeat valid context)
@@ -962,3 +1073,21 @@ def handle_conversation(req: ConversationRequest):
         safe_to_route=False,
         engine_executed=False,
     )
+
+
+@router.post("/conversation", response_model=ConversationResponse)
+async def handle_conversation(req: ConversationRequest, request: Request):
+    """Run synchronous engines off-loop and prevent late publication on disconnect."""
+    cancellation = threading.Event()
+    worker = asyncio.create_task(asyncio.to_thread(_handle_conversation_sync, req, cancellation))
+    while True:
+        done, _ = await asyncio.wait({worker}, timeout=0.05)
+        if worker in done:
+            return worker.result()
+        if await request.is_disconnected():
+            cancellation.set()
+            # The active source request still ends under its configured network
+            # timeout. Awaiting it here leaves no detached task that could publish
+            # after the client has abandoned the request.
+            await worker
+            raise HTTPException(status_code=499, detail="Client disconnected before acquisition completed.")
