@@ -89,6 +89,8 @@ def is_future_rag_candidate(message: str, extractor_result: dict) -> bool:
         return True
     if re.search(r'\bcatalog description\b', msg):
         return True
+    if re.search(r'\b(grading|grade breakdown|attendance|late work|textbooks?|assignments?|exams?|office hours|instructor|learning outcomes?|syllabus)\b', msg):
+        return True
     return False
 
 def is_ambiguous_single_course_workload(message: str, entities: dict) -> bool:

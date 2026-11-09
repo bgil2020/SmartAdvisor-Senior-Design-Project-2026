@@ -63,16 +63,15 @@ def test_advisor_escalation_does_not_execute_engine():
     assert data["target_handler"] == "academic_advisor"
 
 
-def test_inactive_rag_candidate_does_not_execute_engine():
-    """Informational questions are safely flagged as inactive candidate without execution."""
+def test_informational_query_requests_exact_source_scope():
     payload = {"message": "What topics are covered in COP 3530?"}
     resp = client.post("/conversation", json=payload)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "rag_inactive"
+    assert data["status"] == "clarification"
     assert data["engine_executed"] is False
     assert data["safe_to_route"] is False
-    assert data["disposition"] == "future_rag_candidate"
+    assert data["response_code"] == "SOURCE_SCOPE_INCOMPLETE"
 
 
 def test_conflicting_details_returns_clarification():
