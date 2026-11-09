@@ -1,10 +1,14 @@
 from pathlib import Path
+import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 os.environ["CONVERSATIONAL_PARSER_MODE"] = "deterministic"
+os.environ["SESSION_EVIDENCE_SIGNING_KEY"] = "test-only-session-evidence-key-32-bytes-minimum"
 
 from backend.conversational_router import ConversationRequest, handle_conversation
 from backend.session_evidence import attach_provenance, validate_session_records
@@ -84,6 +88,34 @@ def test_stable_backend_key_allows_browser_evidence_after_restart(monkeypatch):
     valid, errors = validate_session_records([retained])
     assert errors == []
     assert valid[0]["record_id"] == retained["record_id"]
+
+
+def test_provenance_survives_separate_backend_processes():
+    unsigned = {key: value for key, value in record().items() if key != "session_provenance"}
+    environment = os.environ.copy()
+    environment["SESSION_EVIDENCE_SIGNING_KEY"] = "restart-stable-test-key-at-least-32-bytes"
+    issuer = subprocess.run(
+        [sys.executable, "-c", "import json,sys; from backend.session_evidence import attach_provenance; print(json.dumps(attach_provenance(json.load(sys.stdin))))"],
+        input=json.dumps(unsigned), text=True, capture_output=True, check=True,
+        cwd=Path(__file__).parents[1], env=environment,
+    )
+    validator = subprocess.run(
+        [sys.executable, "-c", "import json,sys; from backend.session_evidence import validate_session_records; valid,errors=validate_session_records([json.load(sys.stdin)]); print(json.dumps({'valid':len(valid),'errors':errors}))"],
+        input=issuer.stdout, text=True, capture_output=True, check=True,
+        cwd=Path(__file__).parents[1], env=environment,
+    )
+    assert json.loads(validator.stdout) == {"valid": 1, "errors": []}
+
+
+def test_missing_backend_key_fails_clearly(monkeypatch):
+    monkeypatch.delenv("SESSION_EVIDENCE_SIGNING_KEY", raising=False)
+    response = handle_conversation(ConversationRequest(
+        message="What does the grading section say for COP 4331?",
+        session_context={"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    ))
+    assert response.status == "acquisition_failed"
+    assert response.response_code == "SESSION_EVIDENCE_CONFIGURATION_ERROR"
+    assert "SESSION_EVIDENCE_SIGNING_KEY is required" in response.response_text
 
 
 def test_oversized_record_is_rejected_before_trust():

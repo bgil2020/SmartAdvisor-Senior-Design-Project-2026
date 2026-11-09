@@ -5,6 +5,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $containerName = "smartadvisor-free-smoke-$PID"
+$signingBytes = New-Object byte[] 48
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($signingBytes)
+$signingKey = [Convert]::ToBase64String($signingBytes)
 $result = [ordered]@{
     container = $containerName
     memory_limit_mb = 512
@@ -20,7 +23,7 @@ try {
     docker run --detach --name $containerName --memory 512m --memory-swap 512m --publish "${Port}:8000" `
         --env PORT=8000 --env ACQUISITION_BROWSER_MODE=headed `
         --env SYLLABUS_ACQUISITION_ENABLED=false --env CONVERSATIONAL_PARSER_MODE=deterministic `
-        --env RENDER_STARTUP_BROWSER_SMOKE=true $Image | Out-Null
+        --env SESSION_EVIDENCE_SIGNING_KEY=$signingKey --env RENDER_STARTUP_BROWSER_SMOKE=true $Image | Out-Null
 
     $deadline = (Get-Date).AddSeconds(60)
     do {

@@ -578,8 +578,8 @@ class TestConversationalRouterWithLLM(unittest.TestCase):
             self.assertFalse(data["engine_executed"])
             self.assertEqual(data["response_code"], "ADVISOR_ESCALATION_REQUIRED")
 
-    def test_inactive_rag_candidate_remains_inactive(self):
-        """Informational prerequisite inquiry routes safely to inactive RAG."""
+    def test_informational_candidate_requires_exact_source_scope(self):
+        """Informational prerequisite inquiry requires term and section before acquisition."""
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.text = json.dumps({
@@ -605,10 +605,10 @@ class TestConversationalRouterWithLLM(unittest.TestCase):
             resp = client.post("/conversation", json=payload)
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
-            self.assertEqual(data["status"], "rag_inactive")
+            self.assertEqual(data["status"], "clarification")
             self.assertFalse(data["safe_to_route"])
             self.assertFalse(data["engine_executed"])
-            self.assertEqual(data["response_code"], "FUTURE_RAG_NOT_AVAILABLE")
+            self.assertEqual(data["response_code"], "SOURCE_SCOPE_INCOMPLETE")
 
     def test_excess_sections_safeguard_preserved(self):
         """Schedule check with >2 sections triggers clarification without silent truncation."""

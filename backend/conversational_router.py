@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from backend.session_evidence import (
     deterministic_answer,
     matching_records,
+    require_signing_key,
     resolve_scope,
     validate_session_records,
 )
@@ -216,6 +217,16 @@ def handle_conversation(req: ConversationRequest):
     # the backend validates provenance on every reuse and only acquires an exact
     # approved course/term/section mapping.
     if disposition == DISPOSITION_RAG:
+        try:
+            require_signing_key()
+        except RuntimeError as exc:
+            return _build_response(
+                status="acquisition_failed", raw_message=message, disposition=disposition,
+                target_handler=target_handler, response_code="SESSION_EVIDENCE_CONFIGURATION_ERROR",
+                response_text=str(exc), safe_to_route=False, engine_executed=False,
+                extracted_courses=extracted_courses,
+                explanation_limitations=["Session evidence was not accepted or acquired."],
+            )
         valid_records, evidence_errors = validate_session_records(req.session_evidence)
         scope, clarification = resolve_scope(message, extracted_courses, valid_records, req.session_context)
         if clarification or scope is None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,7 +44,14 @@ def main() -> int:
     started = time.monotonic(); peak = family_rss(); timeout_cancelled = False
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=False, args=["--disable-dev-shm-usage", "--no-sandbox"])
+            launch_options = {"headless": False, "args": ["--disable-dev-shm-usage", "--no-sandbox"]}
+            executable = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE", "").strip()
+            if executable:
+                if not Path(executable).is_file():
+                    print(json.dumps({"status": "failed", "reason": "configured_browser_executable_missing"}))
+                    return 2
+                launch_options["executable_path"] = executable
+            browser = playwright.chromium.launch(**launch_options)
             try:
                 page = browser.new_page()
                 page.goto("http://127.0.0.1:8765/synthetic.html", wait_until="domcontentloaded", timeout=5_000)

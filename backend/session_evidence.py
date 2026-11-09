@@ -11,7 +11,6 @@ import hmac
 import json
 import os
 import re
-import secrets
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,14 +24,20 @@ MAX_TOTAL_BYTES = 300_000
 MAX_CHUNK_CHARS = 3_500
 MAX_RETRIEVED_CHUNKS = 3
 
-_EPHEMERAL_KEY = secrets.token_bytes(32)
-
-
 def _signing_key() -> bytes:
     configured = os.getenv("SESSION_EVIDENCE_SIGNING_KEY", "").strip()
-    if configured and len(configured.encode("utf-8")) < 32:
+    if not configured:
+        raise RuntimeError(
+            "SESSION_EVIDENCE_SIGNING_KEY is required for session evidence reuse"
+        )
+    if len(configured.encode("utf-8")) < 32:
         raise RuntimeError("SESSION_EVIDENCE_SIGNING_KEY must contain at least 32 bytes")
-    return configured.encode("utf-8") if configured else _EPHEMERAL_KEY
+    return configured.encode("utf-8")
+
+
+def require_signing_key() -> None:
+    """Fail clearly before accepting, issuing, or acquiring session evidence."""
+    _signing_key()
 
 
 def _proof_payload(record: dict[str, Any]) -> bytes:

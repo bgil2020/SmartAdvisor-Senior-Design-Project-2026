@@ -417,7 +417,7 @@ def test_case_f_advisor_escalation_official_actions():
 
 
 def test_case_g_informational_future_rag_candidate():
-    """Case G: Informational inquiries remain safely RAG-inactive without engine execution."""
+    """Case G: Informational inquiries require exact source scope without engine execution."""
     payload = {
         "message": "What topics are covered in COP 3530?",
     }
@@ -427,9 +427,9 @@ def test_case_g_informational_future_rag_candidate():
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "rag_inactive"
+    assert data["status"] == "clarification"
     assert data["target_handler"] == "future_informational_rag"
-    assert data["response_code"] == "FUTURE_RAG_NOT_AVAILABLE"
+    assert data["response_code"] == "SOURCE_SCOPE_INCOMPLETE"
     assert data["safe_to_route"] is False
     assert data["engine_executed"] is False
     assert data["engine_result"] is None
