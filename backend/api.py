@@ -1,6 +1,9 @@
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import pandas as pd
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -10,6 +13,7 @@ load_dotenv()
 from .alternative_section_search import find_alternative_sections
 from .compatibility_router import router as compatibility_router
 from .conversational_router import router as conversational_router
+from .logging_config import get_api_logger
 
 app = FastAPI(
     title="SmartAdvisor API",
@@ -17,15 +21,70 @@ app = FastAPI(
     version="1.0.0",
 )
 
+api_logger = get_api_logger()
+
+
+class ApiLoggingMiddleware:
+    """Pure ASGI request logging without buffering response bodies."""
+
+    def __init__(self, app, logger):
+        self.app = app
+        self.logger = logger
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        status_code = 500
+
+        async def send_with_status(message):
+            nonlocal status_code
+            if message.get("type") == "http.response.start":
+                status_code = int(message.get("status", 500))
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_status)
+        except Exception:
+            self._write(scope, 500, "api_error", "UNHANDLED_EXCEPTION")
+            raise
+        else:
+            category = "SERVER_ERROR" if status_code >= 500 else "CLIENT_ERROR" if status_code >= 400 else None
+            self._write(scope, status_code, "api_request", category)
+
+    def _write(self, scope, status_code, event, category):
+        route = scope.get("route")
+        self.logger.info(
+            "API request completed",
+            extra={
+                "event": event,
+                "method": scope.get("method"),
+                "endpoint": getattr(route, "path", "unmatched_route"),
+                "status_code": status_code,
+                "error_category": category,
+            },
+        )
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv(
+            "SMARTADVISOR_CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
+        ).split(",")
+        if origin.strip()
+    ],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.add_middleware(ApiLoggingMiddleware, logger=api_logger)
+
 app.include_router(compatibility_router)
 app.include_router(conversational_router)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
@@ -371,7 +430,7 @@ def get_sections(
 
 @app.get("/alternatives")
 def get_alternatives(
-    crn: str = Query(...),
+    crn: str = Query(..., pattern=r"^[0-9]+$"),
     selected_crns: str | None = Query(default=None),
 ):
     selected = []
@@ -422,3 +481,10 @@ def get_alternatives(
         "alternatives": records,
         "message": "Alternative sections found.",
     }
+
+
+# The container copies the Vite build here. Mounting last preserves all API
+# route precedence while making the reviewed artifact a single-origin app.
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+if FRONTEND_DIST.exists() and os.getenv("SMARTADVISOR_SERVE_FRONTEND", "false").casefold() == "true":
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

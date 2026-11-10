@@ -122,6 +122,17 @@ class TestGeminiStructuredParserMocked(unittest.TestCase):
         self.assertEqual(result.model_id, DEFAULT_GEMINI_MODEL)
         self.assertFalse(result.needs_clarification)
 
+    def test_direct_adapter_honors_environment_model_and_explicit_override(self):
+        with patch.dict(os.environ, {"GEMINI_MODEL": "environment-model"}):
+            self.assertEqual(
+                GeminiStructuredParser(api_key="test-key", client=MagicMock()).model_name,
+                "environment-model",
+            )
+            self.assertEqual(
+                GeminiStructuredParser(api_key="test-key", model_name="explicit-model", client=MagicMock()).model_name,
+                "explicit-model",
+            )
+
     def test_grounding_rejects_hallucinated_invented_courses(self):
         """Model invents course code not in user message -> raises ValueError to trigger fallback."""
         mock_client = MagicMock()
@@ -472,7 +483,7 @@ class TestConversationalRouterWithLLM(unittest.TestCase):
             self.assertTrue(data["engine_executed"])
             self.assertEqual(data["parser_source"], "llm")
             self.assertFalse(data["fallback_used"])
-            self.assertEqual(data["model_id"], "gemini-3.8-flash")
+            self.assertEqual(data["model_id"], DEFAULT_GEMINI_MODEL)
             self.assertIn("assessment", data["engine_result"])
 
     def test_llm_paraphrase_reaches_scheduling_conflict_engine(self):
@@ -578,8 +589,8 @@ class TestConversationalRouterWithLLM(unittest.TestCase):
             self.assertFalse(data["engine_executed"])
             self.assertEqual(data["response_code"], "ADVISOR_ESCALATION_REQUIRED")
 
-    def test_informational_candidate_requires_exact_source_scope(self):
-        """Informational prerequisite inquiry requires term and section before acquisition."""
+    def test_rag_candidate_without_evidence_fails_closed(self):
+        """Informational prerequisite inquiry does not answer without evidence."""
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.text = json.dumps({
@@ -605,10 +616,11 @@ class TestConversationalRouterWithLLM(unittest.TestCase):
             resp = client.post("/conversation", json=payload)
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
-            self.assertEqual(data["status"], "clarification")
+            self.assertEqual(data["status"], "no_relevant_evidence")
             self.assertFalse(data["safe_to_route"])
             self.assertFalse(data["engine_executed"])
-            self.assertEqual(data["response_code"], "SOURCE_SCOPE_INCOMPLETE")
+            self.assertEqual(data["response_code"], "RAG_NO_RELEVANT_EVIDENCE")
+            self.assertTrue(data["rag_executed"])
 
     def test_excess_sections_safeguard_preserved(self):
         """Schedule check with >2 sections triggers clarification without silent truncation."""

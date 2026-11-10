@@ -152,7 +152,7 @@ async def verify(saved_record: dict) -> dict:
         fallback["additional_source_acquisitions"] == 0,
         reset_ignored_stale,
         reset_cleared_scope,
-        post_reset["status"] == "acquisition_failed",
+        post_reset["status"] == "no_relevant_evidence",
     ))
     return {
         "status": "passed" if passed else "failed",

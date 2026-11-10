@@ -1,14 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { evaluateOverride } from '../utils/overrideEvaluator';
 import type { OverrideResult } from '../utils/overrideEvaluator';
 
-export default function OnlineOverrideEvaluator() {
-  const [courseCode, setCourseCode] = useState('');
+interface Props {
+  prefillCourseCode?: string;
+}
+
+export default function OnlineOverrideEvaluator({ prefillCourseCode }: Props) {
+  const [courseCode, setCourseCode] = useState(prefillCourseCode ?? '');
   const [overrideCategory, setOverrideCategory] = useState('');
   const [overrideDescription, setOverrideDescription] = useState('');
   const [documentationStatus, setDocumentationStatus] = useState('');
   const [overrideResult, setOverrideResult] = useState<OverrideResult | null>(null);
+  const courseInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!prefillCourseCode) return;
+    courseInput.current?.focus();
+    courseInput.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [prefillCourseCode]);
 
   function handleOverrideEvaluation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,6 +67,7 @@ export default function OnlineOverrideEvaluator() {
         <label>
           Course Requested Online
           <input
+            ref={courseInput}
             type="text"
             value={courseCode}
             onChange={(event) => setCourseCode(event.target.value)}

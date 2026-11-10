@@ -298,7 +298,8 @@ def test_real_conversation_path_preserves_engine_and_parser_metadata_on_explanat
         ("What does university policy say about prerequisites?", "SOURCE_SCOPE_AMBIGUOUS", "specify the course code"),
     ],
 )
-def test_real_path_keeps_advisor_and_inactive_rag_boundaries(message, response_code, required_text):
+def test_real_path_keeps_advisor_and_rag_boundaries(message, response_code, required_text, monkeypatch, tmp_path):
+    monkeypatch.setenv("RAG_CORPUS_PATH", str(tmp_path / "missing-corpus.json"))
     response = client.post("/conversation", json={"message": message})
 
     assert response.status_code == 200

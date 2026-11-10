@@ -22,12 +22,12 @@ class BrowserProbeSession(Protocol):
 
 @dataclass(frozen=True)
 class BrowserProbeLimits:
-    essential_request_budget: int = 2
+    essential_failure_budget: int = 2
     access_denial_threshold: int = 1
-    total_response_budget: int = 20
+    total_response_budget: int = 60
 
     def __post_init__(self) -> None:
-        if self.essential_request_budget < 1 or self.access_denial_threshold < 1 or self.total_response_budget < 1:
+        if self.essential_failure_budget < 1 or self.access_denial_threshold < 1 or self.total_response_budget < 1:
             raise ValueError("Browser probe limits must be positive")
 
 
@@ -37,11 +37,13 @@ def probe_browser_session(session: BrowserProbeSession, url: str, *, limits: Bro
     Event dictionaries are intentionally small and sanitized:
     ``response`` events carry ``status`` and ``role``; ``snapshot`` events carry
     rendered ``html`` and ``final_url``. Reaching the first essential 401/403,
-    the essential budget, or the total response budget cancels the session.
+    the failed-essential-response budget, or the total response budget cancels
+    the session. Successful essential initialization responses remain observable
+    but do not consume the denial/reload-loop failure budget.
     """
     limits = limits or BrowserProbeLimits()
     logical_navigations = 0
-    responses = essential = telemetry = denials = 0
+    responses = essential = essential_failures = telemetry = denials = 0
     failed_requests: list[dict] = []
     status = "incomplete_extraction"
     stop_reason = "event_stream_ended"
@@ -66,6 +68,7 @@ def probe_browser_session(session: BrowserProbeSession, url: str, *, limits: Bro
                 if role == "essential_document":
                     essential += 1
                     if response_status >= 400:
+                        essential_failures += 1
                         failed_requests.append({"status": response_status, "essential": True})
                     if response_status in {401, 403}:
                         denials += 1
@@ -73,8 +76,8 @@ def probe_browser_session(session: BrowserProbeSession, url: str, *, limits: Bro
                             status = "generic_access_denied"
                             cancel("essential_access_denied")
                             break
-                    if essential >= limits.essential_request_budget:
-                        cancel("essential_request_budget_exhausted")
+                    if essential_failures >= limits.essential_failure_budget:
+                        cancel("essential_failure_budget_exhausted")
                         break
                 elif role == "telemetry":
                     telemetry += 1
@@ -106,11 +109,12 @@ def probe_browser_session(session: BrowserProbeSession, url: str, *, limits: Bro
         "logical_navigations": logical_navigations,
         "actual_observed_responses": responses,
         "essential_document_requests": essential,
+        "essential_document_failures": essential_failures,
         "telemetry_responses": telemetry,
         "access_denials": denials,
         "cancelled": cancelled,
         "limits": {
-            "essential_request_budget": limits.essential_request_budget,
+            "essential_failure_budget": limits.essential_failure_budget,
             "access_denial_threshold": limits.access_denial_threshold,
             "total_response_budget": limits.total_response_budget,
         },

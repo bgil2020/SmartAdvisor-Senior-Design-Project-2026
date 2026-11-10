@@ -1,11 +1,11 @@
 pandas>=2.0
 openpyxl>=3.1
-fastapi
-uvicorn
-httpx
-pytest
+fastapi>=0.115,<0.116
+uvicorn>=0.34,<0.35
+httpx>=0.28,<0.29
+pytest>=8.3,<9
 supabase>=2.32.0
 python-dotenv>=1.2.4
-google-genai>=2.0.0
+google-genai>=2.0.0,<3
 playwright==1.56.0
 psutil>=6.0,<8

@@ -46,6 +46,9 @@ data/syllabi/candidates/
 data/syllabi/.history/
 data/syllabi/browser-profile/
 
+# Locally accepted/indexed third-party content (rebuild from validated batches)
+data/rag/local-corpus.json
+
 # Local environment and secrets
 .env
 .env.*

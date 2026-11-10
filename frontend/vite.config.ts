@@ -4,4 +4,12 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: Object.fromEntries(
+      ['/courses', '/sections', '/alternatives', '/compatibility', '/conversation'].map((path) => [
+        path,
+        { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      ]),
+    ),
+  },
 })

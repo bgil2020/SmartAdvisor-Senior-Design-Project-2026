@@ -123,6 +123,7 @@ export default function App() {
   // Request race-condition tracking refs
   const sectionsRequestIdRef = useRef(0);
   const alternativesRequestIdRef = useRef(0);
+  const [overridePrefillCourse, setOverridePrefillCourse] = useState<string | undefined>();
 
   // --- 3. Course Compatibility Form State ---
   const [compatProfileId, setCompatProfileId] = useState(SYNTHETIC_PROFILES[0].student_id);
@@ -1219,10 +1220,11 @@ export default function App() {
           defaultDifficulty={compatDifficulty}
           defaultSatisfaction={compatSatisfaction}
           defaultRecentCourses={compatRecentInput}
+          onOverrideHandoff={(courseCode) => setOverridePrefillCourse(courseCode)}
         />
 
         {/* 5. Online Course Override Guidance (Preserved) */}
-        <OnlineOverrideEvaluator />
+        <OnlineOverrideEvaluator key={overridePrefillCourse ?? 'blank'} prefillCourseCode={overridePrefillCourse} />
       </div>
     </main>
   );

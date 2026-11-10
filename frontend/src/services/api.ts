@@ -3,7 +3,8 @@
  * Connects browser components to FastAPI backend endpoints.
  */
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+// Same-origin in production; Vite proxies these routes during local development.
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 export interface RawCourseRecord {
   COURSE: string;
@@ -244,7 +245,8 @@ export interface ConversationResponse {
     | 'engine_unavailable'
     | 'engine_error'
     | 'grounded_answer'
-    | 'acquisition_failed';
+    | 'acquisition_failed'
+    | 'no_relevant_evidence';
   raw_message: string;
   disposition: string;
   target_handler: string;
@@ -261,6 +263,12 @@ export interface ConversationResponse {
   citations?: Array<Record<string, unknown>>;
   source_scope?: import('../utils/sessionEvidence').SessionSourceContext | null;
   acquisition?: Record<string, unknown> | null;
+  rag_executed?: boolean;
+  generation_source?: 'provider' | 'source_excerpt_fallback' | 'none' | null;
+  generation_fallback_used?: boolean;
+  generation_fallback_reason?: string | null;
+  rag_sources?: Array<Record<string, unknown>>;
+  retrieved_evidence_count?: number;
 }
 
 /**

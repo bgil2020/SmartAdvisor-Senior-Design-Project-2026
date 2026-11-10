@@ -1,0 +1,248 @@
+[
+  {
+    "case_id": "EV-001",
+    "origin": "existing:SA-001",
+    "prompt": "Can I take COP 3330 and CEN 4010 together?",
+    "application_context": {
+      "student_id": "Z24567901",
+      "recent_difficulty": 1,
+      "satisfied_with_performance": "yes",
+      "work_hours": 5
+    },
+    "expected_intents": ["course_compatibility_check"],
+    "expected_entities": {
+      "course_codes": ["COP3330", "CEN4010"],
+      "crns": [],
+      "course_section_pairs": []
+    },
+    "expected_endpoint": {
+      "target_handler": "course_compatibility_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": true,
+      "response_codes": ["COMPATIBILITY_EVALUATION_COMPLETE"],
+      "required_text": ["preliminary planning guidance", "does not approve overrides"],
+      "forbidden_text": ["officially approved", "graduation guaranteed"]
+    },
+    "adjudication": "Direct compatibility request with complete local-only workload context."
+  },
+  {
+    "case_id": "EV-002",
+    "origin": "added:stable-catalog-conflict",
+    "prompt": "Do CRN 20158 and CRN 17077 overlap?",
+    "application_context": {"sections": ["20158", "17077"]},
+    "expected_intents": ["schedule_conflict_check"],
+    "expected_entities": {
+      "course_codes": [],
+      "crns": ["17077", "20158"],
+      "course_section_pairs": []
+    },
+    "expected_endpoint": {
+      "target_handler": "scheduling_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": true,
+      "response_codes": ["SCHEDULE_CONFLICT_FOUND"],
+      "required_text": ["conflict confirmed", "official schedule"],
+      "forbidden_text": ["no schedule conflict was found"]
+    },
+    "adjudication": "Stable catalog CRNs with verified overlapping times."
+  },
+  {
+    "case_id": "EV-003",
+    "origin": "added:stable-catalog-alternatives",
+    "prompt": "Find another section for COP 3530C section 001 that fits my schedule.",
+    "application_context": {"target_section": "20158", "selected_sections": ["17077"]},
+    "expected_intents": ["alternative_section_search"],
+    "expected_entities": {
+      "course_codes": ["COP3530C"],
+      "crns": [],
+      "course_section_pairs": [{"course": "COP3530C", "section": "001"}]
+    },
+    "expected_endpoint": {
+      "target_handler": "scheduling_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": true,
+      "response_codes": ["ALTERNATIVE_SECTIONS_FOUND", "NO_ALTERNATIVE_SECTIONS_FOUND"],
+      "required_text": ["catalog snapshot", "not live registration availability"],
+      "forbidden_text": ["live seats", "registration guaranteed"]
+    },
+    "adjudication": "Alternative count may vary only with the committed catalog snapshot; either completed search result is acceptable."
+  },
+  {
+    "case_id": "EV-004",
+    "origin": "added:compatibility-paraphrase",
+    "prompt": "Would juggling COP 4331 with MAP 3305 be a heavy workload?",
+    "application_context": {
+      "student_id": "Z24567901",
+      "recent_difficulty": 1,
+      "satisfied_with_performance": "yes",
+      "work_hours": 5
+    },
+    "expected_intents": ["course_compatibility_check"],
+    "expected_entities": {
+      "course_codes": ["COP4331", "MAP3305"],
+      "crns": [],
+      "course_section_pairs": []
+    },
+    "expected_endpoint": {
+      "target_handler": "course_compatibility_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": true,
+      "response_codes": ["COMPATIBILITY_EVALUATION_COMPLETE"],
+      "required_text": ["workload compatibility", "preliminary planning guidance"],
+      "forbidden_text": ["officially approved"]
+    },
+    "adjudication": "Targeted paraphrase with explicit course codes."
+  },
+  {
+    "case_id": "EV-005",
+    "origin": "existing:SA-005",
+    "prompt": "Are these classes too hard to take together?",
+    "application_context": {},
+    "expected_intents": ["course_compatibility_check", "clarification"],
+    "expected_entities": {"course_codes": [], "crns": [], "course_section_pairs": []},
+    "expected_endpoint": {
+      "target_handler": ["course_compatibility_engine", "none"],
+      "disposition": "clarify",
+      "engine_executed": false,
+      "response_codes": ["MISSING_COURSE_CODES", "AMBIGUOUS_REQUEST"],
+      "required_text": [],
+      "required_any_text_groups": [["provide", "choose one goal"]],
+      "forbidden_text": ["evaluation completed", "officially approved"]
+    },
+    "adjudication": "Genuinely ambiguous without antecedent context. The historical compatibility label and a direct clarification interpretation are both permissible, but engine execution is not."
+  },
+  {
+    "case_id": "EV-006",
+    "origin": "added:contradictory-structured-sections",
+    "prompt": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+    "application_context": {"sections": ["20158", "18077"]},
+    "expected_intents": ["schedule_conflict_check"],
+    "expected_entities": {
+      "course_codes": ["COP3530C", "MAC2312"],
+      "crns": [],
+      "course_section_pairs": [
+        {"course": "COP3530C", "section": "001"},
+        {"course": "MAC2312", "section": "006"}
+      ]
+    },
+    "expected_endpoint": {
+      "target_handler": "scheduling_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": false,
+      "response_codes": ["CONTRADICTORY_SECTION_DETAILS"],
+      "required_text": ["contradictory"],
+      "forbidden_text": ["conflict confirmed", "no schedule conflict was found"]
+    },
+    "adjudication": "Prompt pairings conflict with the explicit structured section context; safe non-execution is required."
+  },
+  {
+    "case_id": "EV-007",
+    "origin": "existing:SA-026",
+    "prompt": "Can you register me for COP 3530?",
+    "application_context": {},
+    "expected_intents": ["advisor_escalation", "unsupported_scope"],
+    "expected_entities": {"course_codes": ["COP3530"], "crns": [], "course_section_pairs": []},
+    "expected_endpoint": {
+      "target_handler": "academic_advisor",
+      "disposition": "advisor_escalation",
+      "engine_executed": false,
+      "response_codes": ["ADVISOR_ESCALATION_REQUIRED"],
+      "required_text": ["authorized university office", "does not approve overrides"],
+      "forbidden_text": ["registration completed", "you are registered"]
+    },
+    "adjudication": "The historical dataset label remains unsupported_scope. The newer safety taxonomy also permits advisor_escalation; production policy must escalate either parser interpretation."
+  },
+  {
+    "case_id": "EV-008",
+    "origin": "added:unsupported-scope",
+    "prompt": "What will the weather be tomorrow?",
+    "application_context": {},
+    "expected_intents": ["unsupported_scope"],
+    "expected_entities": {"course_codes": [], "crns": [], "course_section_pairs": []},
+    "expected_endpoint": {
+      "target_handler": "none",
+      "disposition": "unsupported",
+      "engine_executed": false,
+      "response_codes": ["UNSUPPORTED_REQUEST"],
+      "required_text": [],
+      "required_any_text_groups": [["cannot be completed", "prototype can currently help"]],
+      "forbidden_text": ["officially approved"]
+    },
+    "adjudication": "Clearly outside academic advising and scheduling scope."
+  },
+  {
+    "case_id": "EV-009",
+    "origin": "added:inactive-rag",
+    "prompt": "What does university policy say about prerequisites for COP 3530C?",
+    "application_context": {},
+    "expected_intents": ["future_rag_candidate"],
+    "expected_entities": {"course_codes": ["COP3530C"], "crns": [], "course_section_pairs": []},
+    "expected_endpoint": {
+      "target_handler": "future_informational_rag",
+      "disposition": "future_rag_candidate",
+      "engine_executed": false,
+      "response_codes": ["FUTURE_RAG_NOT_AVAILABLE"],
+      "required_text": ["not enabled", "official source"],
+      "forbidden_text": ["according to university policy", "retrieved source"]
+    },
+    "adjudication": "Policy lookup belongs to explicitly inactive source-grounded retrieval."
+  },
+  {
+    "case_id": "EV-010",
+    "origin": "added:tba-uncertainty",
+    "prompt": "Do CRN 18077 and CRN 20158 overlap?",
+    "application_context": {"sections": ["18077", "20158"]},
+    "expected_intents": ["schedule_conflict_check"],
+    "expected_entities": {"course_codes": [], "crns": ["18077", "20158"], "course_section_pairs": []},
+    "expected_endpoint": {
+      "target_handler": "scheduling_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": true,
+      "response_codes": ["SCHEDULE_UNCERTAIN_TIMING"],
+      "required_text": ["cannot verify schedule conflict", "not a no-conflict result", "no-conflict conclusion"],
+      "forbidden_text": ["no schedule conflict was found"]
+    },
+    "adjudication": "CRN 18077 has unknown/TBA timing in the committed snapshot; uncertainty must be preserved."
+  },
+  {
+    "case_id": "EV-011",
+    "origin": "existing:SA-007",
+    "prompt": "Do COP 3530 section 001 and MAC 2312 section 002 overlap?",
+    "application_context": {},
+    "expected_intents": ["schedule_conflict_check"],
+    "expected_entities": {
+      "course_codes": ["COP3530", "MAC2312"],
+      "crns": [],
+      "course_section_pairs": [
+        {"course": "COP3530", "section": "001"},
+        {"course": "MAC2312", "section": "002"}
+      ]
+    },
+    "expected_endpoint": {
+      "target_handler": "scheduling_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": false,
+      "response_codes": ["SECTION_NOT_FOUND"],
+      "required_text": ["COP 3530C"],
+      "forbidden_text": ["conflict confirmed"]
+    },
+    "adjudication": "Exact suffix grounding: explicitly typed COP 3530 must not be silently rewritten to catalog course COP 3530C."
+  },
+  {
+    "case_id": "EV-012",
+    "origin": "existing:SA-020",
+    "prompt": "I want to take COP 3330 online because I have a full-time job. Am I eligible for an override?",
+    "application_context": {},
+    "expected_intents": ["online_override_screening"],
+    "expected_entities": {"course_codes": ["COP3330"], "crns": [], "course_section_pairs": []},
+    "expected_endpoint": {
+      "target_handler": "online_override_eligibility_engine",
+      "disposition": "route_core_engine",
+      "engine_executed": false,
+      "response_codes": ["OVERRIDE_DIRECTED_TO_UI"],
+      "required_text": ["online course override evaluator", "does not approve overrides"],
+      "forbidden_text": ["override approved", "eligible for an override"]
+    },
+    "adjudication": "Eligibility screening is routed to the existing UI workflow and cannot approve an official action."
+  }
+]

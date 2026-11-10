@@ -1,0 +1,3126 @@
+{
+  "schema_version": "1.0",
+  "evaluated_commit": "c1fc9e7918e8db39bfa722d78039e5c16844812b",
+  "generated_at_utc": "2026-10-26T03:39:46.772315+00:00",
+  "case_count": 12,
+  "deterministic_dataset": {
+    "total": 28,
+    "correct": 28,
+    "rows": [
+      {
+        "case_id": "SA-001",
+        "source_label": "course_compatibility_check",
+        "expected_intent": "course_compatibility_check",
+        "actual_intent": "course_compatibility_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-002",
+        "source_label": "course_compatibility_check",
+        "expected_intent": "course_compatibility_check",
+        "actual_intent": "course_compatibility_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-003",
+        "source_label": "course_compatibility_check",
+        "expected_intent": "course_compatibility_check",
+        "actual_intent": "course_compatibility_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-004",
+        "source_label": "course_compatibility_check",
+        "expected_intent": "course_compatibility_check",
+        "actual_intent": "course_compatibility_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-005",
+        "source_label": "course_compatibility_check",
+        "expected_intent": "course_compatibility_check",
+        "actual_intent": "course_compatibility_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-006",
+        "source_label": "course_compatibility_check",
+        "expected_intent": "course_compatibility_check",
+        "actual_intent": "course_compatibility_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-007",
+        "source_label": "schedule_conflict_check",
+        "expected_intent": "schedule_conflict_check",
+        "actual_intent": "schedule_conflict_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-008",
+        "source_label": "schedule_conflict_check",
+        "expected_intent": "schedule_conflict_check",
+        "actual_intent": "schedule_conflict_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-009",
+        "source_label": "schedule_conflict_check",
+        "expected_intent": "schedule_conflict_check",
+        "actual_intent": "schedule_conflict_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-010",
+        "source_label": "schedule_conflict_check",
+        "expected_intent": "schedule_conflict_check",
+        "actual_intent": "schedule_conflict_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-011",
+        "source_label": "schedule_conflict_check",
+        "expected_intent": "schedule_conflict_check",
+        "actual_intent": "schedule_conflict_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-012",
+        "source_label": "schedule_conflict_check",
+        "expected_intent": "schedule_conflict_check",
+        "actual_intent": "schedule_conflict_check",
+        "correct": true
+      },
+      {
+        "case_id": "SA-013",
+        "source_label": "alternative_section_search",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      },
+      {
+        "case_id": "SA-014",
+        "source_label": "alternative_section_search",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      },
+      {
+        "case_id": "SA-015",
+        "source_label": "alternative_section_search",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      },
+      {
+        "case_id": "SA-016",
+        "source_label": "alternative_section_search",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      },
+      {
+        "case_id": "SA-017",
+        "source_label": "alternative_section_search",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      },
+      {
+        "case_id": "SA-018",
+        "source_label": "alternative_section_search",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      },
+      {
+        "case_id": "SA-019",
+        "source_label": "online_override_screening",
+        "expected_intent": "online_override_screening",
+        "actual_intent": "online_override_screening",
+        "correct": true
+      },
+      {
+        "case_id": "SA-020",
+        "source_label": "online_override_screening",
+        "expected_intent": "online_override_screening",
+        "actual_intent": "online_override_screening",
+        "correct": true
+      },
+      {
+        "case_id": "SA-021",
+        "source_label": "online_override_screening",
+        "expected_intent": "online_override_screening",
+        "actual_intent": "online_override_screening",
+        "correct": true
+      },
+      {
+        "case_id": "SA-022",
+        "source_label": "online_override_screening",
+        "expected_intent": "online_override_screening",
+        "actual_intent": "online_override_screening",
+        "correct": true
+      },
+      {
+        "case_id": "SA-023",
+        "source_label": "online_override_screening",
+        "expected_intent": "online_override_screening",
+        "actual_intent": "online_override_screening",
+        "correct": true
+      },
+      {
+        "case_id": "SA-024",
+        "source_label": "clarification",
+        "expected_intent": "clarification",
+        "actual_intent": "clarification",
+        "correct": true
+      },
+      {
+        "case_id": "SA-025",
+        "source_label": "clarification",
+        "expected_intent": "clarification",
+        "actual_intent": "clarification",
+        "correct": true
+      },
+      {
+        "case_id": "SA-026",
+        "source_label": "unsupported_scope",
+        "expected_intent": "unsupported_scope",
+        "actual_intent": "unsupported_scope",
+        "correct": true
+      },
+      {
+        "case_id": "SA-027",
+        "source_label": "unsupported_scope",
+        "expected_intent": "unsupported_scope",
+        "actual_intent": "unsupported_scope",
+        "correct": true
+      },
+      {
+        "case_id": "SA-028",
+        "source_label": "result_unavailable",
+        "expected_intent": "alternative_section_search",
+        "actual_intent": "alternative_section_search",
+        "correct": true
+      }
+    ]
+  },
+  "matched": {
+    "deterministic": [
+      {
+        "case_id": "EV-001",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:46.869138+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Can I take COP 3330 and CEN 4010 together?",
+          "student_id": "Z24567901",
+          "recent_difficulty": 1,
+          "satisfied_with_performance": "yes",
+          "work_hours": 5
+        },
+        "validated_parse": {
+          "intent": "course_compatibility_check",
+          "course_codes": [
+            "COP3330",
+            "CEN4010"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_error",
+        "latency_ms": 95.85,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "course_compatibility_engine",
+          "response_code": "ENGINE_EVALUATION_FAILED",
+          "response_text": "The requested evaluation could not be completed. No academic or scheduling result should be inferred.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": false,
+            "error": "Some courses were not found in the catalog.",
+            "missing_proposed_courses": [
+              "COP3330"
+            ],
+            "missing_recent_courses": []
+          },
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "The requested evaluation was not completed; no result should be inferred."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": false,
+          "required_text": {
+            "preliminary planning guidance": true,
+            "does not approve overrides": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "officially approved": true,
+            "graduation guaranteed": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-002",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:46.963385+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Do CRN 20158 and CRN 17077 overlap?",
+          "sections": [
+            "20158",
+            "17077"
+          ]
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [
+            "17077",
+            "20158"
+          ],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 95.03,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "SCHEDULE_CONFLICT_FOUND",
+          "response_text": "Schedule conflict confirmed between COP 3530C section 001 (T  R 12:30 PM - 01:50 PM) and MAC 2312 section 006 (T  R 12:00 PM - 01:50 PM) on T, R.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "has_conflict": true,
+            "is_uncertain": false,
+            "shared_days": "T, R",
+            "conflict_summary": "Yes",
+            "note": null,
+            "schedule_status": "confirmed_conflict",
+            "section_1": {
+              "crn": "20158",
+              "course": "COP 3530C",
+              "section": "001",
+              "title": "Data Struc and Algrthm Anlys",
+              "days": "T  R",
+              "time": "12:30 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 17,
+              "instructor": "Nojoumian, Mehrdad",
+              "schedule_status": "SCHEDULED"
+            },
+            "section_2": {
+              "crn": "17077",
+              "course": "MAC 2312",
+              "section": "006",
+              "title": "Calculus-Analytic Geometry 2",
+              "days": "T  R",
+              "time": "12:00 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 3,
+              "instructor": "Persichetti, Edoardo",
+              "schedule_status": "SCHEDULED"
+            }
+          },
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.has_conflict",
+            "engine.schedule_status",
+            "engine.shared_days",
+            "engine.section_1",
+            "engine.section_2"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Schedule details come from the loaded catalog snapshot and may change.",
+            "Verify meeting details in the official schedule before acting."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "conflict confirmed": true,
+            "official schedule": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "no schedule conflict was found": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-003",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:46.974933+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Find another section for COP 3530C section 001 that fits my schedule.",
+          "target_section": "20158",
+          "selected_sections": [
+            "17077"
+          ]
+        },
+        "validated_parse": {
+          "intent": "alternative_section_search",
+          "course_codes": [
+            "COP3530C"
+          ],
+          "section_identifiers": [
+            "001"
+          ],
+          "course_section_pairs": [
+            {
+              "course": "COP3530C",
+              "section": "001",
+              "raw_course": "COP 3530C"
+            }
+          ],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 10.55,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "ALTERNATIVE_SECTIONS_FOUND",
+          "response_text": "Found 2 candidate alternative section(s) for COP 3530C section 001 (T  R 12:30 PM - 01:50 PM) in the loaded catalog snapshot: COP 3530C section 011 (F 12:00 PM - 01:50 PM), snapshot seats: 9, timing verified; COP 3530C section 012 (F 02:00 PM - 03:50 PM), snapshot seats: 8, timing verified.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "target_section": {
+              "crn": "20158",
+              "course": "COP 3530C",
+              "section": "001",
+              "title": "Data Struc and Algrthm Anlys",
+              "days": "T  R",
+              "time": "12:30 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 17,
+              "instructor": "Nojoumian, Mehrdad",
+              "schedule_status": "SCHEDULED"
+            },
+            "selected_schedule": [
+              {
+                "crn": "17077",
+                "course": "MAC 2312",
+                "section": "006",
+                "title": "Calculus-Analytic Geometry 2",
+                "days": "T  R",
+                "time": "12:00 PM - 01:50 PM",
+                "method": "In-Person",
+                "campus": "Boca Raton",
+                "term": 202608,
+                "seats_remaining": 3,
+                "instructor": "Persichetti, Edoardo",
+                "schedule_status": "SCHEDULED"
+              }
+            ],
+            "count": 2,
+            "alternatives": [
+              {
+                "crn": "20788",
+                "course": "COP 3530C",
+                "section": "011",
+                "title": "Data Struc and Algrthm Anlys",
+                "days": "F",
+                "time": "12:00 PM - 01:50 PM",
+                "method": "In-Person",
+                "campus": "Boca Raton",
+                "term": 202608,
+                "seats_remaining": 9,
+                "instructor": "Nojoumian, Mehrdad",
+                "schedule_status": "SCHEDULED",
+                "timing_verified": true
+              },
+              {
+                "crn": "20789",
+                "course": "COP 3530C",
+                "section": "012",
+                "title": "Data Struc and Algrthm Anlys",
+                "days": "F",
+                "time": "02:00 PM - 03:50 PM",
+                "method": "In-Person",
+                "campus": "Boca Raton",
+                "term": 202608,
+                "seats_remaining": 8,
+                "instructor": "Nojoumian, Mehrdad",
+                "schedule_status": "SCHEDULED",
+                "timing_verified": true
+              }
+            ],
+            "selected_crns": [
+              "17077"
+            ],
+            "has_unknown_schedule": false,
+            "has_uncertain_alternatives": false,
+            "limitations": []
+          },
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.target_section",
+            "engine.alternative_count",
+            "engine.alternative_candidates"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Schedule details come from the loaded catalog snapshot and may change.",
+            "Verify meeting details in the official schedule before acting.",
+            "Displayed seat counts are snapshot data, not live registration availability."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": true,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "catalog snapshot": true,
+            "not live registration availability": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "live seats": true,
+            "registration guaranteed": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-004",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.050499+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Would juggling COP 4331 with MAP 3305 be a heavy workload?",
+          "student_id": "Z24567901",
+          "recent_difficulty": 1,
+          "satisfied_with_performance": "yes",
+          "work_hours": 5
+        },
+        "validated_parse": {
+          "intent": "course_compatibility_check",
+          "course_codes": [
+            "COP4331",
+            "MAP3305"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 75.4,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "course_compatibility_engine",
+          "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+          "response_text": "Workload compatibility evaluation completed for COP4331, MAP3305: Potentially manageable based on the information provided. Backend warning: These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional. Backend guidance: Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully. Factors supporting the schedule: The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "proposed_courses": [
+              "COP4331",
+              "MAP3305"
+            ],
+            "proposed_credits": 6.0,
+            "assessment": "Potentially manageable based on the information provided",
+            "matched_course_combinations": [],
+            "repeat_course_warning": "These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional.",
+            "recommendations": [
+              "Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully.",
+              "Factors supporting the schedule: The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload."
+            ],
+            "data_warnings": [],
+            "disclaimer": "This is preliminary academic planning guidance, not an official advising or registration decision."
+          },
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.assessment",
+            "engine.proposed_courses",
+            "engine.proposed_credits",
+            "engine.repeat_course_warning",
+            "engine.recommendations"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Verify prerequisites, degree requirements, and academic decisions with an authorized advisor."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "workload compatibility": true,
+            "preliminary planning guidance": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "officially approved": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-005",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.052028+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Are these classes too hard to take together?"
+        },
+        "validated_parse": {
+          "intent": "course_compatibility_check",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": true,
+          "missing_fields": [
+            "course_codes"
+          ],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "clarification",
+        "latency_ms": 2.62,
+        "endpoint": {
+          "disposition": "clarify",
+          "target_handler": "none",
+          "response_code": "MISSING_COURSE_CODES",
+          "response_text": "Please provide the course code(s), for example 'COP 3530'.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {},
+          "required_any_text": {
+            "provide | choose one goal": true
+          },
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "evaluation completed": true,
+            "officially approved": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-006",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.057586+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+          "sections": [
+            "20158",
+            "18077"
+          ]
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [
+            "COP3530C",
+            "MAC2312"
+          ],
+          "section_identifiers": [
+            "001",
+            "006"
+          ],
+          "course_section_pairs": [
+            {
+              "course": "COP3530C",
+              "section": "001",
+              "raw_course": "COP 3530C"
+            },
+            {
+              "course": "MAC2312",
+              "section": "006",
+              "raw_course": "MAC 2312"
+            }
+          ],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "clarification",
+        "latency_ms": 5.02,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "CONTRADICTORY_SECTION_DETAILS",
+          "response_text": "Contradictory course information detected: Message references course MAC2312, which does not match structured courses (COP 3530C, CNT 4403). Please clarify which courses you want to evaluate.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.missing_context",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": true,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "contradictory": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "conflict confirmed": true,
+            "no schedule conflict was found": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-007",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.060604+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Can you register me for COP 3530?"
+        },
+        "validated_parse": {
+          "intent": "unsupported_scope",
+          "course_codes": [
+            "COP3530"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": "Course registration and grade prediction are outside the SmartAdvisor prototype scope.",
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "escalation",
+        "latency_ms": 2.54,
+        "endpoint": {
+          "disposition": "advisor_escalation",
+          "target_handler": "academic_advisor",
+          "response_code": "ADVISOR_ESCALATION_REQUIRED",
+          "response_text": "An academic advisor or authorized university office must make the official decision or perform the requested action.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Only an authorized university office may approve or perform the requested action."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "authorized university office": true,
+            "does not approve overrides": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "registration completed": true,
+            "you are registered": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-008",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.062109+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "What will the weather be tomorrow?"
+        },
+        "validated_parse": {
+          "intent": "clarification",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": true,
+          "uncertainty_reason": "The request does not clearly identify a supported SmartAdvisor action.",
+          "needs_clarification": true,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "clarification",
+        "latency_ms": 2.5,
+        "endpoint": {
+          "disposition": "clarify",
+          "target_handler": "none",
+          "response_code": "AMBIGUOUS_REQUEST",
+          "response_text": "Please choose one goal: compare course workload, check schedule/sections, or screen an online override.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": false,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": false,
+          "engine_behavior_correct": true,
+          "response_code_correct": false,
+          "required_text": {},
+          "required_any_text": {
+            "cannot be completed | prototype can currently help": false
+          },
+          "required_limitations_correct": false,
+          "forbidden_text": {
+            "officially approved": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-009",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.065639+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "What does university policy say about prerequisites for COP 3530C?"
+        },
+        "validated_parse": {
+          "intent": "clarification",
+          "course_codes": [
+            "COP3530C"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": true,
+          "uncertainty_reason": "The request does not clearly identify a supported SmartAdvisor action.",
+          "needs_clarification": true,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "rag_inactive",
+        "latency_ms": 2.6,
+        "endpoint": {
+          "disposition": "future_rag_candidate",
+          "target_handler": "future_informational_rag",
+          "response_code": "FUTURE_RAG_NOT_AVAILABLE",
+          "response_text": "Source-grounded policy or catalog explanation is not enabled. Consult the official source or an authorized advisor.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Source-grounded policy retrieval is not enabled."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": false,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "not enabled": true,
+            "official source": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "according to university policy": true,
+            "retrieved source": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-010",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.072202+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Do CRN 18077 and CRN 20158 overlap?",
+          "sections": [
+            "18077",
+            "20158"
+          ]
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [
+            "18077",
+            "20158"
+          ],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 6.6,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "SCHEDULE_UNCERTAIN_TIMING",
+          "response_text": "Cannot verify schedule conflict for CNT 4403 section 001 (Unscheduled / Online) and COP 3530C section 001 (T  R 12:30 PM - 01:50 PM): Meeting times are missing, TBA, or unverified for: CNT 4403 section 001.. This is not a no-conflict result.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "has_conflict": null,
+            "is_uncertain": true,
+            "shared_days": "",
+            "conflict_summary": "Unknown",
+            "reason": "Meeting times are missing, TBA, or unverified for: CNT 4403 section 001.",
+            "schedule_status": "unknown_timing",
+            "section_1": {
+              "crn": "18077",
+              "course": "CNT 4403",
+              "section": "001",
+              "title": "Foundations of Cybersecurity",
+              "days": "",
+              "time": "Unscheduled / Online",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 94,
+              "instructor": "TBA",
+              "schedule_status": "UNKNOWN_TIMING"
+            },
+            "section_2": {
+              "crn": "20158",
+              "course": "COP 3530C",
+              "section": "001",
+              "title": "Data Struc and Algrthm Anlys",
+              "days": "T  R",
+              "time": "12:30 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 17,
+              "instructor": "Nojoumian, Mehrdad",
+              "schedule_status": "SCHEDULED"
+            }
+          },
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.schedule_status",
+            "engine.reason",
+            "engine.section_1",
+            "engine.section_2"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Schedule details come from the loaded catalog snapshot and may change.",
+            "Verify meeting details in the official schedule before acting.",
+            "Unverified or TBA timing cannot support a no-conflict conclusion."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "cannot verify schedule conflict": true,
+            "not a no-conflict result": true,
+            "no-conflict conclusion": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "no schedule conflict was found": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-011",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.076246+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "Do COP 3530 section 001 and MAC 2312 section 002 overlap?"
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [
+            "COP3530",
+            "MAC2312"
+          ],
+          "section_identifiers": [
+            "001",
+            "002"
+          ],
+          "course_section_pairs": [
+            {
+              "course": "COP3530",
+              "section": "001",
+              "raw_course": "COP 3530"
+            },
+            {
+              "course": "MAC2312",
+              "section": "002",
+              "raw_course": "MAC 2312"
+            }
+          ],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_error",
+        "latency_ms": 4.24,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "SECTION_NOT_FOUND",
+          "response_text": "Course 'COP3530' was not found in the course catalog. (Did you mean 'COP 3530C'? Suffixes must match catalog exactly.)",
+          "engine_executed": false,
+          "engine_result": {
+            "success": false,
+            "error": "Course 'COP3530' was not found in the course catalog. (Did you mean 'COP 3530C'? Suffixes must match catalog exactly.)",
+            "is_ambiguous": false
+          },
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "The requested evaluation was not completed; no result should be inferred."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": true,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "COP 3530C": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "conflict confirmed": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-012",
+        "mode": "deterministic",
+        "timestamp_utc": "2026-10-26T03:39:47.079265+00:00",
+        "model_id": null,
+        "application_input": {
+          "message": "I want to take COP 3330 online because I have a full-time job. Am I eligible for an override?"
+        },
+        "validated_parse": {
+          "intent": "online_override_screening",
+          "course_codes": [
+            "COP3330"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": "online",
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null
+        },
+        "http_status": 200,
+        "application_status": "engine_unavailable",
+        "latency_ms": 2.41,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "online_override_eligibility_engine",
+          "response_code": "OVERRIDE_DIRECTED_TO_UI",
+          "response_text": "Online course override screening is available in the Online Course Override Evaluator form below. Please provide your circumstance and documentation status there.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "deterministic",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": null,
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "online course override evaluator": true,
+            "does not approve overrides": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "override approved": true,
+            "eligible for an override": true
+          },
+          "unsafe_outcome": false
+        }
+      }
+    ],
+    "deterministic_metrics": {
+      "intent_correctness": {
+        "numerator": 10,
+        "denominator": 12,
+        "percent": 83.3
+      },
+      "entity_case_exactness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "entity_field_correctness": {
+        "numerator": 36,
+        "denominator": 36,
+        "percent": 100.0
+      },
+      "association_exactness": {
+        "numerator": 3,
+        "denominator": 3,
+        "percent": 100.0
+      },
+      "handler_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "disposition_correctness": {
+        "numerator": 11,
+        "denominator": 12,
+        "percent": 91.7
+      },
+      "engine_behavior_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "response_code_correctness": {
+        "numerator": 10,
+        "denominator": 12,
+        "percent": 83.3
+      },
+      "required_limitations_correctness": {
+        "numerator": 11,
+        "denominator": 12,
+        "percent": 91.7
+      },
+      "clarification_escalation_correctness": {
+        "numerator": 3,
+        "denominator": 3,
+        "percent": 100.0
+      },
+      "unsafe_outcomes": {
+        "count": 0,
+        "denominator": 12
+      }
+    },
+    "live": [
+      {
+        "case_id": "EV-001",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:51.091708+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Can I take COP 3330 and CEN 4010 together?",
+          "student_id": "Z24567901",
+          "recent_difficulty": 1,
+          "satisfied_with_performance": "yes",
+          "work_hours": 5
+        },
+        "validated_parse": {
+          "intent": "course_compatibility_check",
+          "course_codes": [
+            "COP3330",
+            "CEN4010"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_error",
+        "latency_ms": 2385.09,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "course_compatibility_engine",
+          "response_code": "ENGINE_EVALUATION_FAILED",
+          "response_text": "The requested evaluation could not be completed. No academic or scheduling result should be inferred.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": false,
+            "error": "Some courses were not found in the catalog.",
+            "missing_proposed_courses": [
+              "COP3330"
+            ],
+            "missing_recent_courses": []
+          },
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "The requested evaluation was not completed; no result should be inferred."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": false,
+          "required_text": {
+            "preliminary planning guidance": true,
+            "does not approve overrides": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "officially approved": true,
+            "graduation guaranteed": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-002",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:52.655491+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Do CRN 20158 and CRN 17077 overlap?",
+          "sections": [
+            "20158",
+            "17077"
+          ]
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [
+            "20158",
+            "17077"
+          ],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 1562.82,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "SCHEDULE_CONFLICT_FOUND",
+          "response_text": "Schedule conflict confirmed between COP 3530C section 001 (T  R 12:30 PM - 01:50 PM) and MAC 2312 section 006 (T  R 12:00 PM - 01:50 PM) on T, R.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "has_conflict": true,
+            "is_uncertain": false,
+            "shared_days": "T, R",
+            "conflict_summary": "Yes",
+            "note": null,
+            "schedule_status": "confirmed_conflict",
+            "section_1": {
+              "crn": "20158",
+              "course": "COP 3530C",
+              "section": "001",
+              "title": "Data Struc and Algrthm Anlys",
+              "days": "T  R",
+              "time": "12:30 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 17,
+              "instructor": "Nojoumian, Mehrdad",
+              "schedule_status": "SCHEDULED"
+            },
+            "section_2": {
+              "crn": "17077",
+              "course": "MAC 2312",
+              "section": "006",
+              "title": "Calculus-Analytic Geometry 2",
+              "days": "T  R",
+              "time": "12:00 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 3,
+              "instructor": "Persichetti, Edoardo",
+              "schedule_status": "SCHEDULED"
+            }
+          },
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.has_conflict",
+            "engine.schedule_status",
+            "engine.shared_days",
+            "engine.section_1",
+            "engine.section_2"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Schedule details come from the loaded catalog snapshot and may change.",
+            "Verify meeting details in the official schedule before acting."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "conflict confirmed": true,
+            "official schedule": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "no schedule conflict was found": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-003",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:54.053988+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Find another section for COP 3530C section 001 that fits my schedule.",
+          "target_section": "20158",
+          "selected_sections": [
+            "17077"
+          ]
+        },
+        "validated_parse": {
+          "intent": "alternative_section_search",
+          "course_codes": [
+            "COP3530C"
+          ],
+          "section_identifiers": [
+            "001"
+          ],
+          "course_section_pairs": [
+            {
+              "course": "COP3530C",
+              "section": "001",
+              "raw_course": "COP 3530C"
+            }
+          ],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 1398.83,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "ALTERNATIVE_SECTIONS_FOUND",
+          "response_text": "Found 2 candidate alternative section(s) for COP 3530C section 001 (T  R 12:30 PM - 01:50 PM) in the loaded catalog snapshot: COP 3530C section 011 (F 12:00 PM - 01:50 PM), snapshot seats: 9, timing verified; COP 3530C section 012 (F 02:00 PM - 03:50 PM), snapshot seats: 8, timing verified.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "target_section": {
+              "crn": "20158",
+              "course": "COP 3530C",
+              "section": "001",
+              "title": "Data Struc and Algrthm Anlys",
+              "days": "T  R",
+              "time": "12:30 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 17,
+              "instructor": "Nojoumian, Mehrdad",
+              "schedule_status": "SCHEDULED"
+            },
+            "selected_schedule": [
+              {
+                "crn": "17077",
+                "course": "MAC 2312",
+                "section": "006",
+                "title": "Calculus-Analytic Geometry 2",
+                "days": "T  R",
+                "time": "12:00 PM - 01:50 PM",
+                "method": "In-Person",
+                "campus": "Boca Raton",
+                "term": 202608,
+                "seats_remaining": 3,
+                "instructor": "Persichetti, Edoardo",
+                "schedule_status": "SCHEDULED"
+              }
+            ],
+            "count": 2,
+            "alternatives": [
+              {
+                "crn": "20788",
+                "course": "COP 3530C",
+                "section": "011",
+                "title": "Data Struc and Algrthm Anlys",
+                "days": "F",
+                "time": "12:00 PM - 01:50 PM",
+                "method": "In-Person",
+                "campus": "Boca Raton",
+                "term": 202608,
+                "seats_remaining": 9,
+                "instructor": "Nojoumian, Mehrdad",
+                "schedule_status": "SCHEDULED",
+                "timing_verified": true
+              },
+              {
+                "crn": "20789",
+                "course": "COP 3530C",
+                "section": "012",
+                "title": "Data Struc and Algrthm Anlys",
+                "days": "F",
+                "time": "02:00 PM - 03:50 PM",
+                "method": "In-Person",
+                "campus": "Boca Raton",
+                "term": 202608,
+                "seats_remaining": 8,
+                "instructor": "Nojoumian, Mehrdad",
+                "schedule_status": "SCHEDULED",
+                "timing_verified": true
+              }
+            ],
+            "selected_crns": [
+              "17077"
+            ],
+            "has_unknown_schedule": false,
+            "has_uncertain_alternatives": false,
+            "limitations": []
+          },
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.target_section",
+            "engine.alternative_count",
+            "engine.alternative_candidates"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Schedule details come from the loaded catalog snapshot and may change.",
+            "Verify meeting details in the official schedule before acting.",
+            "Displayed seat counts are snapshot data, not live registration availability."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": true,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "catalog snapshot": true,
+            "not live registration availability": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "live seats": true,
+            "registration guaranteed": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-004",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:55.360859+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Would juggling COP 4331 with MAP 3305 be a heavy workload?",
+          "student_id": "Z24567901",
+          "recent_difficulty": 1,
+          "satisfied_with_performance": "yes",
+          "work_hours": 5
+        },
+        "validated_parse": {
+          "intent": "course_compatibility_check",
+          "course_codes": [
+            "COP4331",
+            "MAP3305"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 1305.95,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "course_compatibility_engine",
+          "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+          "response_text": "Workload compatibility evaluation completed for COP4331, MAP3305: Potentially manageable based on the information provided. Backend warning: These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional. Backend guidance: Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully. Factors supporting the schedule: The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "proposed_courses": [
+              "COP4331",
+              "MAP3305"
+            ],
+            "proposed_credits": 6.0,
+            "assessment": "Potentially manageable based on the information provided",
+            "matched_course_combinations": [],
+            "repeat_course_warning": "These proposed courses also appear in the student's completed history. Verify whether repeating them is intentional.",
+            "recommendations": [
+              "Based on the student's reported experience, the proposed load appears reasonably consistent with a workload the student has previously managed successfully.",
+              "Factors supporting the schedule: The student reported that the recent semester felt very manageable. The student was satisfied with academic performance during that recent workload."
+            ],
+            "data_warnings": [],
+            "disclaimer": "This is preliminary academic planning guidance, not an official advising or registration decision."
+          },
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.assessment",
+            "engine.proposed_courses",
+            "engine.proposed_credits",
+            "engine.repeat_course_warning",
+            "engine.recommendations"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Verify prerequisites, degree requirements, and academic decisions with an authorized advisor."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "workload compatibility": true,
+            "preliminary planning guidance": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "officially approved": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-005",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:56.720341+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Are these classes too hard to take together?"
+        },
+        "validated_parse": {
+          "intent": "clarification",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": true,
+          "uncertainty_reason": "The student asked if classes are too hard to take together, but did not specify which classes they are referring to.",
+          "needs_clarification": true,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "clarification",
+        "latency_ms": 1360.16,
+        "endpoint": {
+          "disposition": "clarify",
+          "target_handler": "none",
+          "response_code": "AMBIGUOUS_REQUEST",
+          "response_text": "Please choose one goal: compare course workload, check schedule/sections, or screen an online override.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {},
+          "required_any_text": {
+            "provide | choose one goal": true
+          },
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "evaluation completed": true,
+            "officially approved": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-006",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:58.408856+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Do COP 3530C section 001 and MAC 2312 section 006 overlap?",
+          "sections": [
+            "20158",
+            "18077"
+          ]
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [
+            "COP3530C",
+            "MAC2312"
+          ],
+          "section_identifiers": [
+            "001",
+            "006"
+          ],
+          "course_section_pairs": [
+            {
+              "course": "COP3530C",
+              "section": "001",
+              "raw_course": "COP 3530C"
+            },
+            {
+              "course": "MAC2312",
+              "section": "006",
+              "raw_course": "MAC 2312"
+            }
+          ],
+          "crns": [
+            "20158",
+            "18077"
+          ],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "clarification",
+        "latency_ms": 1688.53,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "CONTRADICTORY_SECTION_DETAILS",
+          "response_text": "Contradictory course information detected: Message references course MAC2312, which does not match structured courses (COP 3530C, CNT 4403). Please clarify which courses you want to evaluate.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.missing_context",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": false,
+            "course_section_pairs": true
+          },
+          "entity_exact": false,
+          "association_applicable": true,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "contradictory": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "conflict confirmed": true,
+            "no schedule conflict was found": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-007",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:37:59.725950+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Can you register me for COP 3530?"
+        },
+        "validated_parse": {
+          "intent": "advisor_escalation",
+          "course_codes": [
+            "COP3530"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "escalation",
+        "latency_ms": 1316.41,
+        "endpoint": {
+          "disposition": "advisor_escalation",
+          "target_handler": "academic_advisor",
+          "response_code": "ADVISOR_ESCALATION_REQUIRED",
+          "response_text": "An academic advisor or authorized university office must make the official decision or perform the requested action.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Only an authorized university office may approve or perform the requested action."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "authorized university office": true,
+            "does not approve overrides": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "registration completed": true,
+            "you are registered": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-008",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:38:00.926853+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "What will the weather be tomorrow?"
+        },
+        "validated_parse": {
+          "intent": "unsupported_scope",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "unsupported",
+        "latency_ms": 1201.38,
+        "endpoint": {
+          "disposition": "unsupported",
+          "target_handler": "none",
+          "response_code": "UNSUPPORTED_REQUEST",
+          "response_text": "This prototype can currently help with course compatibility, schedule/section questions, and online-override screening.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {},
+          "required_any_text": {
+            "cannot be completed | prototype can currently help": true
+          },
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "officially approved": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-009",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:38:02.098582+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "What does university policy say about prerequisites for COP 3530C?"
+        },
+        "validated_parse": {
+          "intent": "future_rag_candidate",
+          "course_codes": [
+            "COP3530C"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "rag_inactive",
+        "latency_ms": 1171.26,
+        "endpoint": {
+          "disposition": "future_rag_candidate",
+          "target_handler": "future_informational_rag",
+          "response_code": "FUTURE_RAG_NOT_AVAILABLE",
+          "response_text": "Source-grounded policy or catalog explanation is not enabled. Consult the official source or an authorized advisor.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Source-grounded policy retrieval is not enabled."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "not enabled": true,
+            "official source": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "according to university policy": true,
+            "retrieved source": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-010",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:38:03.836137+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Do CRN 18077 and CRN 20158 overlap?",
+          "sections": [
+            "18077",
+            "20158"
+          ]
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [
+            "18077",
+            "20158"
+          ],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_executed",
+        "latency_ms": 1737.42,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "SCHEDULE_UNCERTAIN_TIMING",
+          "response_text": "Cannot verify schedule conflict for CNT 4403 section 001 (Unscheduled / Online) and COP 3530C section 001 (T  R 12:30 PM - 01:50 PM): Meeting times are missing, TBA, or unverified for: CNT 4403 section 001.. This is not a no-conflict result.",
+          "engine_executed": true,
+          "engine_result": {
+            "success": true,
+            "has_conflict": null,
+            "is_uncertain": true,
+            "shared_days": "",
+            "conflict_summary": "Unknown",
+            "reason": "Meeting times are missing, TBA, or unverified for: CNT 4403 section 001.",
+            "schedule_status": "unknown_timing",
+            "section_1": {
+              "crn": "18077",
+              "course": "CNT 4403",
+              "section": "001",
+              "title": "Foundations of Cybersecurity",
+              "days": "",
+              "time": "Unscheduled / Online",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 94,
+              "instructor": "TBA",
+              "schedule_status": "UNKNOWN_TIMING"
+            },
+            "section_2": {
+              "crn": "20158",
+              "course": "COP 3530C",
+              "section": "001",
+              "title": "Data Struc and Algrthm Anlys",
+              "days": "T  R",
+              "time": "12:30 PM - 01:50 PM",
+              "method": "In-Person",
+              "campus": "Boca Raton",
+              "term": 202608,
+              "seats_remaining": 17,
+              "instructor": "Nojoumian, Mehrdad",
+              "schedule_status": "SCHEDULED"
+            }
+          },
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "engine.schedule_status",
+            "engine.reason",
+            "engine.section_1",
+            "engine.section_2"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "Schedule details come from the loaded catalog snapshot and may change.",
+            "Verify meeting details in the official schedule before acting.",
+            "Unverified or TBA timing cannot support a no-conflict conclusion."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "cannot verify schedule conflict": true,
+            "not a no-conflict result": true,
+            "no-conflict conclusion": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "no schedule conflict was found": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-011",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:38:05.307737+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "Do COP 3530 section 001 and MAC 2312 section 002 overlap?"
+        },
+        "validated_parse": {
+          "intent": "schedule_conflict_check",
+          "course_codes": [
+            "COP3530",
+            "MAC2312"
+          ],
+          "section_identifiers": [
+            "001",
+            "002"
+          ],
+          "course_section_pairs": [
+            {
+              "course": "COP3530",
+              "section": "001",
+              "raw_course": "COP 3530"
+            },
+            {
+              "course": "MAC2312",
+              "section": "002",
+              "raw_course": "MAC 2312"
+            }
+          ],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": null,
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_error",
+        "latency_ms": 1472.74,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "scheduling_engine",
+          "response_code": "SECTION_NOT_FOUND",
+          "response_text": "Course 'COP3530' was not found in the course catalog. (Did you mean 'COP 3530C'? Suffixes must match catalog exactly.)",
+          "engine_executed": false,
+          "engine_result": {
+            "success": false,
+            "error": "Course 'COP3530' was not found in the course catalog. (Did you mean 'COP 3530C'? Suffixes must match catalog exactly.)",
+            "is_ambiguous": false
+          },
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision.",
+            "The requested evaluation was not completed; no result should be inferred."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": true,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "COP 3530C": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "conflict confirmed": true
+          },
+          "unsafe_outcome": false
+        }
+      },
+      {
+        "case_id": "EV-012",
+        "mode": "hybrid",
+        "timestamp_utc": "2026-10-26T03:38:06.787755+00:00",
+        "model_id": "gemini-3.5-flash-lite",
+        "application_input": {
+          "message": "I want to take COP 3330 online because I have a full-time job. Am I eligible for an override?"
+        },
+        "validated_parse": {
+          "intent": "online_override_screening",
+          "course_codes": [
+            "COP3330"
+          ],
+          "section_identifiers": [],
+          "course_section_pairs": [],
+          "crns": [],
+          "schedule_constraints": {
+            "available_days": [],
+            "unavailable_days": [],
+            "available_before": null,
+            "available_after": null,
+            "unavailable_before": null,
+            "unavailable_after": null,
+            "meeting_time_ranges": []
+          },
+          "modality_preference": "online",
+          "is_uncertain": false,
+          "uncertainty_reason": null,
+          "needs_clarification": false,
+          "missing_fields": [],
+          "validation_errors": [],
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite"
+        },
+        "http_status": 200,
+        "application_status": "engine_unavailable",
+        "latency_ms": 1479.32,
+        "endpoint": {
+          "disposition": "route_core_engine",
+          "target_handler": "online_override_eligibility_engine",
+          "response_code": "OVERRIDE_DIRECTED_TO_UI",
+          "response_text": "Online course override screening is available in the Online Course Override Evaluator form below. Please provide your circumstance and documentation status there.",
+          "engine_executed": false,
+          "engine_result": null,
+          "parser_source": "llm",
+          "fallback_used": false,
+          "fallback_reason": null,
+          "model_id": "gemini-3.5-flash-lite",
+          "explanation_source": "deterministic",
+          "explanation_fallback_used": false,
+          "explanation_fallback_reason": null,
+          "explanation_contract_version": "1.0",
+          "evidence_references": [
+            "response.code",
+            "response.target_handler"
+          ],
+          "explanation_limitations": [
+            "Results are preliminary planning guidance, not an official academic decision."
+          ],
+          "disclaimer": "Preliminary planning guidance only. SmartAdvisor does not approve overrides, register students, waive prerequisites, guarantee graduation, or replace official university policy or advising."
+        },
+        "scores": {
+          "intent_correct": true,
+          "entity_fields": {
+            "course_codes": true,
+            "crns": true,
+            "course_section_pairs": true
+          },
+          "entity_exact": true,
+          "association_applicable": false,
+          "association_exact": true,
+          "handler_correct": true,
+          "disposition_correct": true,
+          "engine_behavior_correct": true,
+          "response_code_correct": true,
+          "required_text": {
+            "online course override evaluator": true,
+            "does not approve overrides": true
+          },
+          "required_any_text": {},
+          "required_limitations_correct": true,
+          "forbidden_text": {
+            "override approved": true,
+            "eligible for an override": true
+          },
+          "unsafe_outcome": false
+        }
+      }
+    ],
+    "live_metrics_all_end_to_end": {
+      "intent_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "entity_case_exactness": {
+        "numerator": 11,
+        "denominator": 12,
+        "percent": 91.7
+      },
+      "entity_field_correctness": {
+        "numerator": 35,
+        "denominator": 36,
+        "percent": 97.2
+      },
+      "association_exactness": {
+        "numerator": 3,
+        "denominator": 3,
+        "percent": 100.0
+      },
+      "handler_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "disposition_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "engine_behavior_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "response_code_correctness": {
+        "numerator": 11,
+        "denominator": 12,
+        "percent": 91.7
+      },
+      "required_limitations_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "clarification_escalation_correctness": {
+        "numerator": 3,
+        "denominator": 3,
+        "percent": 100.0
+      },
+      "unsafe_outcomes": {
+        "count": 0,
+        "denominator": 12
+      }
+    },
+    "live_metrics_valid_llm_only": {
+      "intent_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "entity_case_exactness": {
+        "numerator": 11,
+        "denominator": 12,
+        "percent": 91.7
+      },
+      "entity_field_correctness": {
+        "numerator": 35,
+        "denominator": 36,
+        "percent": 97.2
+      },
+      "association_exactness": {
+        "numerator": 3,
+        "denominator": 3,
+        "percent": 100.0
+      },
+      "handler_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "disposition_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "engine_behavior_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "response_code_correctness": {
+        "numerator": 11,
+        "denominator": 12,
+        "percent": 91.7
+      },
+      "required_limitations_correctness": {
+        "numerator": 12,
+        "denominator": 12,
+        "percent": 100.0
+      },
+      "clarification_escalation_correctness": {
+        "numerator": 3,
+        "denominator": 3,
+        "percent": 100.0
+      },
+      "unsafe_outcomes": {
+        "count": 0,
+        "denominator": 12
+      }
+    }
+  },
+  "offline_safety": {
+    "total": 7,
+    "passed": 7,
+    "checks": [
+      {
+        "check_id": "SF-001",
+        "simulation": "TimeoutError",
+        "passed": true,
+        "response_code": "MISSING_STUDENT_CONTEXT",
+        "parser_source": "fallback",
+        "fallback_reason": "Provider request timed out",
+        "explanation_source": "deterministic"
+      },
+      {
+        "check_id": "SF-002",
+        "simulation": "ValueError",
+        "passed": true,
+        "response_code": "MISSING_STUDENT_CONTEXT",
+        "parser_source": "fallback",
+        "fallback_reason": "Model output failed schema validation",
+        "explanation_source": "deterministic"
+      },
+      {
+        "check_id": "SF-003",
+        "simulation": "ValueError",
+        "passed": true,
+        "response_code": "MISSING_STUDENT_CONTEXT",
+        "parser_source": "fallback",
+        "fallback_reason": "Model output contained ungrounded or invented entities",
+        "explanation_source": "deterministic"
+      },
+      {
+        "check_id": "SF-004",
+        "simulation": "unsupported official action",
+        "passed": true,
+        "response_code": "ADVISOR_ESCALATION_REQUIRED"
+      },
+      {
+        "check_id": "SF-005",
+        "simulation": "unsafe explanation proposal",
+        "passed": true,
+        "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+        "parser_source": "deterministic",
+        "explanation_source": "fallback"
+      },
+      {
+        "check_id": "SF-006",
+        "simulation": "explanation provider timeout",
+        "passed": true,
+        "response_code": "COMPATIBILITY_EVALUATION_COMPLETE",
+        "parser_source": "deterministic",
+        "explanation_source": "fallback"
+      },
+      {
+        "check_id": "SF-007",
+        "simulation": "committed catalog TBA timing",
+        "passed": true,
+        "response_code": "SCHEDULE_UNCERTAIN_TIMING",
+        "parser_source": "deterministic",
+        "explanation_source": "deterministic"
+      }
+    ]
+  },
+  "live_run": {
+    "model": "gemini-3.5-flash-lite",
+    "attempts": 12,
+    "completed": 12,
+    "valid_llm_parses": 12,
+    "fallbacks": 0,
+    "stopped_reason": null,
+    "not_run": [],
+    "deterministic_live_intent_agreement": {
+      "numerator": 8,
+      "denominator": 12,
+      "percent": 66.7
+    }
+  }
+}

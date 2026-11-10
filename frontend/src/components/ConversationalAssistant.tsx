@@ -69,8 +69,8 @@ const SAMPLE_PROMPTS = [
     text: 'Can you register me for COP 3530?',
   },
   {
-    label: 'Informational (Inactive RAG)',
-    text: 'What topics are covered in COP 3530?',
+    label: 'Course Information',
+    text: 'What topics are covered in COP 4331?',
   },
 ];
 
@@ -80,6 +80,7 @@ interface Props {
   defaultDifficulty?: number;
   defaultSatisfaction?: 'yes' | 'mostly' | 'no';
   defaultRecentCourses?: string;
+  onOverrideHandoff?: (courseCode?: string) => void;
 }
 
 export const ConversationalAssistant: React.FC<Props> = ({
@@ -88,6 +89,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
   defaultDifficulty = 1,
   defaultSatisfaction = 'yes',
   defaultRecentCourses = 'CDA4240C, CDA4102, MAC2313',
+  onOverrideHandoff,
 }) => {
   const [message, setMessage] = useState('');
   const [studentId, setStudentId] = useState(defaultProfileId);
@@ -106,6 +108,16 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ConversationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const safeSourceUrl = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  };
 
   const handleProfileChange = (sid: string) => {
     setStudentId(sid);
@@ -151,15 +163,22 @@ export const ConversationalAssistant: React.FC<Props> = ({
     };
 
     try {
-      const res = await sendConversationMessage(payload, controller.signal);
+      const timeout = window.setTimeout(() => controller.abort('timeout'), 45_000);
+      const res = await sendConversationMessage(payload, controller.signal).finally(() => window.clearTimeout(timeout));
       if (requestEpoch !== sessionEpoch.current) return;
       if (res.acquired_evidence?.length) {
         setSessionEvidence((current) => mergeSessionEvidence(current, res.acquired_evidence ?? []));
       }
       if (res.source_scope?.course_code) setSourceContext(res.source_scope);
+      if (res.target_handler === 'online_override_eligibility_engine') {
+        onOverrideHandoff?.(res.extracted_courses[0]);
+      }
       setResponse(res);
     } catch (err) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        if (controller.signal.reason === 'timeout') setError('The request timed out before the service completed.');
+        return;
+      }
       const msg = err instanceof ApiError ? err.message : 'Failed to communicate with conversational service';
       setError(msg);
     } finally {
@@ -213,7 +232,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
           Interprets course compatibility, scheduling, and override questions. Connects directly to the Course Compatibility Engine when workload context is provided.
         </p>
         <p role="note" style={{ fontSize: '0.8rem', color: '#475569', margin: '0.5rem 0 0 0' }}>
-          Course information is kept for this session. Refreshing or closing this page may reset it.
+          Source evidence is retained in this browser session and sent to the backend for validation and answering. A configured generation provider may process relevant excerpts. Refreshing or closing this page may reset the evidence.
         </p>
         <button type="button" onClick={resetSourceSession} disabled={!sessionEvidence.length && !sourceContext && !sourceTerm && !sourceSection && !loading} style={{ marginTop: '0.5rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
           Reset source session
@@ -485,6 +504,8 @@ export const ConversationalAssistant: React.FC<Props> = ({
                 ? 'Source-Grounded Session Answer'
                 : response.status === 'acquisition_failed'
                 ? 'Source Unavailable'
+                : response.status === 'no_relevant_evidence'
+                ? 'Source Unavailable'
                 : response.status === 'rag_inactive'
                 ? 'Informational Question'
                 : response.status === 'engine_unavailable'
@@ -506,7 +527,9 @@ export const ConversationalAssistant: React.FC<Props> = ({
             <ol aria-label="Source citations" style={{ fontSize: '0.8rem', color: '#334155', paddingLeft: '1.25rem' }}>
               {response.citations.map((citation, index) => (
                 <li key={`${String(citation.record_id)}-${index}`}>
-                  <a href={String(citation.url)} target="_blank" rel="noreferrer">{String(citation.title ?? 'Official source')}</a>
+                  {safeSourceUrl(citation.url) ? (
+                    <a href={safeSourceUrl(citation.url) ?? undefined} target="_blank" rel="noopener noreferrer">{String(citation.title ?? 'Official source')}</a>
+                  ) : String(citation.title ?? 'Official source')}
                   {' — '}{String(citation.locator ?? 'source text')}
                 </li>
               ))}
@@ -517,6 +540,12 @@ export const ConversationalAssistant: React.FC<Props> = ({
           {response.actionable_guidance && (
             <div style={{ margin: '0.5rem 0', fontSize: '0.8125rem', color: '#0369a1', backgroundColor: '#f0f9ff', padding: '0.5rem', borderRadius: '4px', border: '1px solid #bae6fd' }}>
               <strong>Guidance:</strong> {response.actionable_guidance}
+            </div>
+          )}
+
+          {response.generation_fallback_used && (
+            <div role="status" style={{ margin: '0.5rem 0', fontSize: '0.8125rem', color: '#854d0e', backgroundColor: '#fefce8', padding: '0.5rem', borderRadius: '4px', border: '1px solid #fde047' }}>
+              <strong>Cited fallback:</strong> The configured answer provider was unavailable or not enabled, so this response shows validated source excerpts instead.
             </div>
           )}
 
