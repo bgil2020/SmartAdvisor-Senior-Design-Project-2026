@@ -12,8 +12,8 @@ from .models import EvidenceChunk, RetrievedEvidence
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 STOP = {
-    "a", "about", "an", "and", "are", "course", "does", "for", "in", "is", "it",
-    "of", "on", "say", "says", "source", "syllabus", "the", "to", "what", "which", "with",
+    "a", "about", "an", "and", "are", "class", "course", "does", "for", "in", "is", "it",
+    "of", "on", "say", "says", "source", "syllabus", "that", "the", "this", "to", "what", "which", "with",
 }
 
 

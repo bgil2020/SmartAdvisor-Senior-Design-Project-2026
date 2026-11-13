@@ -68,6 +68,16 @@ def test_missing_evidence_returns_explicit_no_answer():
     assert "cannot answer" in result.answer
 
 
+def test_context_words_do_not_make_an_absent_detail_relevant():
+    result = answer_information_question(
+        "What does that class syllabus say about the cafeteria menu?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([chunk(text="This class covers Java design patterns and software projects.")]),
+    )
+    assert result.status == "no_relevant_evidence"
+    assert result.retrieved_evidence == []
+
+
 class StaticProvider(BaseRAGProvider):
     model_id = "fake-model"
 
