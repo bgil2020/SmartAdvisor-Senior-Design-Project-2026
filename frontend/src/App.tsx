@@ -501,7 +501,7 @@ export default function App() {
               </select>
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.75rem', color: '#6b7280', alignSelf: 'center' }}>Quick select:</span>
-                {['CAP 4773', 'COP 2220', 'CDA 4240C', 'MAC 2313'].map((code) => (
+                {['CAP 4773', 'MAP 3305', 'CDA 4240C', 'MAC 2313'].map((code) => (
                   <button
                     key={code}
                     type="button"
