@@ -153,6 +153,20 @@ def test_browser_probe_enforces_total_response_budget():
     assert session.cancelled and session.closed
 
 
+def test_browser_probe_enforces_rendered_document_byte_limit():
+    session = FakeBrowserSession([
+        {"kind": "snapshot", "html": "x" * 2048, "final_url": "https://fau.simplesyllabus.com/doc/exact?mode=view"},
+    ])
+    result = probe_browser_session(
+        session,
+        "https://fau.simplesyllabus.com/doc/exact?mode=view",
+        limits=BrowserProbeLimits(max_rendered_html_bytes=1024),
+    )
+    assert result["status"] == "response_too_large"
+    assert result["stop_reason"] == "rendered_document_byte_limit_exhausted"
+    assert session.cancelled and session.closed
+
+
 def test_browser_probe_ignores_telemetry_failure_when_rendered_document_is_usable():
     html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
     session = FakeBrowserSession([
