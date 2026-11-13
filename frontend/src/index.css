@@ -51,19 +51,81 @@
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  width: 100%;
   min-height: 100svh;
-  display: flex;
-  flex-direction: column;
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.welcome-screen {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.welcome-card {
+  max-width: 750px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  padding: 3rem 2.5rem;
+  box-sizing: border-box;
+}
+
+.welcome-heading { text-align: center; margin-bottom: 2.5rem; }
+.welcome-heading h1 { color: #fff; font-size: 2.75rem; font-weight: 800; letter-spacing: -0.025em; margin: 0 0 1rem; }
+.welcome-heading p { color: #cbd5e1; font-size: 1.05rem; line-height: 1.6; max-width: 590px; margin: 0 auto; }
+.welcome-eyebrow { display: inline-block; padding: .35rem 1rem; background: rgba(59, 130, 246, .2); border: 1px solid rgba(96, 165, 250, .4); color: #93c5fd; border-radius: 50px; font-size: .75rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 1rem; }
+.welcome-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+.welcome-features h2 { color: #60a5fa; font-size: 1rem; font-weight: 700; margin: 0 0 .5rem; }
+.welcome-features p { color: #cbd5e1; font-size: .85rem; line-height: 1.5; }
+.welcome-feature-icon { font-size: 1.5rem; margin-bottom: .75rem; }
+.welcome-disclaimer { background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .3); border-radius: 12px; padding: 1rem 1.25rem; font-size: .8rem; color: #fde68a; line-height: 1.5; margin-bottom: 2.5rem; }
+.welcome-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+.welcome-actions button { flex: 1; min-width: 220px; padding: 1rem 1.5rem; border-radius: 12px; font-size: .95rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: .5rem; }
+.welcome-primary { background: #2563eb; color: #fff; border: 0; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, .4); }
+.welcome-primary:hover { background: #1d4ed8; }
+.welcome-secondary { background: rgba(255, 255, 255, .1); color: #fff; border: 1px solid rgba(255, 255, 255, .2); }
+.welcome-secondary:hover { background: rgba(255, 255, 255, .2); }
+
+.app-shell { min-height: 100vh; background: #f8fafc; color: #0f172a; }
+.app-navbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 2.5rem; background: #fff; border-bottom: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0, 0, 0, .05); }
+.app-brand { display: flex; align-items: center; gap: .75rem; padding: 0; border: 0; background: transparent; text-align: left; color: #0f172a; cursor: pointer; }
+.app-brand-mark { width: 36px; height: 36px; display: grid; place-items: center; background: #2563eb; border-radius: 10px; color: #fff; font-weight: 800; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, .3); }
+.app-brand strong, .app-brand small { display: block; }
+.app-brand small { color: #64748b; font-size: .7rem; margin-top: .1rem; }
+.app-navbar nav { display: flex; gap: .5rem; padding: .25rem; background: #f1f5f9; border-radius: 10px; }
+.app-navbar nav button { border: 0; padding: .5rem 1rem; border-radius: 8px; background: transparent; color: #64748b; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.app-navbar nav button.active { background: #fff; color: #2563eb; box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+.app-content { min-height: calc(100vh - 69px); padding: 2.5rem; box-sizing: border-box; }
+.chat-view { max-width: 900px; margin: 0 auto; text-align: left; }
+
+@media (max-width: 760px) {
+  .welcome-screen, .app-content { padding: 1rem; }
+  .welcome-card { padding: 2rem 1.25rem; }
+  .welcome-heading h1 { font-size: 2rem; }
+  .app-navbar { align-items: stretch; flex-direction: column; padding: .75rem 1rem; }
+  .app-navbar nav { overflow-x: auto; }
+  .app-navbar nav button { white-space: nowrap; }
 }
 
 h1,

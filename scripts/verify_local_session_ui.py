@@ -61,12 +61,19 @@ async def verify(saved_record: dict) -> dict:
 
     request_log: list[dict] = []
     response_log: list[dict] = []
+    catalog_responses: list[int] = []
     first_response = True
     stale_started = asyncio.Event()
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True, executable_path=str(browser_path))
         page = await browser.new_page(viewport={"width": 1440, "height": 1200})
+        page.on(
+            "response",
+            lambda response: catalog_responses.append(response.status)
+            if response.url.rstrip("/").endswith("/courses")
+            else None,
+        )
 
         async def conversation_route(route, request):
             nonlocal first_response
@@ -103,6 +110,17 @@ async def verify(saved_record: dict) -> dict:
 
         await page.route(f"{BACKEND_URL}/conversation", conversation_route)
         await page.goto(FRONTEND_URL, wait_until="networkidle")
+        welcome_rendered = await page.get_by_role("heading", name="Welcome to SmartAdvisor").is_visible()
+        await page.get_by_role("button", name="Go to Forms & Engines").click()
+        await page.locator("#course-select-dropdown:not([disabled])").wait_for()
+        catalog_option_count = await page.locator("#course-select-dropdown option").count()
+        forms_rendered = all((
+            await page.get_by_role("heading", name="1. Real Course Catalog & Section Search").is_visible(),
+            await page.get_by_role("heading", name="3. Course Compatibility & Workload Screener").count() == 1,
+            await page.get_by_role("heading", name="Online Course Override Evaluator").count() == 1,
+        ))
+        await page.get_by_role("button", name="AI Assistant Chat").click()
+        chat_rendered = await page.get_by_label("Student Question or Planning Query:").is_visible()
         await page.get_by_label("Source term").fill("202608")
         await page.get_by_label("Source section").fill("002")
         question = page.get_by_label("Student Question or Planning Query:")
@@ -145,6 +163,11 @@ async def verify(saved_record: dict) -> dict:
     passed = all((
         response_log[0]["status"] == "grounded_answer",
         response_log[0]["citation_count"] > 0,
+        welcome_rendered,
+        forms_rendered,
+        chat_rendered,
+        catalog_option_count > 1,
+        bool(catalog_responses) and all(status == 200 for status in catalog_responses),
         follow_up["status"] == "grounded_answer",
         follow_up["additional_source_acquisitions"] == 0,
         follow_up["scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"},
@@ -157,6 +180,13 @@ async def verify(saved_record: dict) -> dict:
     return {
         "status": "passed" if passed else "failed",
         "verification_kind": "mocked_saved_evidence",
+        "integrated_ui": {
+            "welcome_rendered": welcome_rendered,
+            "forms_and_engines_rendered": forms_rendered,
+            "chat_rendered": chat_rendered,
+            "catalog_option_count": catalog_option_count,
+            "catalog_http_statuses": catalog_responses,
+        },
         "initial_answer": response_log[0],
         "follow_up": follow_up,
         "fallback": fallback,
@@ -174,6 +204,7 @@ def main() -> int:
         "CONVERSATIONAL_PARSER_MODE": "deterministic",
         "SESSION_EVIDENCE_SIGNING_KEY": signing_key,
         "SYLLABUS_ACQUISITION_ENABLED": "false",
+        "SMARTADVISOR_CORS_ORIGINS": FRONTEND_URL,
         "VITE_API_URL": BACKEND_URL,
     })
     os.environ.update(environment)

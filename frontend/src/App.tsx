@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
 import { ConversationalAssistant } from './components/ConversationalAssistant';
+import { WelcomeScreen } from './components/WelcomeScreen';
 import {
   getCourses,
   getSections,
@@ -98,6 +99,7 @@ const SYNTHETIC_PROFILES: SyntheticProfile[] = [
 ];
 
 export default function App() {
+  const [currentView, setCurrentView] = useState<'welcome' | 'forms' | 'chat'>('welcome');
   // --- 1. Real Course & Section State ---
   const [courses, setCourses] = useState<RawCourseRecord[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -419,8 +421,38 @@ export default function App() {
       });
   };
 
+  if (currentView === 'welcome') {
+    return <WelcomeScreen onNavigate={setCurrentView} />;
+  }
+
+  const handleOverrideHandoff = (courseCode?: string) => {
+    setOverridePrefillCourse(courseCode);
+    setCurrentView('forms');
+  };
+
   return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '2rem' }}>
+    <div className="app-shell">
+      <header className="app-navbar">
+        <button type="button" className="app-brand" onClick={() => setCurrentView('welcome')} aria-label="SmartAdvisor home">
+          <span className="app-brand-mark">SA</span>
+          <span>
+            <strong>SmartAdvisor</strong>
+            <small>Academic Intelligence Suite</small>
+          </span>
+        </button>
+        <nav aria-label="Primary navigation">
+          <button type="button" onClick={() => setCurrentView('welcome')}>Home</button>
+          <button type="button" className={currentView === 'forms' ? 'active' : ''} onClick={() => setCurrentView('forms')}>
+            Forms &amp; Engines
+          </button>
+          <button type="button" className={currentView === 'chat' ? 'active' : ''} onClick={() => setCurrentView('chat')}>
+            AI Assistant Chat
+          </button>
+        </nav>
+      </header>
+
+      <main className="app-content">
+      {currentView === 'forms' && (
       <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '2rem', textAlign: 'left' }}>
         
         {/* Header */}
@@ -1213,19 +1245,24 @@ export default function App() {
           )}
         </section>
 
-        {/* 4. Conversational Planning Assistant (Deterministic Prototype) */}
-        <ConversationalAssistant
-          defaultProfileId={compatProfileId}
-          defaultWorkHours={compatWorkHours}
-          defaultDifficulty={compatDifficulty}
-          defaultSatisfaction={compatSatisfaction}
-          defaultRecentCourses={compatRecentInput}
-          onOverrideHandoff={(courseCode) => setOverridePrefillCourse(courseCode)}
-        />
-
-        {/* 5. Online Course Override Guidance (Preserved) */}
+        {/* 4. Online Course Override Guidance (Preserved) */}
         <OnlineOverrideEvaluator key={overridePrefillCourse ?? 'blank'} prefillCourseCode={overridePrefillCourse} />
       </div>
+      )}
+
+      {currentView === 'chat' && (
+        <div className="chat-view">
+          <ConversationalAssistant
+            defaultProfileId={compatProfileId}
+            defaultWorkHours={compatWorkHours}
+            defaultDifficulty={compatDifficulty}
+            defaultSatisfaction={compatSatisfaction}
+            defaultRecentCourses={compatRecentInput}
+            onOverrideHandoff={handleOverrideHandoff}
+          />
+        </div>
+      )}
     </main>
+    </div>
   );
 }
