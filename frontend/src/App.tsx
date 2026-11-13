@@ -7,6 +7,7 @@ import {
   getSections,
   getAlternatives,
   checkCompatibility,
+  matchedCourseCodes,
   ApiError,
   type RawCourseRecord,
   type RawSectionRecord,
@@ -1173,7 +1174,7 @@ export default function App() {
                     {compatResult.matched_course_combinations.map((comb, i) => (
                       <div key={i} style={{ padding: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8125rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.25rem' }}>
-                          <strong>Pair: {comb.courses.join(' + ')}</strong>
+                          <strong>Pair: {matchedCourseCodes(comb).join(' + ') || 'Course combination'}</strong>
                           <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#f1f5f9', color: '#334155', fontWeight: '600' }}>
                             {comb.baseline_rating}
                           </span>

@@ -4,7 +4,7 @@
  */
 
 // Same-origin in production; Vite proxies these routes during local development.
-const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env?.VITE_API_URL || '').replace(/\/$/, '');
 
 export interface RawCourseRecord {
   COURSE: string;
@@ -69,11 +69,22 @@ export interface CompatibilityRequest {
 }
 
 export interface MatchedCourseCombination {
-  courses: string[];
-  baseline_rating: string;
+  course_a?: string;
+  course_b?: string;
+  courses?: string[];
+  baseline_rating: string | number;
   personalized_guidance: string;
   factors: string[];
   reasoning: string;
+}
+
+export function matchedCourseCodes(combination: MatchedCourseCombination): string[] {
+  if (Array.isArray(combination.courses) && combination.courses.length > 0) {
+    return combination.courses;
+  }
+  return [combination.course_a, combination.course_b].filter(
+    (course): course is string => typeof course === 'string' && course.length > 0,
+  );
 }
 
 export interface CompatibilityResponse {

@@ -10,9 +10,26 @@ import {
   mapBackendSectionToCourseSection,
   getConflictingSectionIds,
 } from '../src/utils/scheduleUtils.ts';
+import { matchedCourseCodes } from '../src/services/api.ts';
 import type { RawSectionRecord, CompatibilityResponse } from '../src/services/api.ts';
 
 describe('Frontend-Backend Wiring Schedule Utilities', () => {
+  describe('compatibility response rendering', () => {
+    it('reads the backend course_a/course_b pair without requiring a legacy courses array', () => {
+      assert.deepEqual(
+        matchedCourseCodes({
+          course_a: 'MAC2313',
+          course_b: 'MAP3305',
+          baseline_rating: 7,
+          personalized_guidance: 'Potentially manageable',
+          factors: [],
+          reasoning: 'Both classes cover complex mathematical concepts',
+        }),
+        ['MAC2313', 'MAP3305'],
+      );
+    });
+  });
+
   describe('parse12HourTo24Hour', () => {
     it('converts PM afternoon times correctly', () => {
       assert.equal(parse12HourTo24Hour('04:00 PM'), '16:00');
