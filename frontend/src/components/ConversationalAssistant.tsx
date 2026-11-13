@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   sendConversationMessage,
   type ConversationResponse,
   type ConversationRequest,
   ApiError,
 } from '../services/api';
+import {
+  mergeSessionEvidence,
+  type SessionEvidenceRecord,
+  type SessionSourceContext,
+} from '../utils/sessionEvidence';
 
 interface SyntheticProfile {
   student_id: string;
@@ -64,8 +69,8 @@ const SAMPLE_PROMPTS = [
     text: 'Can you register me for COP 3530?',
   },
   {
-    label: 'Informational (Inactive RAG)',
-    text: 'What topics are covered in COP 3530?',
+    label: 'Course Information',
+    text: 'What topics are covered in COP 4331?',
   },
 ];
 
@@ -75,6 +80,7 @@ interface Props {
   defaultDifficulty?: number;
   defaultSatisfaction?: 'yes' | 'mostly' | 'no';
   defaultRecentCourses?: string;
+  onOverrideHandoff?: (courseCode?: string) => void;
 }
 
 export const ConversationalAssistant: React.FC<Props> = ({
@@ -83,6 +89,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
   defaultDifficulty = 1,
   defaultSatisfaction = 'yes',
   defaultRecentCourses = 'CDA4240C, CDA4102, MAC2313',
+  onOverrideHandoff,
 }) => {
   const [message, setMessage] = useState('');
   const [studentId, setStudentId] = useState(defaultProfileId);
@@ -91,10 +98,26 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const [satisfaction, setSatisfaction] = useState<'yes' | 'mostly' | 'no'>(defaultSatisfaction);
   const [recentCoursesInput, setRecentCoursesInput] = useState(defaultRecentCourses);
   const [includeContext, setIncludeContext] = useState(true);
+  const [sessionEvidence, setSessionEvidence] = useState<SessionEvidenceRecord[]>([]);
+  const [sourceContext, setSourceContext] = useState<SessionSourceContext | null>(null);
+  const [sourceTerm, setSourceTerm] = useState('');
+  const [sourceSection, setSourceSection] = useState('');
+  const sessionEpoch = useRef(0);
+  const pendingRequest = useRef<AbortController | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<ConversationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const safeSourceUrl = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  };
 
   const handleProfileChange = (sid: string) => {
     setStudentId(sid);
@@ -112,6 +135,10 @@ export const ConversationalAssistant: React.FC<Props> = ({
     const trimmed = message.trim();
     if (!trimmed || loading) return;
 
+    const requestEpoch = sessionEpoch.current;
+    pendingRequest.current?.abort();
+    const controller = new AbortController();
+    pendingRequest.current = controller;
     setLoading(true);
     setError(null);
 
@@ -128,17 +155,48 @@ export const ConversationalAssistant: React.FC<Props> = ({
       work_hours: includeContext ? Number(workHours) : null,
       preferred_max_credits: 15.0,
       recent_courses: includeContext && recentList.length > 0 ? recentList : null,
+      term: sourceContext?.term_id ?? (sourceTerm.trim() || null),
+      session_evidence: sessionEvidence,
+      session_context: sourceContext ?? (sourceTerm.trim() || sourceSection.trim() ? {
+        course_code: '', term_id: sourceTerm.trim() || null, section: sourceSection.trim() || null,
+      } : null),
     };
 
     try {
-      const res = await sendConversationMessage(payload);
+      const timeout = window.setTimeout(() => controller.abort('timeout'), 45_000);
+      const res = await sendConversationMessage(payload, controller.signal).finally(() => window.clearTimeout(timeout));
+      if (requestEpoch !== sessionEpoch.current) return;
+      if (res.acquired_evidence?.length) {
+        setSessionEvidence((current) => mergeSessionEvidence(current, res.acquired_evidence ?? []));
+      }
+      if (res.source_scope?.course_code) setSourceContext(res.source_scope);
+      if (res.target_handler === 'online_override_eligibility_engine') {
+        onOverrideHandoff?.(res.extracted_courses[0]);
+      }
       setResponse(res);
     } catch (err) {
+      if (controller.signal.aborted) {
+        if (controller.signal.reason === 'timeout') setError('The request timed out before the service completed.');
+        return;
+      }
       const msg = err instanceof ApiError ? err.message : 'Failed to communicate with conversational service';
       setError(msg);
     } finally {
-      setLoading(false);
+      if (requestEpoch === sessionEpoch.current) setLoading(false);
     }
+  };
+
+  const resetSourceSession = () => {
+    sessionEpoch.current += 1;
+    pendingRequest.current?.abort();
+    pendingRequest.current = null;
+    setSessionEvidence([]);
+    setSourceContext(null);
+    setSourceTerm('');
+    setSourceSection('');
+    setResponse(null);
+    setError(null);
+    setLoading(false);
   };
 
   return (
@@ -173,6 +231,20 @@ export const ConversationalAssistant: React.FC<Props> = ({
         <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '0.25rem 0 0 0' }}>
           Interprets course compatibility, scheduling, and override questions. Connects directly to the Course Compatibility Engine when workload context is provided.
         </p>
+        <p role="note" style={{ fontSize: '0.8rem', color: '#475569', margin: '0.5rem 0 0 0' }}>
+          Source evidence is retained in this browser session and sent to the backend for validation and answering. A configured generation provider may process relevant excerpts. Refreshing or closing this page may reset the evidence.
+        </p>
+        <button type="button" onClick={resetSourceSession} disabled={!sessionEvidence.length && !sourceContext && !sourceTerm && !sourceSection && !loading} style={{ marginTop: '0.5rem', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
+          Reset source session
+        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: '0.75rem' }}>Source term
+            <input aria-label="Source term" placeholder="e.g. 202608" value={sourceContext?.term_id ?? sourceTerm} onChange={(event) => { setSourceContext(null); setSourceTerm(event.target.value); }} style={{ marginLeft: '0.25rem', width: '7rem' }} />
+          </label>
+          <label style={{ fontSize: '0.75rem' }}>Section
+            <input aria-label="Source section" placeholder="e.g. 002" value={sourceContext?.section ?? sourceSection} onChange={(event) => { setSourceContext(null); setSourceSection(event.target.value); }} style={{ marginLeft: '0.25rem', width: '5rem' }} />
+          </label>
+        </div>
       </header>
 
       {/* Context Toggle and Parameters */}
@@ -428,8 +500,14 @@ export const ConversationalAssistant: React.FC<Props> = ({
                 ? 'Advisor Escalation'
                 : response.status === 'clarification'
                 ? 'Clarification Needed'
+                : response.status === 'grounded_answer'
+                ? 'Source-Grounded Session Answer'
+                : response.status === 'acquisition_failed'
+                ? 'Source Unavailable'
+                : response.status === 'no_relevant_evidence'
+                ? 'Source Unavailable'
                 : response.status === 'rag_inactive'
-                ? 'Informational Question (RAG Inactive)'
+                ? 'Informational Question'
                 : response.status === 'engine_unavailable'
                 ? 'Directed to Structured Feature'
                 : 'Unsupported Scope'}
@@ -445,10 +523,29 @@ export const ConversationalAssistant: React.FC<Props> = ({
             {response.response_text}
           </p>
 
+          {response.citations && response.citations.length > 0 && (
+            <ol aria-label="Source citations" style={{ fontSize: '0.8rem', color: '#334155', paddingLeft: '1.25rem' }}>
+              {response.citations.map((citation, index) => (
+                <li key={`${String(citation.record_id)}-${index}`}>
+                  {safeSourceUrl(citation.url) ? (
+                    <a href={safeSourceUrl(citation.url) ?? undefined} target="_blank" rel="noopener noreferrer">{String(citation.title ?? 'Official source')}</a>
+                  ) : String(citation.title ?? 'Official source')}
+                  {' — '}{String(citation.locator ?? 'source text')}
+                </li>
+              ))}
+            </ol>
+          )}
+
           {/* Actionable Guidance */}
           {response.actionable_guidance && (
             <div style={{ margin: '0.5rem 0', fontSize: '0.8125rem', color: '#0369a1', backgroundColor: '#f0f9ff', padding: '0.5rem', borderRadius: '4px', border: '1px solid #bae6fd' }}>
               <strong>Guidance:</strong> {response.actionable_guidance}
+            </div>
+          )}
+
+          {response.generation_fallback_used && (
+            <div role="status" style={{ margin: '0.5rem 0', fontSize: '0.8125rem', color: '#854d0e', backgroundColor: '#fefce8', padding: '0.5rem', borderRadius: '4px', border: '1px solid #fde047' }}>
+              <strong>Cited fallback:</strong> The configured answer provider was unavailable or not enabled, so this response shows validated source excerpts instead.
             </div>
           )}
 

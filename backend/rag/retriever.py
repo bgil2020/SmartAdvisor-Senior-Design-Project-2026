@@ -11,7 +11,10 @@ from .corpus import load_corpus
 from .models import EvidenceChunk, RetrievedEvidence
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
-STOP = {"a", "an", "and", "are", "does", "for", "in", "is", "it", "of", "on", "the", "to", "what", "which", "with"}
+STOP = {
+    "a", "about", "an", "and", "are", "course", "does", "for", "in", "is", "it",
+    "of", "on", "say", "says", "source", "syllabus", "the", "to", "what", "which", "with",
+}
 
 
 def tokens(text: str) -> list[str]:
@@ -41,6 +44,8 @@ class LexicalRetriever:
         # unrelated fact is present in the course source.
         for code in requested:
             query_terms.pop(code.casefold(), None)
+            for component in re.findall(r"[a-z]+|[0-9]+", code.casefold()):
+                query_terms.pop(component, None)
         ranked: list[RetrievedEvidence] = []
         for chunk, counts in zip(self.chunks, self._terms):
             if requested and chunk.course_code not in requested:

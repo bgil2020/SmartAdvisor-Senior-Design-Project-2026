@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import type { ConversationRequest, ConversationResponse } from '../src/services/api';
+import { mergeSessionEvidence, type SessionEvidenceRecord } from '../src/utils/sessionEvidence.ts';
 
 describe('Conversational Client Payload & State Handling', () => {
   it('correctly structures payload with full synthetic workload context', () => {
@@ -118,5 +119,26 @@ describe('Conversational Client Payload & State Handling', () => {
 
     assert.strictEqual(mockResponse.status, 'rag_inactive');
     assert.strictEqual(mockResponse.engine_executed, false);
+  });
+});
+
+describe('Session evidence bounds and identity', () => {
+  const evidence = (id: string, category: 'syllabus' | 'course_description', section?: string): SessionEvidenceRecord => ({
+    record_id: id, record_category: category, course_code: 'COP4331',
+    section_scope: section ? { section } : undefined,
+    session_provenance: { scheme: 'hmac-sha256-v1', signature: id },
+  });
+
+  it('keeps a syllabus when a course description arrives', () => {
+    const syllabus = evidence('syllabus-002', 'syllabus', '002');
+    const description = evidence('description', 'course_description');
+    assert.deepStrictEqual(mergeSessionEvidence([syllabus], [description]).map((item) => item.record_id), ['description', 'syllabus-002']);
+  });
+
+  it('keeps distinct sections and caps the record count', () => {
+    const records = Array.from({ length: 8 }, (_, index) => evidence(`syllabus-${index}`, 'syllabus', String(index)));
+    const merged = mergeSessionEvidence([], records);
+    assert.strictEqual(merged.length, 6);
+    assert.strictEqual(merged[0].record_id, 'syllabus-0');
   });
 });

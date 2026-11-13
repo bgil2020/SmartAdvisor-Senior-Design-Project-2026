@@ -1,7 +1,9 @@
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import pandas as pd
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -22,57 +24,63 @@ app = FastAPI(
 api_logger = get_api_logger()
 
 
-@app.middleware("http")
-async def log_api_requests(request: Request, call_next):
-    route_path = "unmatched_route"
+class ApiLoggingMiddleware:
+    """Pure ASGI request logging without buffering response bodies."""
 
-    try:
-        response = await call_next(request)
-        route = request.scope.get("route")
-        route_path = getattr(route, "path", "unmatched_route")
-        status_code = response.status_code
+    def __init__(self, app, logger):
+        self.app = app
+        self.logger = logger
 
-        if status_code >= 500:
-            error_category = "SERVER_ERROR"
-        elif status_code >= 400:
-            error_category = "CLIENT_ERROR"
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        status_code = 500
+
+        async def send_with_status(message):
+            nonlocal status_code
+            if message.get("type") == "http.response.start":
+                status_code = int(message.get("status", 500))
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_with_status)
+        except Exception:
+            self._write(scope, 500, "api_error", "UNHANDLED_EXCEPTION")
+            raise
         else:
-            error_category = None
+            category = "SERVER_ERROR" if status_code >= 500 else "CLIENT_ERROR" if status_code >= 400 else None
+            self._write(scope, status_code, "api_request", category)
 
-        api_logger.info(
+    def _write(self, scope, status_code, event, category):
+        route = scope.get("route")
+        self.logger.info(
             "API request completed",
             extra={
-                "event": "api_request",
-                "method": request.method,
-                "endpoint": route_path,
+                "event": event,
+                "method": scope.get("method"),
+                "endpoint": getattr(route, "path", "unmatched_route"),
                 "status_code": status_code,
-                "error_category": error_category,
+                "error_category": category,
             },
         )
-
-        return response
-
-    except Exception:
-        api_logger.error(
-            "API request failed",
-            extra={
-                "event": "api_error",
-                "method": request.method,
-                "endpoint": route_path,
-                "status_code": 500,
-                "error_category": "UNHANDLED_EXCEPTION",
-            },
-        )
-        raise
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv(
+            "SMARTADVISOR_CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
+        ).split(",")
+        if origin.strip()
+    ],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.add_middleware(ApiLoggingMiddleware, logger=api_logger)
 
 app.include_router(compatibility_router)
 app.include_router(conversational_router)
@@ -473,3 +481,10 @@ def get_alternatives(
         "alternatives": records,
         "message": "Alternative sections found.",
     }
+
+
+# The container copies the Vite build here. Mounting last preserves all API
+# route precedence while making the reviewed artifact a single-origin app.
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+if FRONTEND_DIST.exists() and os.getenv("SMARTADVISOR_SERVE_FRONTEND", "false").casefold() == "true":
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

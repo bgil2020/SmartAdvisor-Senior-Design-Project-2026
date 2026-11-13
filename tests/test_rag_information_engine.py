@@ -14,7 +14,7 @@ from backend.rag.generation import GeminiRAGProvider
 from backend.app.conversational.gemini_parser import DEFAULT_GEMINI_MODEL
 from backend.rag.models import EvidenceChunk
 from backend.rag.retriever import LexicalRetriever
-from backend.rag.service import answer_information_question
+from backend.rag.service import answer_information_question, answer_information_records
 from backend.syllabi.grading import extract_grading_categories
 
 FIXTURES = Path(__file__).parent / "course_descriptions" / "fixtures"
@@ -91,6 +91,27 @@ def test_valid_provider_citation_is_returned_with_source_contract():
     assert "[rag:cop-description]" in result.answer
     assert result.sources[0]["source_id"] == "rag:cop-description"
     assert result.sources[0]["locator"] == "Course Description"
+
+
+def test_session_record_uses_same_provider_and_citation_validation_path():
+    html = (FIXTURES / "detail_full.html").read_text(encoding="utf-8")
+    record = parse_course_detail(
+        html,
+        expected_course_code="COP4331",
+        source_url="https://catalog.fau.edu/courses/COP4331",
+        fetched_at="2026-11-10T00:00:00Z",
+        raw_evidence_ref="session-memory:test",
+    )
+    expected_id = chunks_from_record(record)[0]["chunk_id"]
+    result = answer_information_records(
+        "Does COP4331 cover object-oriented design?",
+        [record],
+        course_codes=["COP4331"],
+        provider=StaticProvider(expected_id),
+    )
+    assert result.generation_source == "provider"
+    assert result.sources[0]["source_id"] == expected_id
+    assert f"[{expected_id}]" in result.answer
 
 
 def test_unknown_provider_citation_triggers_extract_fallback():

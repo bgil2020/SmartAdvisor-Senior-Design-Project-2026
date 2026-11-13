@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from typing import Any
 
+from .corpus import chunks_from_record
 from .generation import BaseRAGProvider, provider_from_environment
-from .models import RAGResult, RetrievedEvidence
+from .models import EvidenceChunk, RAGResult, RetrievedEvidence
 from .retriever import LexicalRetriever, Retriever
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,6 +55,17 @@ def answer_information_question(
         if not path.exists():
             return RAGResult(status="no_relevant_evidence", answer="No validated local RAG corpus is available. Build the corpus before asking informational questions.", generation_source="none", limitations=["No corpus file was loaded."])
         retriever = LexicalRetriever.from_path(path)
+    if not course_codes:
+        available_courses = {
+            item.course_code for item in getattr(retriever, "chunks", [])
+        }
+        if len(available_courses) > 1:
+            return RAGResult(
+                status="clarification",
+                answer="The available evidence applies to multiple courses. Please name the course code you mean.",
+                generation_source="none",
+                limitations=["No cross-course claim was generated from ambiguous evidence."],
+            )
     evidence = retriever.search(question, course_codes=course_codes, term_id=term_id, section=section)
     if not evidence:
         scope = ", ".join(course_codes or []) or "the requested scope"
@@ -75,3 +88,33 @@ def answer_information_question(
         except Exception as exc:
             return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason=f"Provider unavailable or rejected ({type(exc).__name__})", model_id=getattr(selected_provider, "model_id", None), sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])
     return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason="RAG_GENERATION_MODE is not set to gemini", sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])
+
+
+def answer_information_records(
+    question: str,
+    records: list[dict[str, Any]],
+    *,
+    course_codes: list[str] | None = None,
+    term_id: str | None = None,
+    section: str | None = None,
+    provider: BaseRAGProvider | None = None,
+) -> RAGResult:
+    """Run the existing grounded generation path over validated session records.
+
+    Record trust and size checks remain the caller's responsibility. This adapter
+    intentionally builds an in-memory retriever and never publishes operational
+    storage or refetches a source merely because a requested detail is absent.
+    """
+    chunks = [
+        EvidenceChunk.model_validate(chunk)
+        for record in records
+        for chunk in chunks_from_record(record)
+    ]
+    return answer_information_question(
+        question,
+        course_codes=course_codes,
+        term_id=term_id,
+        section=section,
+        retriever=LexicalRetriever(chunks),
+        provider=provider,
+    )

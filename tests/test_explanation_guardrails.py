@@ -295,7 +295,7 @@ def test_real_conversation_path_preserves_engine_and_parser_metadata_on_explanat
     "message,response_code,required_text",
     [
         ("Register me for COP 4331", "ADVISOR_ESCALATION_REQUIRED", "authorized university office"),
-        ("What does university policy say about prerequisites?", "RAG_NO_RELEVANT_EVIDENCE", "No validated local RAG corpus"),
+        ("What does university policy say about prerequisites?", "SOURCE_SCOPE_AMBIGUOUS", "specify the course code"),
     ],
 )
 def test_real_path_keeps_advisor_and_rag_boundaries(message, response_code, required_text, monkeypatch, tmp_path):

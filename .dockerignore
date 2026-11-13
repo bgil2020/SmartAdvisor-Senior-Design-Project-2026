@@ -1,0 +1,15 @@
+.git
+.venv
+node_modules
+frontend/node_modules
+frontend/dist
+.pytest_cache
+.local-*
+.env
+.env.*
+logs
+data/syllabi/raw
+data/syllabi/candidates
+data/syllabi/browser-profile
+data/course_descriptions/raw
+data/course_descriptions/candidates

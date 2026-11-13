@@ -1,8 +1,18 @@
 import logging
+import os
 import re
 from typing import Any, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from backend.session_evidence import (
+    matching_records,
+    require_signing_key,
+    resolve_scope,
+    validate_session_records,
+)
+from backend.rag.service import answer_information_records
+from backend.course_descriptions.runtime import acquire_exact_course_description
+from backend.syllabi.runtime import acquire_exact_syllabus
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +71,6 @@ from .scheduling_service import (
     evaluate_schedule_conflict,
     evaluate_alternative_sections,
 )
-from .rag.service import answer_information_question
 
 router = APIRouter(tags=["Conversational Assistant"])
 
@@ -81,7 +90,6 @@ class ConversationRequest(BaseModel):
     preferred_max_credits: float | None = Field(default=None, ge=1, le=30, description="Max target credits")
     recent_courses: list[str] | None = Field(default=None, description="Previously completed recent course codes")
     term: int | str | None = Field(default=None, description="Term code for section lookups, e.g. 202608")
-    section: str | None = Field(default=None, description="Optional syllabus section filter, e.g. 001")
     sections: list[Any] | None = Field(
         default=None, description="Explicit list of sections to compare (CRNs or course+section dicts)"
     )
@@ -91,6 +99,8 @@ class ConversationRequest(BaseModel):
     selected_sections: list[Any] | None = Field(
         default=None, description="Enrolled/selected schedule sections to avoid conflicts with"
     )
+    session_evidence: list[dict[str, Any]] = Field(default_factory=list, description="Bounded browser-retained source records")
+    session_context: dict[str, Any] | None = Field(default=None, description="Last unambiguous source scope retained by the browser")
 
 
 class ConversationResponse(BaseModel):
@@ -99,11 +109,12 @@ class ConversationResponse(BaseModel):
         "clarification",
         "escalation",
         "rag_inactive",
-        "rag_answered",
-        "no_relevant_evidence",
         "unsupported",
         "engine_unavailable",
         "engine_error",
+        "grounded_answer",
+        "acquisition_failed",
+        "no_relevant_evidence",
     ]
     raw_message: str
     disposition: str
@@ -128,11 +139,15 @@ class ConversationResponse(BaseModel):
     explanation_contract_version: str = EXPLANATION_CONTRACT_VERSION
     evidence_references: list[str] = Field(default_factory=list)
     explanation_limitations: list[str] = Field(default_factory=list)
+    acquired_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+    source_scope: dict[str, Any] | None = None
+    acquisition: dict[str, Any] | None = None
     rag_executed: bool = False
     generation_source: Literal["provider", "source_excerpt_fallback", "none"] | None = None
     generation_fallback_used: bool = False
     generation_fallback_reason: str | None = None
-    rag_sources: list[dict] = Field(default_factory=list)
+    rag_sources: list[dict[str, Any]] = Field(default_factory=list)
     retrieved_evidence_count: int = 0
 
 
@@ -169,6 +184,10 @@ def handle_conversation(req: ConversationRequest):
         kwargs.setdefault("fallback_used", fallback_used)
         kwargs.setdefault("fallback_reason", fallback_reason)
         kwargs.setdefault("model_id", model_id)
+        if kwargs.get("status") in {"grounded_answer", "acquisition_failed"} or kwargs.get("response_code", "").startswith("SOURCE_SCOPE"):
+            kwargs.setdefault("disclaimer", "SmartAdvisor answers from the cited source evidence processed for this browser session. Verify important academic decisions with the official source or an advisor.")
+            return ConversationResponse(**kwargs)
+        supplied_limitations = list(kwargs.get("explanation_limitations", []))
         explanation = render_explanation(
             response_code=kwargs.get("response_code", "UNKNOWN"),
             target_handler=kwargs.get("target_handler", "none"),
@@ -185,7 +204,7 @@ def handle_conversation(req: ConversationRequest):
         kwargs["explanation_fallback_reason"] = explanation.explanation_fallback_reason
         kwargs["explanation_contract_version"] = explanation.contract_version
         kwargs["evidence_references"] = explanation.evidence_references
-        kwargs["explanation_limitations"] = explanation.limitations
+        kwargs["explanation_limitations"] = list(dict.fromkeys(supplied_limitations + explanation.limitations))
         return ConversationResponse(**kwargs)
 
     # 1. Escalation to advisor
@@ -203,42 +222,149 @@ def handle_conversation(req: ConversationRequest):
             extracted_courses=extracted_courses,
         )
 
-    # 2. Informational RAG queries. Retrieval is local; fetching/importing is a
-    # separate explicit workflow and never occurs while serving a question.
+    # 2. Source-grounded informational queries. Evidence remains browser-owned;
+    # the backend validates provenance on every reuse and only acquires an exact
+    # approved course/term/section mapping.
     if disposition == DISPOSITION_RAG:
-        rag = answer_information_question(
-            message,
-            course_codes=extracted_courses,
-            term_id=str(req.term) if req.term is not None else None,
-            section=req.section,
+        if req.session_evidence:
+            try:
+                require_signing_key()
+            except RuntimeError as exc:
+                return _build_response(
+                    status="acquisition_failed", raw_message=message, disposition=disposition,
+                    target_handler=target_handler, response_code="SESSION_EVIDENCE_CONFIGURATION_ERROR",
+                    response_text=str(exc), safe_to_route=False, engine_executed=False,
+                    extracted_courses=extracted_courses,
+                    explanation_limitations=["Session evidence was not accepted."],
+                )
+        valid_records, evidence_errors = validate_session_records(req.session_evidence)
+        scope, clarification = resolve_scope(message, extracted_courses, valid_records, req.session_context)
+        if clarification or scope is None:
+            return _build_response(
+                status="clarification", raw_message=message, disposition="clarify",
+                target_handler=target_handler, response_code="SOURCE_SCOPE_AMBIGUOUS",
+                response_text=clarification or "Please specify the source scope.", safe_to_route=False,
+                engine_executed=False, extracted_courses=extracted_courses,
+                missing_context=["course_code", "term_id", "section"],
+                explanation_limitations=evidence_errors,
+            )
+        syllabus_question = bool(
+            scope.get("term_id")
+            or scope.get("section")
+            or re.search(r"\b(syllabus|grading|grade|assignment|exam|attendance|instructor|textbook|due date|office hours)\b", message, re.I)
         )
-        status = {
-            "answered": "rag_answered",
-            "clarification": "clarification",
-            "no_relevant_evidence": "no_relevant_evidence",
-        }[rag.status]
-        return ConversationResponse(
-            status=status,
+        source_category = "syllabus" if syllabus_question else "course_description"
+        matches = [
+            record
+            for record in matching_records(
+                valid_records,
+                course_code=scope["course_code"],
+                term_id=scope.get("term_id"),
+                section=scope.get("section"),
+            )
+            if record.get("record_category") == source_category
+        ]
+        acquired: list[dict[str, Any]] = []
+        acquisition: dict[str, Any] = {"status": "not_needed", "additional_source_acquisitions": 0}
+        if not matches:
+            if source_category == "syllabus" and (not scope.get("term_id") or not scope.get("section")):
+                return _build_response(
+                    status="clarification", raw_message=message, disposition="clarify", target_handler=target_handler,
+                    response_code="SOURCE_SCOPE_INCOMPLETE",
+                    response_text="Please specify the term and section for the syllabus you want me to use.",
+                    safe_to_route=False, engine_executed=False, extracted_courses=[scope["course_code"]],
+                    missing_context=[name for name in ("term_id", "section") if not scope.get(name)],
+                    source_scope=scope, explanation_limitations=evidence_errors,
+                )
+            acquisition_enabled = (
+                os.getenv("SYLLABUS_ACQUISITION_ENABLED", "false").casefold() == "true"
+                if source_category == "syllabus"
+                else os.getenv("CATALOG_ACQUISITION_ENABLED", "false").casefold() == "true"
+            )
+            if source_category == "syllabus" or acquisition_enabled:
+                try:
+                    require_signing_key()
+                except RuntimeError as exc:
+                    return _build_response(
+                        status="acquisition_failed", raw_message=message, disposition=disposition,
+                        target_handler=target_handler, response_code="SESSION_EVIDENCE_CONFIGURATION_ERROR",
+                        response_text=str(exc), safe_to_route=False, engine_executed=False,
+                        extracted_courses=extracted_courses, source_scope=scope,
+                        explanation_limitations=["Session evidence was not acquired."],
+                    )
+            if source_category == "syllabus":
+                result = acquire_exact_syllabus(scope["course_code"], scope["term_id"], scope["section"])
+            else:
+                result = acquire_exact_course_description(scope["course_code"])
+            acquisition = {key: value for key, value in result.items() if key != "record"}
+            acquisition["source_category"] = source_category
+            acquisition["additional_source_acquisitions"] = int(result.get("request_count", 0) or result.get("status") not in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"})
+            if result.get("record"):
+                acquired = [result["record"]]
+                matches = acquired
+            elif result.get("status") in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"}:
+                return _build_response(
+                    status="no_relevant_evidence", raw_message=message, disposition=disposition,
+                    target_handler=target_handler, response_code="RAG_NO_RELEVANT_EVIDENCE",
+                    response_text="No validated session evidence is available for the requested source scope.",
+                    actionable_guidance="Provide an exact supported scope or enable the approved bounded acquisition adapter.",
+                    safe_to_route=False, engine_executed=False, extracted_courses=[scope["course_code"]],
+                    source_scope=scope, acquisition=acquisition, rag_executed=True,
+                    generation_source="none", explanation_limitations=evidence_errors,
+                )
+            else:
+                return _build_response(
+                    status="acquisition_failed", raw_message=message, disposition=disposition, target_handler=target_handler,
+                    response_code="SOURCE_ACQUISITION_UNAVAILABLE",
+                    response_text="The exact approved source was not acquired, so I cannot provide a source-grounded answer.",
+                    actionable_guidance="Check the course, term, and section. If they are correct, the source may be unavailable or acquisition may be disabled.",
+                    safe_to_route=False, engine_executed=False, extracted_courses=[scope["course_code"]],
+                    source_scope=scope, acquisition=acquisition, explanation_limitations=evidence_errors,
+                )
+        rag = answer_information_records(
+            message,
+            matches,
+            course_codes=[scope["course_code"]],
+            term_id=scope.get("term_id"),
+            section=scope.get("section"),
+        )
+        citations = [
+            {
+                **source,
+                "record_id": source.get("document_id"),
+            }
+            for source in rag.sources
+        ]
+        response_text = rag.answer
+        if rag.status == "no_relevant_evidence":
+            response_text = (
+                "The matching source is already retained in this session, but it does not contain "
+                "enough clearly matching information to answer that question. I did not refetch it."
+            )
+        return _build_response(
+            status="grounded_answer",
             raw_message=message,
             disposition=disposition,
             target_handler=target_handler,
-            response_code={"answered": "RAG_ANSWERED", "clarification": "RAG_CLARIFICATION", "no_relevant_evidence": "RAG_NO_RELEVANT_EVIDENCE"}[rag.status],
-            response_text=rag.answer,
-            actionable_guidance=None if rag.status == "answered" else "Name a covered course or rebuild the local corpus with an applicable validated source.",
-            safe_to_route=rag.status == "answered",
+            response_code="SESSION_EVIDENCE_ANSWER" if rag.status == "answered" else "SESSION_EVIDENCE_INSUFFICIENT",
+            response_text=response_text,
+            actionable_guidance=None,
+            safe_to_route=True,
             engine_executed=False,
-            extracted_courses=extracted_courses,
-            parser_source=parser_source,
-            fallback_used=fallback_used,
-            fallback_reason=fallback_reason,
-            model_id=rag.model_id or model_id,
+            extracted_courses=[scope["course_code"]],
+            acquired_evidence=acquired,
+            citations=citations,
+            source_scope=scope,
+            acquisition=acquisition,
             rag_executed=True,
             generation_source=rag.generation_source,
             generation_fallback_used=rag.generation_fallback_used,
             generation_fallback_reason=rag.generation_fallback_reason,
             rag_sources=rag.sources,
             retrieved_evidence_count=len(rag.retrieved_evidence),
-            explanation_limitations=rag.limitations,
+            explanation_fallback_used=rag.generation_fallback_used,
+            explanation_fallback_reason=rag.generation_fallback_reason,
+            explanation_limitations=list(dict.fromkeys(evidence_errors + rag.limitations)),
         )
 
     # 3. Allow structured context to fill missing message details (do not require text to repeat valid context)

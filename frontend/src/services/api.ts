@@ -3,7 +3,8 @@
  * Connects browser components to FastAPI backend endpoints.
  */
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+// Same-origin in production; Vite proxies these routes during local development.
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 export interface RawCourseRecord {
   COURSE: string;
@@ -229,6 +230,9 @@ export interface ConversationRequest {
   work_hours?: number | null;
   preferred_max_credits?: number | null;
   recent_courses?: string[] | null;
+  term?: string | number | null;
+  session_evidence?: import('../utils/sessionEvidence').SessionEvidenceRecord[];
+  session_context?: import('../utils/sessionEvidence').SessionSourceContext | null;
 }
 
 export interface ConversationResponse {
@@ -239,7 +243,10 @@ export interface ConversationResponse {
     | 'rag_inactive'
     | 'unsupported'
     | 'engine_unavailable'
-    | 'engine_error';
+    | 'engine_error'
+    | 'grounded_answer'
+    | 'acquisition_failed'
+    | 'no_relevant_evidence';
   raw_message: string;
   disposition: string;
   target_handler: string;
@@ -252,6 +259,16 @@ export interface ConversationResponse {
   engine_executed: boolean;
   engine_result?: Record<string, unknown> | null;
   disclaimer: string;
+  acquired_evidence?: import('../utils/sessionEvidence').SessionEvidenceRecord[];
+  citations?: Array<Record<string, unknown>>;
+  source_scope?: import('../utils/sessionEvidence').SessionSourceContext | null;
+  acquisition?: Record<string, unknown> | null;
+  rag_executed?: boolean;
+  generation_source?: 'provider' | 'source_excerpt_fallback' | 'none' | null;
+  generation_fallback_used?: boolean;
+  generation_fallback_reason?: string | null;
+  rag_sources?: Array<Record<string, unknown>>;
+  retrieved_evidence_count?: number;
 }
 
 /**
@@ -259,7 +276,8 @@ export interface ConversationResponse {
  * If intent is course compatibility and student context is provided, executes compatibility engine.
  */
 export async function sendConversationMessage(
-  payload: ConversationRequest
+  payload: ConversationRequest,
+  signal?: AbortSignal,
 ): Promise<ConversationResponse> {
   const url = `${API_BASE_URL}/conversation`;
   const res = await fetch(url, {
@@ -268,6 +286,7 @@ export async function sendConversationMessage(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
+    signal,
   });
   return handleResponse<ConversationResponse>(res);
 }

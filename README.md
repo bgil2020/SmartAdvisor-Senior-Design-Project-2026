@@ -20,8 +20,8 @@ SmartAdvisor is an academic course-planning and advising decision-support system
 | **Conversational Assistant** | Integrated | Deterministic intent/entity parsing is the default. `POST /conversation` executes supported deterministic engines, escalates administrative requests, and routes informational questions to the development-branch RAG path when a local corpus is available. |
 | **Data Runtime** | File-Backed | Core scheduling/compatibility data remains local. RAG uses an explicitly built, ignored local corpus; live answer generation is optional and requires separately configured Gemini access. |
 | **Supabase Cloud Database** | Prepared (Inactive) | Database schema and migration scripts exist in `supabase/` and `scripts/`. Inactive at runtime; adding credentials does not alter backend behavior. |
-| **RAG Information Engine v0** | Development Branch | `feature/rag-information-engine` provides validated local import, lexical retrieval, cited excerpt fallback, and optional grounded Gemini generation through `/conversation`. It is not merged or production-deployed; see `docs/rag-v0-walkthrough.md`. |
-| **Session Persistence** | In-Memory (Client) | Active schedule and chat history are held in React state; refreshing the browser resets the session. |
+| **RAG Information Engine** | Integrated Locally | `POST /conversation` validates browser-retained evidence, retrieves exact-scope passages, uses the configured grounded-generation adapter, validates citation IDs, and returns a labeled cited excerpt fallback on provider failure. Approved catalog/syllabus acquisition is opt-in and bounded. This is not a deployment claim. |
+| **Session Persistence** | In-Memory (Client) | Active schedule, chat state, and signed source evidence are held in React state; refreshing or closing the browser may reset them. Relevant excerpts are sent to the backend and may be sent to the configured generation provider. |
 
 ---
 ##Recent Development Updates
@@ -185,7 +185,7 @@ SmartAdvisor-Senior-Design-Project-2026/
 1. **Supplied Workbooks:**
    - Active runtime workbooks (`data/FAU_Courses.xlsx` and `backend/compatibility_data/`) are tracked in the repository and ready for immediate local execution.
 2. **Local API Configuration:**
-   - The frontend connects to `http://127.0.0.1:8000` by default. To point to an alternate backend address, define `VITE_API_URL` in `frontend/.env`.
+   - The frontend uses same-origin API routes. Vite proxies local development routes to `http://127.0.0.1:8000`; define `VITE_API_URL` in `frontend/.env` only for a different backend origin.
 3. **No External Credentials Required:**
    - SmartAdvisor operates 100% offline in file-backed mode. No database credentials, API keys, or cloud accounts are needed.
 4. **Secret Handling Boundaries:**
