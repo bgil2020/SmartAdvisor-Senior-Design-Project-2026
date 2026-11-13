@@ -298,7 +298,11 @@ def handle_conversation(req: ConversationRequest):
                 result = acquire_exact_course_description(scope["course_code"])
             acquisition = {key: value for key, value in result.items() if key != "record"}
             acquisition["source_category"] = source_category
-            acquisition["additional_source_acquisitions"] = int(result.get("request_count", 0) or result.get("status") not in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"})
+            acquisition["additional_source_acquisitions"] = (
+                int(result["request_count"])
+                if "request_count" in result
+                else int(result.get("status") not in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"})
+            )
             if result.get("record"):
                 acquired = [result["record"]]
                 matches = acquired

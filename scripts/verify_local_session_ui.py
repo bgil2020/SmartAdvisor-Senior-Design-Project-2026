@@ -1,7 +1,9 @@
-"""Saved-evidence browser verification against real Vite and FastAPI servers.
+"""Representative saved-evidence replay against real Vite and FastAPI servers.
 
-The initial acquisition result is mocked from the existing validated fixture.
-No external source URL is requested.
+The live-acquired syllabus body was not retained. This uses the regression
+fixture with the approved localized source identity and exercises real record
+validation, signing, browser retention, retrieval, citations, reset, and stale
+response protection. Test budgets are zero, so no external request can start.
 """
 from __future__ import annotations
 
@@ -92,9 +94,15 @@ async def verify(saved_record: dict) -> dict:
                 await asyncio.sleep(1.25)
             upstream = await route.fetch(post_data=json.dumps(body))
             payload = await upstream.json()
+            print(json.dumps({
+                "browser_replay_step": message,
+                "backend_status": payload.get("status"),
+                "response_code": payload.get("response_code"),
+                "acquisition_status": (payload.get("acquisition") or {}).get("status"),
+            }), flush=True)
             if first_response:
                 payload["acquired_evidence"] = [saved_record]
-                payload["acquisition"] = {"status": "mocked_saved_evidence", "additional_source_acquisitions": 1}
+                payload["acquisition"] = {"status": "representative_fixture_supplied", "additional_source_acquisitions": 0}
                 first_response = False
                 await route.fulfill(response=upstream, json=payload)
             else:
@@ -104,8 +112,10 @@ async def verify(saved_record: dict) -> dict:
                 "status": payload.get("status"),
                 "response_code": payload.get("response_code"),
                 "additional_source_acquisitions": (payload.get("acquisition") or {}).get("additional_source_acquisitions"),
+                "acquisition_status": (payload.get("acquisition") or {}).get("status"),
                 "scope": payload.get("source_scope"),
                 "citation_count": len(payload.get("citations") or []),
+                "citation_locators": [item.get("locator") for item in payload.get("citations") or []],
             })
 
         await page.route(f"{BACKEND_URL}/conversation", conversation_route)
@@ -170,16 +180,22 @@ async def verify(saved_record: dict) -> dict:
         bool(catalog_responses) and all(status == 200 for status in catalog_responses),
         follow_up["status"] == "grounded_answer",
         follow_up["additional_source_acquisitions"] == 0,
+        follow_up["acquisition_status"] == "not_needed",
         follow_up["scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+        any("learning" in str(locator).casefold() for locator in follow_up["citation_locators"]),
         fallback["response_code"] == "SESSION_EVIDENCE_INSUFFICIENT",
         fallback["additional_source_acquisitions"] == 0,
+        fallback["acquisition_status"] == "not_needed",
         reset_ignored_stale,
         reset_cleared_scope,
-        post_reset["status"] == "no_relevant_evidence",
+        post_reset["status"] == "acquisition_failed",
+        post_reset["acquisition_status"] == "acquisition_budget_exhausted",
+        post_reset["additional_source_acquisitions"] == 0,
+        any("grading" in str(locator).casefold() for locator in response_log[0]["citation_locators"]),
     ))
     return {
         "status": "passed" if passed else "failed",
-        "verification_kind": "mocked_saved_evidence",
+        "verification_kind": "representative_fixture_localized_source_replay",
         "integrated_ui": {
             "welcome_rendered": welcome_rendered,
             "forms_and_engines_rendered": forms_rendered,
@@ -202,8 +218,14 @@ def main() -> int:
     environment = os.environ.copy()
     environment.update({
         "CONVERSATIONAL_PARSER_MODE": "deterministic",
+        "RAG_GENERATION_MODE": "fallback",
         "SESSION_EVIDENCE_SIGNING_KEY": signing_key,
-        "SYLLABUS_ACQUISITION_ENABLED": "false",
+        "GEMINI_API_KEY": "",
+        "CATALOG_ACQUISITION_ENABLED": "true",
+        "SYLLABUS_ACQUISITION_ENABLED": "true",
+        "ACQUISITION_BROWSER_MODE": "headed",
+        "ACQUISITION_TEST_CATALOG_BUDGET": "0",
+        "ACQUISITION_TEST_SYLLABUS_BUDGET": "0",
         "SMARTADVISOR_CORS_ORIGINS": FRONTEND_URL,
         "VITE_API_URL": BACKEND_URL,
     })
@@ -216,7 +238,7 @@ def main() -> int:
     record = parse_rendered_syllabus(
         fixture.read_text(encoding="utf-8"), course_code="COP4331", term_id="202608",
         term_name="Fall 2026 1 Full Term", section="002", source_document_id="sb4d8l8wb",
-        source_url="https://fau.simplesyllabus.com/doc/sb4d8l8wb/COP-4331?mode=view",
+        source_url="https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/Fall-2026-1-Full-Term-COP-4331-002-Object-Oriented-Design-%26-Prog?mode=view",
         fetched_at=utc_now(), raw_evidence_ref="session-memory:local-ui-verification",
     )
     saved_record = attach_provenance(record)

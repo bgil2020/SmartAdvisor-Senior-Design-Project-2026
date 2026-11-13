@@ -72,6 +72,21 @@ def test_missing_information_does_not_refetch_loop():
     assert "did not refetch" in data["response_text"]
 
 
+def test_nearby_legitimate_questions_still_retrieve_after_stop_word_fix():
+    evidence = [record()]
+    context = {"course_code": "COP4331", "term_id": "202608", "section": "002"}
+    cases = {
+        "What is the course description for this class?": "course description",
+        "What does the grading section say for COP 4331?": "assessments",
+        "Which software design skills are learning outcomes?": "learning",
+    }
+    for question, expected_locator in cases.items():
+        data = ask(question, evidence, context)
+        assert data["response_code"] == "SESSION_EVIDENCE_ANSWER"
+        assert data["acquisition"]["additional_source_acquisitions"] == 0
+        assert any(expected_locator in str(item["locator"]).casefold() for item in data["citations"])
+
+
 def test_tampered_client_verification_is_rejected():
     tampered = record()
     tampered["document_text"] = "invented"
@@ -165,3 +180,28 @@ def test_concurrent_exact_acquisition_is_deduplicated(monkeypatch):
         results = list(pool.map(lambda _index: runtime.acquire_exact_syllabus("COP4331", "202608", "002"), range(2)))
     assert calls == 1
     assert [item["status"] for item in results] == ["generic_access_denied", "generic_access_denied"]
+
+
+def test_syllabus_test_budget_blocks_second_browser_start(monkeypatch):
+    from backend.acquisition_budget import reset_test_budgets
+    from backend.syllabi import runtime
+
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("ACQUISITION_BROWSER_MODE", "headed")
+    monkeypatch.setenv("ACQUISITION_TEST_SYLLABUS_BUDGET", "1")
+    monkeypatch.setattr(runtime, "_mapping", lambda *_args: {"view_url": "https://fau.simplesyllabus.com/doc/test/exact"})
+    reset_test_budgets()
+    starts = 0
+
+    def fake_run(_mapping):
+        nonlocal starts
+        starts += 1
+        return {"status": "generic_access_denied", "record": None, "request_count": 1, "duration_ms": 1, "cleanup": "completed"}
+
+    monkeypatch.setattr(runtime, "_run_mapping", fake_run)
+    first = runtime.acquire_exact_syllabus("COP4331", "202608", "002")
+    second = runtime.acquire_exact_syllabus("COP4331", "202608", "002")
+    assert first["status"] == "generic_access_denied"
+    assert second["status"] == "acquisition_budget_exhausted"
+    assert second["request_count"] == 0
+    assert starts == 1

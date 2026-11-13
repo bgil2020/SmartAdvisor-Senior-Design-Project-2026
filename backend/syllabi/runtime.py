@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.course_descriptions.models import utc_now
+from backend.acquisition_budget import claim_test_budget
 from backend.session_evidence import attach_provenance
 from .parser import SyllabusParseError, parse_rendered_syllabus
 from .browser_probe import BrowserProbeLimits, probe_browser_session
@@ -49,7 +50,17 @@ def acquire_exact_syllabus(course_code: str, term_id: str, section: str) -> dict
     if not owner:
         return future.result(timeout=float(os.getenv("ACQUISITION_TIMEOUT_SECONDS", "25")) + 5)
     try:
-        result = _run_mapping(mapping)
+        budget = claim_test_budget("syllabus")
+        if not budget["allowed"]:
+            result = {
+                "status": "acquisition_budget_exhausted", "record": None,
+                "request_count": 0, "duration_ms": 0, "cleanup": "not_started",
+                "test_budget": budget,
+            }
+        else:
+            result = _run_mapping(mapping)
+            if budget["enforced"]:
+                result["test_budget"] = budget
         future.set_result(result)
         return result
     except BaseException as exc:
@@ -82,7 +93,7 @@ def _run_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
         )
         observations = {**probe, "cleanup": "completed"}
         if probe["status"] != "anonymous_full_document":
-            return {"status": probe["status"], "record": None, "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+            return {"status": probe["status"], "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
         try:
             record = parse_rendered_syllabus(
                 session.last_html, course_code=mapping["course_code"], term_id=mapping["term_id"], term_name=mapping["term_name"],
@@ -90,10 +101,10 @@ def _run_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
                 fetched_at=utc_now(), raw_evidence_ref="session-memory:rendered-html", instructor=mapping.get("instructor"), render_complete=True,
             )
         except SyllabusParseError as exc:
-            return {"status": exc.code, "record": None, "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+            return {"status": exc.code, "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
         if validate_record(record):
-            return {"status": "candidate_rejected", "record": None, "duration_ms": round((time.monotonic() - started) * 1000), **observations}
-        return {"status": "acquired", "record": attach_provenance(record), "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+            return {"status": "candidate_rejected", "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+        return {"status": "acquired", "record": attach_provenance(record), "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
 
 
 def synthetic_smoke(url: str) -> dict[str, Any]:
