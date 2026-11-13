@@ -1,1 +1,7 @@
-#Bluuprint file for render connection
+services:
+  - type: web
+    name: smartadvisor-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.api:app --host 0.0.0.0 --port $PORT
