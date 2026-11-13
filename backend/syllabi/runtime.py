@@ -14,6 +14,7 @@ from backend.session_evidence import attach_provenance
 from .parser import SyllabusParseError, parse_rendered_syllabus
 from .browser_probe import BrowserProbeLimits, probe_browser_session
 from .playwright_driver import PlaywrightSession
+from .storage import validate_record
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / "data" / "syllabi" / "sample-manifest.json"
@@ -90,6 +91,8 @@ def _run_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
             )
         except SyllabusParseError as exc:
             return {"status": exc.code, "record": None, "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+        if validate_record(record):
+            return {"status": "candidate_rejected", "record": None, "duration_ms": round((time.monotonic() - started) * 1000), **observations}
         return {"status": "acquired", "record": attach_provenance(record), "duration_ms": round((time.monotonic() - started) * 1000), **observations}
 
 

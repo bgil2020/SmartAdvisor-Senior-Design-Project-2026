@@ -46,6 +46,24 @@ def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():
     assert follow_up["source_scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"}
 
 
+def test_reuses_localized_redirect_source_with_zero_acquisition(monkeypatch):
+    localized = {key: value for key, value in record().items() if key != "session_provenance"}
+    localized["source"] = {
+        **localized["source"],
+        "url": "https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/Fall-2026-COP-4331-002?mode=view",
+    }
+    localized = attach_provenance(localized)
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    data = ask(
+        "What are the learning outcomes for that class?",
+        [localized],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+    assert data["status"] == "grounded_answer"
+    assert data["acquisition"]["additional_source_acquisitions"] == 0
+    assert data["citations"][0]["url"].startswith("https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/")
+
+
 def test_missing_information_does_not_refetch_loop():
     data = ask("What does the COP 4331 syllabus say about the cafeteria menu?", [record()], {"course_code": "COP4331", "term_id": "202608", "section": "002"})
     assert data["status"] == "grounded_answer"

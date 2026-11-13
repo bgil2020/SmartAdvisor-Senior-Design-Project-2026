@@ -13,7 +13,7 @@ from backend.syllabi.models import syllabus_content_hash
 from backend.syllabi.browser_probe import BrowserProbeLimits, probe_browser_session
 from backend.syllabi.parser import SyllabusParseError, classify_browser_observation, classify_page, parse_rendered_syllabus
 from backend.syllabi.probe import probe_documents
-from backend.syllabi.storage import accept_batch, rollback_accepted, validate_batch
+from backend.syllabi.storage import accept_batch, rollback_accepted, validate_batch, validate_record
 from scripts.syllabus_browser_collect import classify_response_role
 
 FIXTURES = Path(__file__).parent / "syllabi" / "fixtures"
@@ -88,6 +88,15 @@ def test_empty_shell_with_essential_403_is_generic_denial_not_login_requirement(
     exact_url = "https://fau.simplesyllabus.com/doc/a4bh2nqsq/Fall-2026-1-Full-Term-EEL-3111-001-Circuits-1?mode=view"
     failures = [{"status": 403, "url": "browser-generated-document-request", "essential": True}]
     assert classify_browser_observation(shell, exact_url, failed_requests=failures) == "generic_access_denied"
+
+
+def test_localized_document_redirect_preserves_exact_source_identity():
+    parsed = record()
+    parsed["source"]["url"] = "https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/Fall-2026-COP-4331-002?mode=view"
+    assert validate_record(parsed) == []
+
+    parsed["source"]["url"] = "https://fau.simplesyllabus.com/en-US/doc/different/Fall-2026-EEL-3111-001?mode=view"
+    assert "source.url document identity does not match source_id" in validate_record(parsed)
 
 
 def test_browser_probe_stops_first_repeating_denial_and_reports_request_counts():
