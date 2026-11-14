@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
+import StudentDashboard from './components/StudentDashboard';
+import StudentLogin from './components/StudentLogin';
+import SemesterHistory from './components/SemesterHistory';
 import { ConversationalAssistant } from './components/ConversationalAssistant';
 import {
   getCourses,
@@ -98,6 +101,7 @@ const SYNTHETIC_PROFILES: SyntheticProfile[] = [
 ];
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   // --- 1. Real Course & Section State ---
   const [courses, setCourses] = useState<RawCourseRecord[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -418,7 +422,9 @@ export default function App() {
         setLoadingCompat(false);
       });
   };
-
+  if (!isLoggedIn) {
+    return <StudentLogin onLogin={() => setIsLoggedIn(true)} />;
+  }
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '2rem' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '2rem', textAlign: 'left' }}>
@@ -432,6 +438,14 @@ export default function App() {
             Real course catalog, section scheduling, conflict resolution & compatibility support
           </p>
         </header>
+
+        <StudentDashboard
+          selectedSections={selectedSections}
+          conflictCount={getConflictingSectionIds(allTimedSections).size}
+          onRemoveCourse={handleRemoveSection}
+        />
+
+        <SemesterHistory />
 
         {/* 1. Real Course Selection & Section Browser */}
         <section style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
