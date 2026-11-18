@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
 import { ConversationalAssistant } from './components/ConversationalAssistant';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { CoursePlanningWorkspace } from './components/CoursePlanningWorkspace';
 import {
   getCourses,
   getSections,
@@ -23,6 +24,8 @@ import {
   type CourseSection,
 } from './utils/scheduleUtils';
 import { MOCK_SECTIONS } from './types/schedule';
+import { pathForView, viewFromPath, type AppView } from './utils/viewRouting';
+import { addSelectedSectionGroup, removeSelectedSection } from './utils/planningSelection';
 
 // --- Supplied Synthetic Student Profiles (from Synthetic Profiles.xlsx) ---
 interface SyntheticProfile {
@@ -99,8 +102,25 @@ const SYNTHETIC_PROFILES: SyntheticProfile[] = [
   },
 ];
 
+// Kept temporarily while the extracted shared workspace is verified against the former markup.
+const SHOW_LEGACY_PLANNING_MARKUP = false;
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<'welcome' | 'forms' | 'chat'>('welcome');
+  const [currentView, setCurrentView] = useState<AppView>(() => viewFromPath(window.location.pathname));
+
+  const navigateToView = useCallback((view: AppView) => {
+    const nextPath = pathForView(view);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ view }, '', nextPath);
+    }
+    setCurrentView(view);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentView(viewFromPath(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   // --- 1. Real Course & Section State ---
   const [courses, setCourses] = useState<RawCourseRecord[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -218,7 +238,7 @@ export default function App() {
     if (selectedSections.some((s) => String(s.CRN) === crnStr)) {
       return; // already added
     }
-    const updated = [...selectedSections, ...records];
+    const updated = addSelectedSectionGroup(selectedSections, records);
     setSelectedSections(updated);
 
     // Invalidate open alternatives as selected schedule has changed
@@ -236,7 +256,7 @@ export default function App() {
   // --- Remove all section records for a CRN from proposed schedule ---
   const handleRemoveSection = (crn: number | string) => {
     const crnStr = String(crn);
-    const updated = selectedSections.filter((s) => String(s.CRN) !== crnStr);
+    const updated = removeSelectedSection(selectedSections, crnStr);
     setSelectedSections(updated);
 
     if (alternativesTarget && String(alternativesTarget.CRN) === crnStr) {
@@ -423,18 +443,18 @@ export default function App() {
   };
 
   if (currentView === 'welcome') {
-    return <WelcomeScreen onNavigate={setCurrentView} />;
+    return <WelcomeScreen onNavigate={navigateToView} />;
   }
 
   const handleOverrideHandoff = (courseCode?: string) => {
     setOverridePrefillCourse(courseCode);
-    setCurrentView('forms');
+    navigateToView('forms');
   };
 
   return (
     <div className="app-shell">
       <header className="app-navbar">
-        <button type="button" className="app-brand" onClick={() => setCurrentView('welcome')} aria-label="SmartAdvisor home">
+        <button type="button" className="app-brand" onClick={() => navigateToView('welcome')} aria-label="SmartAdvisor home">
           <span className="app-brand-mark">SA</span>
           <span>
             <strong>SmartAdvisor</strong>
@@ -442,11 +462,11 @@ export default function App() {
           </span>
         </button>
         <nav aria-label="Primary navigation">
-          <button type="button" onClick={() => setCurrentView('welcome')}>Home</button>
-          <button type="button" className={currentView === 'forms' ? 'active' : ''} onClick={() => setCurrentView('forms')}>
+          <button type="button" onClick={() => navigateToView('welcome')}>Home</button>
+          <button type="button" className={currentView === 'forms' ? 'active' : ''} onClick={() => navigateToView('forms')}>
             Forms &amp; Engines
           </button>
-          <button type="button" className={currentView === 'chat' ? 'active' : ''} onClick={() => setCurrentView('chat')}>
+          <button type="button" className={currentView === 'chat' ? 'active' : ''} onClick={() => navigateToView('chat')}>
             AI Assistant Chat
           </button>
         </nav>
@@ -466,6 +486,31 @@ export default function App() {
           </p>
         </header>
 
+        <CoursePlanningWorkspace
+          courses={courses}
+          loadingCourses={loadingCourses}
+          coursesError={coursesError}
+          selectedCourseCode={selectedCourseCode}
+          onSelectCourse={handleSelectCourse}
+          availableSections={availableSections}
+          loadingSections={loadingSections}
+          sectionsError={sectionsError}
+          selectedSections={selectedSections}
+          onAddSectionGroup={handleAddSectionGroup}
+          onRemoveSection={handleRemoveSection}
+          headingPrefix=""
+          showDemoSchedule={showDemoSchedule}
+          onShowDemoScheduleChange={setShowDemoSchedule}
+          onFindAlternatives={handleFindAlternatives}
+          alternativesTarget={alternativesTarget}
+          alternativesList={alternativesList}
+          loadingAlternatives={loadingAlternatives}
+          alternativesError={alternativesError}
+          onCloseAlternatives={() => setAlternativesTarget(null)}
+          onSwapAlternativeGroup={handleSwapAlternativeGroup}
+        />
+
+        {SHOW_LEGACY_PLANNING_MARKUP && (<>
         {/* 1. Real Course Selection & Section Browser */}
         <section style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#111827' }}>
@@ -928,7 +973,7 @@ export default function App() {
             <div style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e3a8a' }}>
-                  Alternative Sections for {alternativesTarget.COURSE} (Replacing CRN {String(alternativesTarget.CRN)})
+                  Alternative Sections for {alternativesTarget!.COURSE} (Replacing CRN {String(alternativesTarget!.CRN)})
                 </h3>
                 <button
                   type="button"
@@ -940,7 +985,7 @@ export default function App() {
               </div>
 
               <p style={{ fontSize: '0.8125rem', color: '#1e40af', marginBottom: '0.75rem' }}>
-                Queried backend endpoint: <code>GET /alternatives?crn={String(alternativesTarget.CRN)}</code>. Returns sections of the same course that do not conflict with your other selected classes.
+                Queried backend endpoint: <code>GET /alternatives?crn={String(alternativesTarget!.CRN)}</code>. Returns sections of the same course that do not conflict with your other selected classes.
               </p>
 
               {loadingAlternatives && <p style={{ fontSize: '0.875rem', color: '#2563eb' }}>Searching alternative sections...</p>}
@@ -999,6 +1044,8 @@ export default function App() {
             </div>
           )}
         </section>
+
+        </>)}
 
         {/* 3. Course Compatibility Evaluator */}
         <section style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
@@ -1141,7 +1188,7 @@ export default function App() {
           )}
 
           {compatResult && (
-            <div style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
+            <div id="compatibility-response-card" style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
               <div style={{ marginBottom: '1rem' }}>
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#0f172a', margin: '0 0 0.5rem 0' }}>
                   Compatibility Result for {compatResult.student_name} ({compatResult.major})
@@ -1252,15 +1299,34 @@ export default function App() {
       )}
 
       {currentView === 'chat' && (
-        <div className="chat-view">
-          <ConversationalAssistant
-            defaultProfileId={compatProfileId}
-            defaultWorkHours={compatWorkHours}
-            defaultDifficulty={compatDifficulty}
-            defaultSatisfaction={compatSatisfaction}
-            defaultRecentCourses={compatRecentInput}
-            onOverrideHandoff={handleOverrideHandoff}
-          />
+        <div className="chat-workspace" data-testid="chat-workspace">
+          <div className="chat-schedule-panel" aria-label="Course planning workspace">
+            <CoursePlanningWorkspace
+              compact
+              courses={courses}
+              loadingCourses={loadingCourses}
+              coursesError={coursesError}
+              selectedCourseCode={selectedCourseCode}
+              onSelectCourse={handleSelectCourse}
+              availableSections={availableSections}
+              loadingSections={loadingSections}
+              sectionsError={sectionsError}
+              selectedSections={selectedSections}
+              onAddSectionGroup={handleAddSectionGroup}
+              onRemoveSection={handleRemoveSection}
+            />
+          </div>
+          <div className="chat-conversation-panel" aria-label="Conversation panel">
+            <ConversationalAssistant
+              defaultProfileId={compatProfileId}
+              defaultWorkHours={compatWorkHours}
+              defaultDifficulty={compatDifficulty}
+              defaultSatisfaction={compatSatisfaction}
+              defaultRecentCourses={compatRecentInput}
+              selectedSections={selectedSections}
+              onOverrideHandoff={handleOverrideHandoff}
+            />
+          </div>
         </div>
       )}
     </main>

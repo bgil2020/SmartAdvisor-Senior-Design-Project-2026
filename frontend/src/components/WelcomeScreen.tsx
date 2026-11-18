@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react';
+import type { AppView } from '../utils/viewRouting';
 
 interface WelcomeScreenProps {
-  onNavigate: (view: 'forms' | 'chat') => void;
+  onNavigate: (view: AppView) => void;
 }
 
 const featureCard: CSSProperties = {

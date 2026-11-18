@@ -242,6 +242,8 @@ export interface ConversationRequest {
   preferred_max_credits?: number | null;
   recent_courses?: string[] | null;
   term?: string | number | null;
+  sections?: import('../utils/planningSelection').ConversationSectionContext[] | null;
+  selected_sections?: import('../utils/planningSelection').ConversationSectionContext[] | null;
   session_evidence?: import('../utils/sessionEvidence').SessionEvidenceRecord[];
   session_context?: import('../utils/sessionEvidence').SessionSourceContext | null;
 }
