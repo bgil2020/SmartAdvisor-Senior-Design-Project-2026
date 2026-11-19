@@ -4,6 +4,7 @@ import StudentDashboard from './components/StudentDashboard';
 import StudentLogin from './components/StudentLogin';
 import SemesterHistory from './components/SemesterHistory';
 import { ConversationalAssistant } from './components/ConversationalAssistant';
+import { supabase } from './lib/supabase';
 import {
   getCourses,
   getSections,
@@ -102,6 +103,36 @@ const SYNTHETIC_PROFILES: SyntheticProfile[] = [
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [studentName, setStudentName] = useState('');
+  const [authReady, setAuthReady] = useState(false);
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (
+          event === 'INITIAL_SESSION' ||
+          event === 'SIGNED_IN' ||
+          event === 'SIGNED_OUT'
+        ) {
+          const user = session?.user;
+
+          setStudentName(
+            user
+              ? String(user.user_metadata?.full_name || 'Student')
+              : ''
+          );
+
+          setIsLoggedIn(Boolean(user));
+          setAuthReady(true);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // --- 1. Real Course & Section State ---
+  // Keep all your existing course code below this line.
+
   // --- 1. Real Course & Section State ---
   const [courses, setCourses] = useState<RawCourseRecord[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -422,9 +453,23 @@ export default function App() {
         setLoadingCompat(false);
       });
   };
+  if (!authReady) {
+  return (
+    <main style={{ padding: '2rem' }}>
+      Loading SmartAdvisor...
+    </main>
+  );
+}
   if (!isLoggedIn) {
-    return <StudentLogin onLogin={() => setIsLoggedIn(true)} />;
-  }
+  return (
+    <StudentLogin
+      onLogin={(name) => {
+        setStudentName(name);
+        setIsLoggedIn(true);
+      }}
+    />
+  );
+}
   return (
     <main style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '2rem' }}>
       <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '2rem', textAlign: 'left' }}>
@@ -434,6 +479,38 @@ export default function App() {
           <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: '#1f2937' }}>
             SmartAdvisor Integrated Dashboard
           </h1>
+          <p style={{
+  fontSize: '1.1rem',
+  color: '#17365d',
+  fontWeight: 600,
+  marginTop: '8px'
+}}>
+  Welcome, {studentName}!
+</p>
+
+<button
+  type="button"
+  onClick={async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      alert('Unable to log out. Please try again.');
+    }
+  }}
+  style={{
+    marginTop: '12px',
+    padding: '10px 20px',
+    backgroundColor: '#17365d',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontWeight: 600
+  }}
+>
+  Log Out
+</button>
+
           <p style={{ color: '#4b5563', fontSize: '0.875rem' }}>
             Real course catalog, section scheduling, conflict resolution & compatibility support
           </p>
