@@ -190,6 +190,30 @@ def test_rag_provider_enforces_shared_request_budget_before_transport(monkeypatc
     assert client.models.generate_content.call_count == 1
 
 
+def test_rag_provider_allows_exactly_two_combined_turns_before_transport_block(monkeypatch):
+    client = MagicMock()
+    client.models.generate_content.return_value = SimpleNamespace(
+        text=json.dumps({"answer": "Grounded answer.", "cited_source_ids": ["rag:cop-description"]})
+    )
+    monkeypatch.setenv("GEMINI_TEST_REQUEST_BUDGET", "2")
+    provider = GeminiRAGProvider(api_key="test-key", client=client)
+
+    provider.generate("First grounded question?", [chunk()])
+    provider.generate("Different grounded follow-up?", [chunk()])
+    with pytest.raises(ProviderRequestBudgetExhausted):
+        provider.generate("Unexpected third question?", [chunk()])
+
+    assert client.models.generate_content.call_count == 2
+    assert all(
+        call.kwargs["model"] == "gemini-3.5-flash-lite"
+        for call in client.models.generate_content.call_args_list
+    )
+    assert all(
+        call.kwargs["config"].max_output_tokens == 512
+        for call in client.models.generate_content.call_args_list
+    )
+
+
 def _candidate(record, batch_id):
     return {"schema_version": "1.0", "batch_id": batch_id, "delivery_mode": "partial", "created_at": "2026-11-01T00:00:00Z", "source_manifest": "test", "records": [record], "outcomes": [], "limitations": ["synthetic fixture"]}
 

@@ -52,6 +52,20 @@ class FailingFixtureGenerationProvider(BaseRAGProvider):
         raise TimeoutError("offline forced provider failure")
 
 
+class CountingFixtureGenerationProvider(BaseRAGProvider):
+    model_id = "gemini-3.5-flash-lite"
+
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, question, evidence):
+        self.calls += 1
+        return GroundedProposal(
+            answer="The cited grading evidence answers this question.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
 def test_conversation_route_accepts_fixture_generation_with_citation_and_model(monkeypatch):
     monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: FixtureGenerationProvider())
     data = ask(
@@ -98,6 +112,53 @@ def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():
     assert follow_up["acquisition"]["session_evidence_matched"] == 1
     assert follow_up["acquisition"]["session_evidence_reused"] is True
     assert follow_up["source_scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"}
+
+
+def test_combined_acquisition_provider_generation_and_follow_up_reuse_offline(monkeypatch):
+    acquired_record = record()
+    acquisition_calls = 0
+
+    def fake_acquisition(*_args):
+        nonlocal acquisition_calls
+        acquisition_calls += 1
+        return {
+            "status": "acquired",
+            "probe_status": "anonymous_full_document",
+            "record": acquired_record,
+            "request_count": 1,
+            "actual_observed_responses": 12,
+            "cleanup": "completed",
+        }
+
+    provider = CountingFixtureGenerationProvider()
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setattr("backend.conversational_router.acquire_exact_syllabus", fake_acquisition)
+    monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: provider)
+    context = {"course_code": "COP4331", "term_id": "202608", "section": "002"}
+
+    first = ask("What grading information is in the syllabus for COP 4331?", [], context)
+    assert first["acquisition"]["status"] == "acquired"
+    assert first["acquisition"]["additional_source_acquisitions"] == 1
+    assert first["generation_source"] == "provider"
+    assert first["generation_fallback_used"] is False
+    assert first["model_id"] == "gemini-3.5-flash-lite"
+    assert len(first["acquired_evidence"]) == 1
+
+    follow_up = ask(
+        "Which letter grade ranges are listed in that same syllabus grading scale?",
+        first["acquired_evidence"],
+        first["source_scope"],
+    )
+    assert follow_up["generation_source"] == "provider"
+    assert follow_up["generation_fallback_used"] is False
+    assert follow_up["model_id"] == "gemini-3.5-flash-lite"
+    assert follow_up["acquisition"]["additional_source_acquisitions"] == 0
+    assert follow_up["acquisition"]["session_evidence_submitted"] == 1
+    assert follow_up["acquisition"]["session_evidence_accepted"] == 1
+    assert follow_up["acquisition"]["session_evidence_matched"] == 1
+    assert follow_up["acquisition"]["session_evidence_reused"] is True
+    assert acquisition_calls == 1
+    assert provider.calls == 2
 
 
 def test_reuses_localized_redirect_source_with_zero_acquisition(monkeypatch):

@@ -1,13 +1,15 @@
-"""One separately approved CAP4773 acquisition through the local chatbot UI.
+"""One separately approved CAP4773 acquisition and two-turn Gemini UI check.
 
 Diagnostics exclude source/answer text, prompts, signatures, credentials, and
 private data. Running this file requires a new explicit live-source approval.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
+import re
 import secrets
 import socket
 import subprocess
@@ -18,14 +20,17 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 FRONTEND_URL = "http://127.0.0.1:14173"
 BACKEND_URL = "http://127.0.0.1:18100"
+MODEL = "gemini-3.5-flash-lite"
 EXPECTED_SCOPE = {"course_code": "CAP4773", "term_id": "202608", "section": "001"}
 EXPECTED_DOCUMENT = "fjhz2vvga"
 EXPECTED_URL = "https://fau.simplesyllabus.com/doc/fjhz2vvga/Fall-2026-1-Full-Term-CAP-4773-001-Intro-Data-Science-Analytics?mode=view"
 CHROME_PATH = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-EVIDENCE_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-acquisition-reuse-next.json"
-SCREENSHOT_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-ui-reuse-next-redacted.png"
+EVIDENCE_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-acquisition-gemini-reuse-next.json"
+SCREENSHOT_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-ui-gemini-reuse-next-redacted.png"
 
 
 def require(condition: bool, message: str) -> None:
@@ -45,15 +50,18 @@ def sanitized_diagnostics(payload: dict[str, Any] | None) -> dict[str, Any]:
     citation = citations[0] if citations and isinstance(citations[0], dict) else {}
     return {
         "schema_version": "1.0",
-        "attempt_label": "future-acquisition-and-evidence-reuse-requires-separate-approval",
+        "attempt_label": "future-acquisition-gemini-and-evidence-reuse-requires-separate-approval",
         "conclusion": "in_progress",
-        "tested_head": "0fca051c6b43108a8fc6d33a8566b26b19893c4f",
+        "tested_head": "f9a79fb33c51805dc57fb9861bb297f1332d6ac9",
+        "combined_harness_uncommitted": True,
         "response": {
             "status": payload.get("status"),
             "response_code": payload.get("response_code"),
             "source_scope": payload.get("source_scope"),
             "generation_source": payload.get("generation_source"),
             "generation_fallback_used": payload.get("generation_fallback_used"),
+            "model_id": payload.get("model_id"),
+            "answer_support_check": "unknown",
         },
         "acquisition": {
             "final_status": acquisition.get("status"),
@@ -104,6 +112,12 @@ def sanitized_diagnostics(payload: dict[str, Any] | None) -> dict[str, Any]:
         },
         "follow_up": None,
         "preflight": None,
+        "provider": {
+            "model": MODEL,
+            "request_budget": 2,
+            "accepted_provider_answers": 0,
+            "automatic_retries": 0,
+        },
         "artifacts": {"redacted_screenshot": None, "diagnostics": str(EVIDENCE_PATH)},
         "cleanup": {"browser_closed": "unknown", "backend_stopped": "unknown", "frontend_stopped": "unknown"},
         "failure": None,
@@ -122,6 +136,8 @@ def sanitized_follow_up(payload: dict[str, Any] | None) -> dict[str, Any]:
         "source_scope": payload.get("source_scope"),
         "generation_source": payload.get("generation_source"),
         "generation_fallback_used": payload.get("generation_fallback_used"),
+        "model_id": payload.get("model_id"),
+        "answer_support_check": "unknown",
         "acquisition_status": acquisition.get("status"),
         "additional_source_acquisitions": acquisition.get("additional_source_acquisitions"),
         "session_evidence_submitted": acquisition.get("session_evidence_submitted"),
@@ -139,7 +155,46 @@ def sanitized_follow_up(payload: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def preflight() -> dict[str, Any]:
+def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    """Conservatively check cited locators and numeric claims without retaining text."""
+    citations = payload.get("citations") if isinstance(payload.get("citations"), list) else []
+    sections = record.get("academic_sections") if isinstance(record.get("academic_sections"), list) else []
+    by_locator = {
+        str(section.get("locator")): str(section.get("text", ""))
+        for section in sections
+        if isinstance(section, dict)
+    }
+    cited_texts = [by_locator.get(str(item.get("locator"))) for item in citations if isinstance(item, dict)]
+    locators_resolved = bool(citations) and all(text is not None for text in cited_texts)
+    source_text = " ".join(text or "" for text in cited_texts)
+    answer = str(payload.get("response_text", ""))
+    answer_without_citations = re.sub(r"\[[^\]]+\]", "", answer)
+    number_pattern = r"\b\d+(?:\.\d+)?%?\b"
+    answer_numbers = set(re.findall(number_pattern, answer_without_citations))
+    source_numbers = set(re.findall(number_pattern, source_text))
+    identity_text = " ".join([
+        str(record.get("course_code", "")),
+        str((record.get("term_scope") or {}).get("term_id", "")),
+        str((record.get("section_scope") or {}).get("section", "")),
+    ])
+    source_numbers.update(re.findall(r"\d+(?:\.\d+)?%?", identity_text))
+    numeric_claims_supported = answer_numbers.issubset(source_numbers)
+    citation_ids = {
+        str(item.get("source_id"))
+        for item in citations
+        if isinstance(item, dict) and item.get("source_id")
+    }
+    citations_inline = bool(citation_ids) and all(f"[{source_id}]" in answer for source_id in citation_ids)
+    return {
+        "passed": locators_resolved and numeric_claims_supported and citations_inline,
+        "cited_locators_resolved": locators_resolved,
+        "numeric_claim_count": len(answer_numbers),
+        "numeric_claims_supported": numeric_claims_supported,
+        "citation_ids_inline": citations_inline,
+    }
+
+
+def preflight(*, require_provider_key: bool = False) -> dict[str, Any]:
     """Fail before starting local servers or a source-capable browser."""
     require(CHROME_PATH.is_file(), "Installed Chrome executable was not found")
     require((ROOT / "frontend" / "node_modules" / "vite" / "bin" / "vite.js").is_file(), "Vite dependency is missing")
@@ -149,6 +204,14 @@ def preflight() -> dict[str, Any]:
     ) == ("CAP4773", "202608", "001", EXPECTED_DOCUMENT, EXPECTED_URL)]
     require(len(matches) == 1, "Exact approved CAP4773 mapping was not found")
     require(not EVIDENCE_PATH.exists() and not SCREENSHOT_PATH.exists(), "Future-attempt artifact path already exists")
+    generation_code = (ROOT / "backend" / "rag" / "generation.py").read_text(encoding="utf-8")
+    require("retry_options=types.HttpRetryOptions(attempts=1)" in generation_code, "Provider retry bound changed")
+    key_matches_account_evidence: bool | str = "not_checked_offline"
+    if require_provider_key:
+        provider_key = os.getenv("GEMINI_API_KEY", "").strip()
+        require(bool(provider_key), "GEMINI_API_KEY is not present in the effective environment")
+        require(provider_key.endswith("MXzQ"), "Configured Gemini key does not match the approved account evidence")
+        key_matches_account_evidence = True
     for port in (14173, 18100):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.bind(("127.0.0.1", port))
@@ -157,7 +220,13 @@ def preflight() -> dict[str, Any]:
         cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30, check=False,
     )
     require(offline.returncode == 0, "Offline acquisition prerequisites failed")
-    return {"mapping_verified": True, "ports_idle": True, "offline_tests_passed": True}
+    return {
+        "mapping_verified": True,
+        "ports_idle": True,
+        "offline_tests_passed": True,
+        "provider_retries": 0,
+        "configured_key_matches_account_evidence": key_matches_account_evidence,
+    }
 
 
 def write_diagnostics(diagnostics: dict[str, Any]) -> None:
@@ -209,8 +278,11 @@ async def execute() -> dict[str, Any]:
     environment = os.environ.copy()
     environment.update({
         "CONVERSATIONAL_PARSER_MODE": "deterministic",
-        "RAG_GENERATION_MODE": "fallback",
-        "GEMINI_API_KEY": "",
+        "RAG_GENERATION_MODE": "gemini",
+        "GEMINI_MODEL": MODEL,
+        "GEMINI_TIMEOUT_SECONDS": "10",
+        "GEMINI_MAX_OUTPUT_TOKENS": "512",
+        "GEMINI_TEST_REQUEST_BUDGET": "2",
         "SESSION_EVIDENCE_SIGNING_KEY": signing_key,
         "CATALOG_ACQUISITION_ENABLED": "false",
         "SYLLABUS_ACQUISITION_ENABLED": "true",
@@ -234,7 +306,7 @@ async def execute() -> dict[str, Any]:
     diagnostics_path_available = not EVIDENCE_PATH.exists()
     failure: BaseException | None = None
     try:
-        preflight_result = preflight()
+        preflight_result = preflight(require_provider_key=True)
         diagnostics["preflight"] = preflight_result
         backend = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "backend.api:app", "--host", "127.0.0.1", "--port", "18100", "--workers", "1"],
@@ -259,7 +331,9 @@ async def execute() -> dict[str, Any]:
 
         page.on("request", observe_request)
         diagnostics["failure_stage"] = "ui_submission"
-        await page.goto(f"{FRONTEND_URL}/chatbot", wait_until="networkidle")
+        await page.goto(FRONTEND_URL, wait_until="networkidle")
+        await page.get_by_role("button", name="Open SmartAdvisor Chat").click()
+        require(page.url.endswith("/chatbot"), "Home did not navigate to /chatbot")
         await page.locator("details.conversation-context-controls summary").click()
         await page.get_by_label("Source term").fill("202608")
         await page.get_by_label("Source section").fill("001")
@@ -303,6 +377,15 @@ async def execute() -> dict[str, Any]:
         provenance = record.get("session_provenance") or {}
         citations = payload.get("citations") or []
         citation = citations[0] if citations else {}
+        first_support = support_check(payload, record)
+        diagnostics["response"]["answer_support_check"] = first_support
+        diagnostics["provider"]["accepted_provider_answers"] = int(
+            payload.get("generation_source") == "provider"
+            and payload.get("generation_fallback_used") is False
+            and payload.get("model_id") == MODEL
+        )
+        if diagnostics_path_available:
+            write_diagnostics(diagnostics)
         require(response.status == 200, "Conversation HTTP status was not successful")
         require(len(conversation_requests) == 1, "Expected exactly one UI conversation submission")
         require(not request_body.get("session_evidence"), "Request unexpectedly supplied prior session evidence")
@@ -317,7 +400,10 @@ async def execute() -> dict[str, Any]:
         require(acquisition.get("essential_document_failures") == 0, "An essential document failure was observed")
         require(payload.get("status") == "grounded_answer", "Response was not grounded")
         require(payload.get("source_scope") == EXPECTED_SCOPE, "Returned source scope did not match approval")
-        require(payload.get("generation_source") != "provider" and not payload.get("model_id"), "Unexpected provider generation was used")
+        require(payload.get("generation_source") == "provider", "First answer was not accepted provider generation")
+        require(payload.get("generation_fallback_used") is False, "First answer used fallback generation")
+        require(payload.get("model_id") == MODEL, "First answer used the wrong generation model")
+        require(first_support["passed"] is True, "First answer was not supported by its cited acquired evidence")
         require(len(evidence) == 1, "Expected one acquired evidence record")
         require(record.get("record_category") == "syllabus", "Evidence category was not syllabus")
         require(record.get("course_code") == "CAP4773", "Evidence course identity mismatch")
@@ -358,6 +444,8 @@ async def execute() -> dict[str, Any]:
         follow_acquisition = follow_payload.get("acquisition") if isinstance(follow_payload.get("acquisition"), dict) else {}
         follow_citations = follow_payload.get("citations") if isinstance(follow_payload.get("citations"), list) else []
         follow_citation = follow_citations[0] if follow_citations else {}
+        follow_support = support_check(follow_payload, record)
+        follow_diagnostics["answer_support_check"] = follow_support
         budget = acquisition.get("test_budget") if isinstance(acquisition.get("test_budget"), dict) else {}
         follow_diagnostics["acquisition_budget_remaining_after_first"] = (
             budget.get("limit") - budget.get("used")
@@ -376,6 +464,13 @@ async def execute() -> dict[str, Any]:
             and follow_acquisition.get("session_evidence_reused") is True
         )
         diagnostics["evidence"]["backend_acceptance_via_follow_up"] = backend_accepted_reuse
+        diagnostics["provider"]["accepted_provider_answers"] = sum(
+            1
+            for item in (payload, follow_payload)
+            if item.get("generation_source") == "provider"
+            and item.get("generation_fallback_used") is False
+            and item.get("model_id") == MODEL
+        )
 
         # Persist the complete two-turn metadata and redacted UI before assertions.
         await capture_redacted_screenshot(page, diagnostics)
@@ -394,7 +489,10 @@ async def execute() -> dict[str, Any]:
         require(follow_payload.get("status") == "grounded_answer", "Follow-up was not source grounded")
         require(follow_payload.get("response_code") == "SESSION_EVIDENCE_ANSWER", "Follow-up evidence was insufficient")
         require(follow_payload.get("source_scope") == EXPECTED_SCOPE, "Follow-up source scope did not match")
-        require(follow_payload.get("generation_source") != "provider" and not follow_payload.get("model_id"), "Follow-up unexpectedly used provider generation")
+        require(follow_payload.get("generation_source") == "provider", "Follow-up was not accepted provider generation")
+        require(follow_payload.get("generation_fallback_used") is False, "Follow-up used fallback generation")
+        require(follow_payload.get("model_id") == MODEL, "Follow-up used the wrong generation model")
+        require(follow_support["passed"] is True, "Follow-up answer was not supported by its cited retained evidence")
         require(bool(follow_citations) and follow_citation.get("record_id") == record.get("record_id"), "Follow-up citation record identity mismatch")
         require(EXPECTED_DOCUMENT in str(follow_citation.get("url", "")), "Follow-up citation document identity mismatch")
         require(follow_diagnostics["citation_rendered"] is True, "Follow-up citation was not rendered in the UI")
@@ -432,5 +530,17 @@ async def bounded() -> dict[str, Any]:
     return await asyncio.wait_for(execute(), timeout=90.0)
 
 
-if __name__ == "__main__":
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--approved-live-combined", action="store_true")
+    args = parser.parse_args()
+    require(
+        args.approved_live_combined,
+        "Combined live verification requires explicit approval and --approved-live-combined",
+    )
     print(json.dumps(asyncio.run(bounded()), sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

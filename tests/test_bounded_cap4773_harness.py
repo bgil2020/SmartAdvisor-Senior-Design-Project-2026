@@ -30,6 +30,12 @@ def test_harness_sanitizer_preserves_status_counts_and_validation_metadata():
     assert diagnostics["acquisition"]["observed_browser_responses"] == 23
     assert diagnostics["evidence"]["backend_acceptance_via_follow_up"] == "unknown"
     assert diagnostics["citation"]["rendered"] == "unknown"
+    assert diagnostics["provider"] == {
+        "model": "gemini-3.5-flash-lite",
+        "request_budget": 2,
+        "accepted_provider_answers": 0,
+        "automatic_retries": 0,
+    }
 
 
 def test_harness_sanitizer_never_persists_raw_text_prompt_or_signature():
@@ -88,6 +94,34 @@ def test_follow_up_sanitizer_records_backend_acceptance_and_zero_reacquisition()
     assert follow_up["citation_url_matches_document"] is True
 
 
+def test_support_check_resolves_citations_and_rejects_unsupported_numeric_claims():
+    record = {
+        "course_code": "CAP4773",
+        "academic_sections": [{
+            "locator": "heading:Course Grading Scale",
+            "text": "A is 94% to 100%; B+ is 87% to 89%.",
+        }],
+    }
+    supported = harness.support_check({
+        "response_text": "For CAP 4773, B+ is 87% to 89%. [source-1]",
+        "citations": [{"source_id": "source-1", "locator": "heading:Course Grading Scale"}],
+    }, record)
+    unsupported = harness.support_check({
+        "response_text": "B+ is 80% to 89%. [source-1]",
+        "citations": [{"source_id": "source-1", "locator": "heading:Course Grading Scale"}],
+    }, record)
+
+    assert supported == {
+        "passed": True,
+        "cited_locators_resolved": True,
+        "numeric_claim_count": 3,
+        "numeric_claims_supported": True,
+        "citation_ids_inline": True,
+    }
+    assert unsupported["passed"] is False
+    assert unsupported["numeric_claims_supported"] is False
+
+
 def test_failure_diagnostics_are_written_and_execution_persists_before_assertions(tmp_path, monkeypatch):
     evidence_path = tmp_path / "failure.json"
     monkeypatch.setattr(harness, "EVIDENCE_PATH", evidence_path)
@@ -137,3 +171,22 @@ def test_cleanup_helper_accepts_an_already_stopped_process(monkeypatch):
 
     monkeypatch.setattr(harness.subprocess, "run", lambda *_args, **_kwargs: pytest.fail("taskkill should not run"))
     assert harness.stop_tree(StoppedProcess()) is True
+
+
+def test_combined_harness_is_inert_without_explicit_approval(monkeypatch):
+    monkeypatch.setattr(harness.argparse.ArgumentParser, "parse_args", lambda _self: type("Args", (), {"approved_live_combined": False})())
+    monkeypatch.setattr(harness.asyncio, "run", lambda *_args, **_kwargs: pytest.fail("live harness should not run"))
+    with pytest.raises(RuntimeError, match="explicit approval"):
+        harness.main()
+
+
+def test_combined_execute_configures_two_provider_calls_and_no_retries():
+    source = inspect.getsource(harness.execute)
+    assert '"RAG_GENERATION_MODE": "gemini"' in source
+    assert '"GEMINI_MODEL": MODEL' in source
+    assert '"GEMINI_TIMEOUT_SECONDS": "10"' in source
+    assert '"GEMINI_MAX_OUTPUT_TOKENS": "512"' in source
+    assert '"GEMINI_TEST_REQUEST_BUDGET": "2"' in source
+    assert '"ACQUISITION_TEST_CATALOG_BUDGET": "0"' in source
+    assert '"ACQUISITION_TEST_SYLLABUS_BUDGET": "1"' in source
+    assert "preflight(require_provider_key=True)" in source
