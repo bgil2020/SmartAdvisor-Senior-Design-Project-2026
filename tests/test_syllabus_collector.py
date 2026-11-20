@@ -13,7 +13,7 @@ from backend.syllabi.models import syllabus_content_hash
 from backend.syllabi.browser_probe import BrowserProbeLimits, probe_browser_session
 from backend.syllabi.parser import SyllabusParseError, classify_browser_observation, classify_page, parse_rendered_syllabus
 from backend.syllabi.probe import probe_documents
-from backend.syllabi.storage import accept_batch, rollback_accepted, validate_batch
+from backend.syllabi.storage import accept_batch, rollback_accepted, validate_batch, validate_record
 from scripts.syllabus_browser_collect import classify_response_role
 
 FIXTURES = Path(__file__).parent / "syllabi" / "fixtures"
@@ -90,6 +90,15 @@ def test_empty_shell_with_essential_403_is_generic_denial_not_login_requirement(
     assert classify_browser_observation(shell, exact_url, failed_requests=failures) == "generic_access_denied"
 
 
+def test_localized_document_redirect_preserves_exact_source_identity():
+    parsed = record()
+    parsed["source"]["url"] = "https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/Fall-2026-COP-4331-002?mode=view"
+    assert validate_record(parsed) == []
+
+    parsed["source"]["url"] = "https://fau.simplesyllabus.com/en-US/doc/different/Fall-2026-EEL-3111-001?mode=view"
+    assert "source.url document identity does not match source_id" in validate_record(parsed)
+
+
 def test_browser_probe_stops_first_repeating_denial_and_reports_request_counts():
     session = FakeBrowserSession([
         {"kind": "response", "role": "essential_document", "status": 403},
@@ -150,6 +159,20 @@ def test_browser_probe_enforces_total_response_budget():
     result = probe_browser_session(session, "https://fau.simplesyllabus.com/doc/exact?mode=view", limits=BrowserProbeLimits(total_response_budget=3))
     assert result["stop_reason"] == "total_response_budget_exhausted"
     assert result["actual_observed_responses"] == 3
+    assert session.cancelled and session.closed
+
+
+def test_browser_probe_enforces_rendered_document_byte_limit():
+    session = FakeBrowserSession([
+        {"kind": "snapshot", "html": "x" * 2048, "final_url": "https://fau.simplesyllabus.com/doc/exact?mode=view"},
+    ])
+    result = probe_browser_session(
+        session,
+        "https://fau.simplesyllabus.com/doc/exact?mode=view",
+        limits=BrowserProbeLimits(max_rendered_html_bytes=1024),
+    )
+    assert result["status"] == "response_too_large"
+    assert result["stop_reason"] == "rendered_document_byte_limit_exhausted"
     assert session.cancelled and session.closed
 
 

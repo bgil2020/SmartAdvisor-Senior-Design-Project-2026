@@ -87,7 +87,7 @@ def is_future_rag_candidate(message: str, extractor_result: dict) -> bool:
         return True
     if re.search(r'\bpolicy\b.*\bsay\b', msg):
         return True
-    if re.search(r'\bcatalog description\b', msg):
+    if re.search(r'\b(?:catalog|course) description\b', msg):
         return True
     if re.search(r'\b(grading|grade breakdown|attendance|late work|textbooks?|assignments?|exams?|office hours|instructor|learning outcomes?|syllabus)\b', msg):
         return True

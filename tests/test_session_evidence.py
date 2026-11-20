@@ -12,6 +12,7 @@ os.environ["SESSION_EVIDENCE_SIGNING_KEY"] = "test-only-session-evidence-key-32-
 
 from backend.conversational_router import ConversationRequest, handle_conversation
 from backend.session_evidence import attach_provenance, validate_session_records
+from backend.rag.generation import BaseRAGProvider, GroundedProposal
 from backend.syllabi.models import stable_syllabus_id, syllabus_content_hash
 from backend.syllabi.parser import parse_rendered_syllabus
 
@@ -34,6 +35,51 @@ def ask(message: str, evidence: list[dict], context: dict | None = None) -> dict
     return response.model_dump()
 
 
+class FixtureGenerationProvider(BaseRAGProvider):
+    model_id = "offline-fixture-provider"
+
+    def generate(self, question, evidence):
+        return GroundedProposal(
+            answer="The fixture identifies tests and quizzes as assessment components.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
+class FailingFixtureGenerationProvider(BaseRAGProvider):
+    model_id = "offline-fixture-provider"
+
+    def generate(self, question, evidence):
+        raise TimeoutError("offline forced provider failure")
+
+
+def test_conversation_route_accepts_fixture_generation_with_citation_and_model(monkeypatch):
+    monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: FixtureGenerationProvider())
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [record()],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+    assert data["response_code"] == "SESSION_EVIDENCE_ANSWER"
+    assert data["generation_source"] == "provider"
+    assert data["generation_fallback_used"] is False
+    assert data["model_id"] == "offline-fixture-provider"
+    assert data["citations"]
+    assert data["citations"][0]["source_id"] in data["response_text"]
+
+
+def test_conversation_route_labels_fixture_provider_failure_as_fallback(monkeypatch):
+    monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: FailingFixtureGenerationProvider())
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [record()],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+    assert data["generation_source"] == "source_excerpt_fallback"
+    assert data["generation_fallback_used"] is True
+    assert data["model_id"] == "offline-fixture-provider"
+    assert data["citations"]
+
+
 def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():
     evidence = [record()]
     first = ask("What does the grading section say for COP 4331?", evidence, {"course_code": "COP4331", "term_id": "202608", "section": "002"})
@@ -46,12 +92,45 @@ def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():
     assert follow_up["source_scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"}
 
 
+def test_reuses_localized_redirect_source_with_zero_acquisition(monkeypatch):
+    localized = {key: value for key, value in record().items() if key != "session_provenance"}
+    localized["source"] = {
+        **localized["source"],
+        "url": "https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/Fall-2026-COP-4331-002?mode=view",
+    }
+    localized = attach_provenance(localized)
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    data = ask(
+        "What are the learning outcomes for that class?",
+        [localized],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+    assert data["status"] == "grounded_answer"
+    assert data["acquisition"]["additional_source_acquisitions"] == 0
+    assert data["citations"][0]["url"].startswith("https://fau.simplesyllabus.com/en-US/doc/sb4d8l8wb/")
+
+
 def test_missing_information_does_not_refetch_loop():
     data = ask("What does the COP 4331 syllabus say about the cafeteria menu?", [record()], {"course_code": "COP4331", "term_id": "202608", "section": "002"})
     assert data["status"] == "grounded_answer"
     assert data["response_code"] == "SESSION_EVIDENCE_INSUFFICIENT"
     assert data["acquisition"]["additional_source_acquisitions"] == 0
     assert "did not refetch" in data["response_text"]
+
+
+def test_nearby_legitimate_questions_still_retrieve_after_stop_word_fix():
+    evidence = [record()]
+    context = {"course_code": "COP4331", "term_id": "202608", "section": "002"}
+    cases = {
+        "What is the course description for this class?": "course description",
+        "What does the grading section say for COP 4331?": "assessments",
+        "Which software design skills are learning outcomes?": "learning",
+    }
+    for question, expected_locator in cases.items():
+        data = ask(question, evidence, context)
+        assert data["response_code"] == "SESSION_EVIDENCE_ANSWER"
+        assert data["acquisition"]["additional_source_acquisitions"] == 0
+        assert any(expected_locator in str(item["locator"]).casefold() for item in data["citations"])
 
 
 def test_tampered_client_verification_is_rejected():
@@ -147,3 +226,28 @@ def test_concurrent_exact_acquisition_is_deduplicated(monkeypatch):
         results = list(pool.map(lambda _index: runtime.acquire_exact_syllabus("COP4331", "202608", "002"), range(2)))
     assert calls == 1
     assert [item["status"] for item in results] == ["generic_access_denied", "generic_access_denied"]
+
+
+def test_syllabus_test_budget_blocks_second_browser_start(monkeypatch):
+    from backend.acquisition_budget import reset_test_budgets
+    from backend.syllabi import runtime
+
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("ACQUISITION_BROWSER_MODE", "headed")
+    monkeypatch.setenv("ACQUISITION_TEST_SYLLABUS_BUDGET", "1")
+    monkeypatch.setattr(runtime, "_mapping", lambda *_args: {"view_url": "https://fau.simplesyllabus.com/doc/test/exact"})
+    reset_test_budgets()
+    starts = 0
+
+    def fake_run(_mapping):
+        nonlocal starts
+        starts += 1
+        return {"status": "generic_access_denied", "record": None, "request_count": 1, "duration_ms": 1, "cleanup": "completed"}
+
+    monkeypatch.setattr(runtime, "_run_mapping", fake_run)
+    first = runtime.acquire_exact_syllabus("COP4331", "202608", "002")
+    second = runtime.acquire_exact_syllabus("COP4331", "202608", "002")
+    assert first["status"] == "generic_access_denied"
+    assert second["status"] == "acquisition_budget_exhausted"
+    assert second["request_count"] == 0
+    assert starts == 1

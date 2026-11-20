@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 
 from backend.course_descriptions.runtime import acquire_exact_course_description
+from backend.acquisition_budget import reset_test_budgets
 from backend.session_evidence import validate_session_records
 
 FIXTURE = Path(__file__).parent / "course_descriptions" / "fixtures" / "detail_full.html"
@@ -81,3 +82,25 @@ def test_catalog_acquisition_is_deduplicated(monkeypatch):
     assert calls == 1
     assert [result["status"] for result in results] == ["acquired", "acquired"]
     assert sum(result.get("request_count", 0) for result in results) == 1
+
+
+def test_catalog_test_budget_blocks_second_request_before_transport(monkeypatch):
+    monkeypatch.setenv("CATALOG_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("ACQUISITION_TEST_CATALOG_BUDGET", "1")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "catalog-session-test-key-at-least-32-bytes")
+    reset_test_budgets()
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, text=FIXTURE.read_text(encoding="utf-8"), request=request)
+
+    client = client_for(handler)
+    first = acquire_exact_course_description("COP4331", client=client)
+    second = acquire_exact_course_description("COP4331", client=client)
+    client.close()
+    assert first["status"] == "acquired"
+    assert second["status"] == "acquisition_budget_exhausted"
+    assert second["request_count"] == 0
+    assert calls == 1

@@ -93,6 +93,11 @@ class TestResponsePolicy(unittest.TestCase):
         self.assertEqual(resp["target_handler"], "future_informational_rag")
         self.assertTrue(resp["future_rag_candidate"])
 
+    def test_course_description_is_future_rag_candidate(self):
+        resp = build_conversation_response("What is the course description for COP 4331?")
+        self.assertEqual(resp["disposition"], "future_rag_candidate")
+        self.assertEqual(resp["target_handler"], "future_informational_rag")
+
     def test_future_rag_candidate_policy(self):
         # 11. "What does the online override policy say?" is a future RAG candidate.
         resp = build_conversation_response("What does the online override policy say?")

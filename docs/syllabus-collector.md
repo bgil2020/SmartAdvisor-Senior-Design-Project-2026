@@ -127,7 +127,9 @@ An authenticated adapter is a separate follow-up requiring explicit approval and
 
 ## Limitations and next retrieval step
 
-Verified local coverage is one complete EEL3111 Fall 2026 section 001 syllabus, collected anonymously in the later bounded attempt and imported into the local RAG corpus. CAP4773-001 and COP4331-002 remain manifest identities only. Freshness is limited to the recorded collection time, redistribution remains unresolved, and locally fetched content does not arrive with Git checkout.
+Verified persistent local coverage is one complete EEL3111 Fall 2026 section 001 syllabus, collected anonymously in the later bounded attempt and imported into the local RAG corpus. CAP4773-001 and COP4331-002 remain manifest identities only in the tracked checkout. Freshness is limited to the recorded collection time, redistribution remains unresolved, and locally fetched content does not arrive with Git checkout.
+
+A bounded November 2026 COP4331/202608/002 acquisition validated the approved Fall 2026 document identity, but the acquired record was session-only and was not retained. Its Course Topical Outline contains entries dated in 2025. The source text must not be altered, and those dates are not certified as current. The demo used only the grading-scale and Course Objectives/Student Learning Outcomes passages; neither passage contains the observed date inconsistency. Topical-outline, calendar, and current-schedule claims from this source remain excluded from the demo pending human source-owner review. No raw COP4331 syllabus content is tracked in this repository.
 
 EEL3111-001 was the only document requested in the successful follow-up. CAP4773-001 and COP4331-002 were not re-probed. No account/session reuse, sign-in, credential use, or bypass was attempted.
 
