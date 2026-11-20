@@ -12,6 +12,7 @@ os.environ["SESSION_EVIDENCE_SIGNING_KEY"] = "test-only-session-evidence-key-32-
 
 from backend.conversational_router import ConversationRequest, handle_conversation
 from backend.session_evidence import attach_provenance, validate_session_records
+from backend.rag.generation import BaseRAGProvider, GroundedProposal
 from backend.syllabi.models import stable_syllabus_id, syllabus_content_hash
 from backend.syllabi.parser import parse_rendered_syllabus
 
@@ -32,6 +33,51 @@ def record(section: str = "002", source_id: str = "sb4d8l8wb") -> dict:
 def ask(message: str, evidence: list[dict], context: dict | None = None) -> dict:
     response = handle_conversation(ConversationRequest(message=message, session_evidence=evidence, session_context=context))
     return response.model_dump()
+
+
+class FixtureGenerationProvider(BaseRAGProvider):
+    model_id = "offline-fixture-provider"
+
+    def generate(self, question, evidence):
+        return GroundedProposal(
+            answer="The fixture identifies tests and quizzes as assessment components.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
+class FailingFixtureGenerationProvider(BaseRAGProvider):
+    model_id = "offline-fixture-provider"
+
+    def generate(self, question, evidence):
+        raise TimeoutError("offline forced provider failure")
+
+
+def test_conversation_route_accepts_fixture_generation_with_citation_and_model(monkeypatch):
+    monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: FixtureGenerationProvider())
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [record()],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+    assert data["response_code"] == "SESSION_EVIDENCE_ANSWER"
+    assert data["generation_source"] == "provider"
+    assert data["generation_fallback_used"] is False
+    assert data["model_id"] == "offline-fixture-provider"
+    assert data["citations"]
+    assert data["citations"][0]["source_id"] in data["response_text"]
+
+
+def test_conversation_route_labels_fixture_provider_failure_as_fallback(monkeypatch):
+    monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: FailingFixtureGenerationProvider())
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [record()],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+    assert data["generation_source"] == "source_excerpt_fallback"
+    assert data["generation_fallback_used"] is True
+    assert data["model_id"] == "offline-fixture-provider"
+    assert data["citations"]
 
 
 def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():

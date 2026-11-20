@@ -20,6 +20,7 @@ import re
 from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field, ValidationError, ConfigDict
 from dotenv import load_dotenv
+from backend.app.conversational.provider_limits import claim_provider_request, gemini_max_output_tokens
 
 # Load local environment variables from .env if present
 load_dotenv()
@@ -217,10 +218,12 @@ class GeminiStructuredParser(BaseConversationalParser):
             response_mime_type="application/json",
             response_schema=clean_schema,
             temperature=0.0,
+            max_output_tokens=gemini_max_output_tokens(),
             system_instruction=SYSTEM_INSTRUCTION,
         )
 
         def _call_model():
+            claim_provider_request()
             return client.models.generate_content(
                 model=self.model_name,
                 contents=prompt_content,

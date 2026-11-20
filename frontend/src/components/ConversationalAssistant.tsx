@@ -42,6 +42,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
     <div id={isLatest ? 'conversational-response-card' : undefined} className="assistant-response-card">
       <div className="assistant-response-meta"><span className={`response-status response-${response.status}`}>{responseStatusLabel(response)}</span><span>{response.target_handler} · {response.response_code}</span></div>
       <p>{response.response_text}</p>
+      {response.generation_source === 'provider' && <div className="response-generation"><strong>Live generation:</strong> Accepted Gemini answer{response.model_id ? ` · ${response.model_id}` : ''}</div>}
       {usedSelectedSchedule && <div className="response-context"><strong>Selected schedule sent:</strong> {describeSelectedSections(selection)}</div>}
       {!usedSelectedSchedule && response.extracted_courses.length > 0 && <div className="response-context"><strong>Courses identified in the question:</strong> {response.extracted_courses.join(', ')}</div>}
       {response.citations && response.citations.length > 0 && (

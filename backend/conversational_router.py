@@ -362,6 +362,7 @@ def handle_conversation(req: ConversationRequest):
             acquisition=acquisition,
             rag_executed=True,
             generation_source=rag.generation_source,
+            model_id=rag.model_id,
             generation_fallback_used=rag.generation_fallback_used,
             generation_fallback_reason=rag.generation_fallback_reason,
             rag_sources=rag.sources,

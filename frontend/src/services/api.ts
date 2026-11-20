@@ -272,6 +272,7 @@ export interface ConversationResponse {
   engine_executed: boolean;
   engine_result?: Record<string, unknown> | null;
   disclaimer: string;
+  model_id?: string | null;
   acquired_evidence?: import('../utils/sessionEvidence').SessionEvidenceRecord[];
   citations?: Array<Record<string, unknown>>;
   source_scope?: import('../utils/sessionEvidence').SessionSourceContext | null;
