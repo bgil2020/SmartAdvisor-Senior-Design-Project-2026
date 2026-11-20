@@ -23,13 +23,15 @@ def test_harness_sanitizer_preserves_status_counts_and_validation_metadata():
             "actual_observed_responses": 23,
             "essential_document_failures": 0,
         },
-    })
+    }, code_state={"tested_head": "test-head", "tracked_changes_present": False})
 
     assert diagnostics["acquisition"]["final_status"] == "course_identity_mismatch"
     assert diagnostics["acquisition"]["probe_status"] == "anonymous_full_document"
     assert diagnostics["acquisition"]["observed_browser_responses"] == 23
     assert diagnostics["evidence"]["backend_acceptance_via_follow_up"] == "unknown"
     assert diagnostics["citation"]["rendered"] == "unknown"
+    assert diagnostics["tested_head"] == "test-head"
+    assert diagnostics["combined_harness_uncommitted"] is False
     assert diagnostics["provider"] == {
         "model": "gemini-3.5-flash-lite",
         "request_budget": 2,
@@ -94,32 +96,108 @@ def test_follow_up_sanitizer_records_backend_acceptance_and_zero_reacquisition()
     assert follow_up["citation_url_matches_document"] is True
 
 
-def test_support_check_resolves_citations_and_rejects_unsupported_numeric_claims():
+def test_support_check_accepts_equivalent_decimal_percent_and_range_formatting():
     record = {
         "course_code": "CAP4773",
+        "term_scope": {"term_id": "202608"},
+        "section_scope": {"section": "001"},
         "academic_sections": [{
             "locator": "heading:Course Grading Scale",
-            "text": "A is 94% to 100%; B+ is 87% to 89%.",
+            "text": "A is 90.0% to 100.00%.",
         }],
     }
-    supported = harness.support_check({
-        "response_text": "For CAP 4773, B+ is 87% to 89%. [source-1]",
-        "citations": [{"source_id": "source-1", "locator": "heading:Course Grading Scale"}],
-    }, record)
-    unsupported = harness.support_check({
-        "response_text": "B+ is 80% to 89%. [source-1]",
-        "citations": [{"source_id": "source-1", "locator": "heading:Course Grading Scale"}],
+    result = harness.support_check({
+        "response_text": "For CAP 4773, section 001, A is 90–100. [source-202608-1]",
+        "citations": [{"source_id": "source-202608-1", "locator": "heading:Course Grading Scale"}],
     }, record)
 
-    assert supported == {
-        "passed": True,
-        "cited_locators_resolved": True,
-        "numeric_claim_count": 3,
-        "numeric_claims_supported": True,
-        "citation_ids_inline": True,
+    assert result["passed"] is True
+    assert result["numeric_claim_count"] == 2
+    assert result["numeric_claims_supported"] is True
+    assert result["unsupported_numeric_values"] == []
+    assert result["grade_range_claim_count"] == 1
+    assert result["unsupported_grade_ranges"] == []
+
+
+def test_course_codes_terms_sections_and_citation_ids_are_not_numeric_claims():
+    record = {
+        "course_code": "CAP4773",
+        "term_scope": {"term_id": "202608"},
+        "section_scope": {"section": "001"},
+        "academic_sections": [{"locator": "heading:Summary", "text": "The grading scale is listed."}],
     }
-    assert unsupported["passed"] is False
-    assert unsupported["numeric_claims_supported"] is False
+    result = harness.support_check({
+        "response_text": "CAP 4773 term 202608 section 001 has a grading scale. [rag:cap4773:202608:001:42]",
+        "citations": [{"source_id": "rag:cap4773:202608:001:42", "locator": "heading:Summary"}],
+    }, record)
+
+    assert result["passed"] is True
+    assert result["numeric_claim_count"] == 0
+
+
+def test_incorrect_grade_boundary_is_rejected():
+    record = {
+        "academic_sections": [{"locator": "heading:Scale", "text": "A: 90% to 100%."}],
+    }
+    result = harness.support_check({
+        "response_text": "A: 89% to 100%. [source-1]",
+        "citations": [{"source_id": "source-1", "locator": "heading:Scale"}],
+    }, record)
+
+    assert result["passed"] is False
+    assert result["numeric_claims_supported"] is False
+    assert result["unsupported_numeric_values"] == ["89"]
+
+
+def test_correct_numbers_attached_to_wrong_grade_are_rejected():
+    record = {
+        "academic_sections": [{
+            "locator": "heading:Scale",
+            "text": "A: 90% to 100%; B: 80% to 89%.",
+        }],
+    }
+    result = harness.support_check({
+        "response_text": "B: 90% to 100%. [source-1]",
+        "citations": [{"source_id": "source-1", "locator": "heading:Scale"}],
+    }, record)
+
+    assert result["numeric_claims_supported"] is True
+    assert result["passed"] is False
+    assert result["unsupported_grade_ranges"] == [{"grade": "B", "low": "90", "high": "100"}]
+
+
+def test_correct_percentage_attached_to_wrong_category_is_rejected():
+    record = {
+        "academic_sections": [{
+            "locator": "heading:Weights",
+            "text": "Homework: 20.0%; Exams: 80%.",
+        }],
+    }
+    result = harness.support_check({
+        "response_text": "Exams: 20%. [source-1]",
+        "citations": [{"source_id": "source-1", "locator": "heading:Weights"}],
+    }, record)
+
+    assert result["numeric_claims_supported"] is True
+    assert result["passed"] is False
+    assert result["unsupported_category_percentages"] == [{"category": "exams", "percentage": "20"}]
+
+
+def test_support_is_resolved_only_from_the_cited_evidence_locator():
+    record = {
+        "academic_sections": [
+            {"locator": "heading:Cited", "text": "A: 90% to 100%."},
+            {"locator": "heading:Uncited", "text": "B: 80% to 89%."},
+        ],
+    }
+    result = harness.support_check({
+        "response_text": "B: 80% to 89%. [source-1]",
+        "citations": [{"source_id": "source-1", "locator": "heading:Cited"}],
+    }, record)
+
+    assert result["cited_locators_resolved"] is True
+    assert result["passed"] is False
+    assert result["unsupported_numeric_values"] == ["80", "89"]
 
 
 def test_failure_diagnostics_are_written_and_execution_persists_before_assertions(tmp_path, monkeypatch):

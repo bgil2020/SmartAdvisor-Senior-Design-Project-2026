@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -29,8 +30,8 @@ EXPECTED_SCOPE = {"course_code": "CAP4773", "term_id": "202608", "section": "001
 EXPECTED_DOCUMENT = "fjhz2vvga"
 EXPECTED_URL = "https://fau.simplesyllabus.com/doc/fjhz2vvga/Fall-2026-1-Full-Term-CAP-4773-001-Intro-Data-Science-Analytics?mode=view"
 CHROME_PATH = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-EVIDENCE_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-acquisition-gemini-reuse-next.json"
-SCREENSHOT_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-ui-gemini-reuse-next-redacted.png"
+EVIDENCE_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-acquisition-gemini-reuse-rerun-next.json"
+SCREENSHOT_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-ui-gemini-reuse-rerun-next-redacted.png"
 
 
 def require(condition: bool, message: str) -> None:
@@ -38,7 +39,23 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
-def sanitized_diagnostics(payload: dict[str, Any] | None) -> dict[str, Any]:
+def current_code_state() -> dict[str, Any]:
+    """Return commit and tracked-diff state without inspecting file contents."""
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True,
+    ).stdout.strip()
+    tracked = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=ROOT, text=True, capture_output=True, check=True,
+    ).stdout.strip()
+    return {"tested_head": head, "tracked_changes_present": bool(tracked)}
+
+
+def sanitized_diagnostics(
+    payload: dict[str, Any] | None,
+    *,
+    code_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return bounded metadata without retaining raw source or secret values."""
     payload = payload or {}
     acquisition = payload.get("acquisition") if isinstance(payload.get("acquisition"), dict) else {}
@@ -48,12 +65,13 @@ def sanitized_diagnostics(payload: dict[str, Any] | None) -> dict[str, Any]:
     source = record.get("source") if isinstance(record.get("source"), dict) else {}
     provenance = record.get("session_provenance") if isinstance(record.get("session_provenance"), dict) else {}
     citation = citations[0] if citations and isinstance(citations[0], dict) else {}
+    state = code_state or current_code_state()
     return {
         "schema_version": "1.0",
         "attempt_label": "future-acquisition-gemini-and-evidence-reuse-requires-separate-approval",
         "conclusion": "in_progress",
-        "tested_head": "f9a79fb33c51805dc57fb9861bb297f1332d6ac9",
-        "combined_harness_uncommitted": True,
+        "tested_head": state["tested_head"],
+        "combined_harness_uncommitted": state["tracked_changes_present"],
         "response": {
             "status": payload.get("status"),
             "response_code": payload.get("response_code"),
@@ -155,8 +173,72 @@ def sanitized_follow_up(payload: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+NUMBER_TOKEN = r"\d+(?:\.\d+)?%?"
+GRADE_LABEL = r"[ABCDF][+-]?"
+RANGE_SEPARATOR = r"(?:-|–|—|to|through)"
+
+
+def _normalize_number(value: str) -> str:
+    try:
+        normalized = Decimal(value.rstrip("%")).normalize()
+    except InvalidOperation:
+        return value
+    rendered = format(normalized, "f")
+    return "0" if rendered in {"-0", ""} else rendered
+
+
+def _without_nonclaim_identifiers(text: str, record: dict[str, Any]) -> str:
+    """Remove citations and scoped identifiers before academic-number comparison."""
+    cleaned = re.sub(r"\[[^\]]+\]", " ", text)
+    course_code = re.sub(r"[^A-Za-z0-9]", "", str(record.get("course_code", "")))
+    match = re.fullmatch(r"([A-Za-z]+)(\d+)", course_code)
+    if match:
+        letters, digits = match.groups()
+        cleaned = re.sub(
+            rf"(?<![A-Za-z0-9]){re.escape(letters)}\s*[- ]?\s*{re.escape(digits)}(?![A-Za-z0-9])",
+            " ", cleaned, flags=re.IGNORECASE,
+        )
+    term_id = str((record.get("term_scope") or {}).get("term_id", ""))
+    section = str((record.get("section_scope") or {}).get("section", ""))
+    if term_id:
+        cleaned = re.sub(rf"\bterm\s*{re.escape(term_id)}\b", " ", cleaned, flags=re.IGNORECASE)
+    if section:
+        cleaned = re.sub(rf"\bsection\s*0*{re.escape(section.lstrip('0') or '0')}\b", " ", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _grade_ranges(text: str) -> set[tuple[str, str, str]]:
+    label_first = re.compile(
+        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])"
+        rf"\s*(?:is|:|=|\()?\s*(?P<low>{NUMBER_TOKEN})\s*{RANGE_SEPARATOR}\s*(?P<high>{NUMBER_TOKEN})",
+        re.IGNORECASE,
+    )
+    range_first = re.compile(
+        rf"(?P<low>{NUMBER_TOKEN})\s*{RANGE_SEPARATOR}\s*(?P<high>{NUMBER_TOKEN})\s*"
+        rf"(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])",
+        re.IGNORECASE,
+    )
+    return {
+        (match.group("label").upper(), _normalize_number(match.group("low")), _normalize_number(match.group("high")))
+        for pattern in (label_first, range_first)
+        for match in pattern.finditer(text)
+    }
+
+
+def _category_percentages(text: str) -> set[tuple[str, str]]:
+    pattern = re.compile(
+        rf"(?<![A-Za-z0-9])(?P<label>[A-Za-z][A-Za-z0-9 &/()-]{{0,48}}?)"
+        rf"\s*(?:is|are|:|=)\s*(?P<number>{NUMBER_TOKEN})\s*%?",
+        re.IGNORECASE,
+    )
+    return {
+        (re.sub(r"\s+", " ", match.group("label")).strip(" -():").casefold(), _normalize_number(match.group("number")))
+        for match in pattern.finditer(text)
+    }
+
+
 def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
-    """Conservatively check cited locators and numeric claims without retaining text."""
+    """Check numeric values and their grade/category bindings in cited evidence only."""
     citations = payload.get("citations") if isinstance(payload.get("citations"), list) else []
     sections = record.get("academic_sections") if isinstance(record.get("academic_sections"), list) else []
     by_locator = {
@@ -168,17 +250,16 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
     locators_resolved = bool(citations) and all(text is not None for text in cited_texts)
     source_text = " ".join(text or "" for text in cited_texts)
     answer = str(payload.get("response_text", ""))
-    answer_without_citations = re.sub(r"\[[^\]]+\]", "", answer)
-    number_pattern = r"\b\d+(?:\.\d+)?%?\b"
-    answer_numbers = set(re.findall(number_pattern, answer_without_citations))
-    source_numbers = set(re.findall(number_pattern, source_text))
-    identity_text = " ".join([
-        str(record.get("course_code", "")),
-        str((record.get("term_scope") or {}).get("term_id", "")),
-        str((record.get("section_scope") or {}).get("section", "")),
-    ])
-    source_numbers.update(re.findall(r"\d+(?:\.\d+)?%?", identity_text))
+    answer_claim_text = _without_nonclaim_identifiers(answer, record)
+    answer_numbers = {_normalize_number(value) for value in re.findall(NUMBER_TOKEN, answer_claim_text)}
+    source_numbers = {_normalize_number(value) for value in re.findall(NUMBER_TOKEN, source_text)}
     numeric_claims_supported = answer_numbers.issubset(source_numbers)
+    answer_grade_ranges = _grade_ranges(answer_claim_text)
+    source_grade_ranges = _grade_ranges(source_text)
+    unsupported_grade_ranges = sorted(answer_grade_ranges - source_grade_ranges)
+    answer_categories = _category_percentages(answer_claim_text)
+    source_categories = _category_percentages(source_text)
+    unsupported_categories = sorted(answer_categories - source_categories)
     citation_ids = {
         str(item.get("source_id"))
         for item in citations
@@ -186,10 +267,27 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
     }
     citations_inline = bool(citation_ids) and all(f"[{source_id}]" in answer for source_id in citation_ids)
     return {
-        "passed": locators_resolved and numeric_claims_supported and citations_inline,
+        "passed": (
+            locators_resolved
+            and numeric_claims_supported
+            and not unsupported_grade_ranges
+            and not unsupported_categories
+            and citations_inline
+        ),
         "cited_locators_resolved": locators_resolved,
         "numeric_claim_count": len(answer_numbers),
         "numeric_claims_supported": numeric_claims_supported,
+        "unsupported_numeric_values": sorted(answer_numbers - source_numbers)[:12],
+        "grade_range_claim_count": len(answer_grade_ranges),
+        "unsupported_grade_ranges": [
+            {"grade": label, "low": low, "high": high}
+            for label, low, high in unsupported_grade_ranges[:12]
+        ],
+        "category_percentage_claim_count": len(answer_categories),
+        "unsupported_category_percentages": [
+            {"category": label, "percentage": percentage}
+            for label, percentage in unsupported_categories[:12]
+        ],
         "citation_ids_inline": citations_inline,
     }
 
