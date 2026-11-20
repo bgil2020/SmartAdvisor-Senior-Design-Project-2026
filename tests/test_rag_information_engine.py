@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from backend.rag.corpus import chunks_from_record, import_validated_corpus
 from backend.rag.generation import BaseRAGProvider, GroundedProposal
 from backend.rag.generation import GeminiRAGProvider
 from backend.app.conversational.gemini_parser import DEFAULT_GEMINI_MODEL
+from backend.app.conversational.provider_limits import ProviderRequestBudgetExhausted
 from backend.rag.models import EvidenceChunk
 from backend.rag.retriever import LexicalRetriever
 from backend.rag.service import answer_information_question, answer_information_records
@@ -66,6 +68,16 @@ def test_missing_evidence_returns_explicit_no_answer():
     result = answer_information_question("Does COP4331 include field trips?", course_codes=["COP4331"], retriever=LexicalRetriever([chunk()]))
     assert result.status == "no_relevant_evidence"
     assert "cannot answer" in result.answer
+
+
+def test_context_words_do_not_make_an_absent_detail_relevant():
+    result = answer_information_question(
+        "What does that class syllabus say about the cafeteria menu?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([chunk(text="This class covers Java design patterns and software projects.")]),
+    )
+    assert result.status == "no_relevant_evidence"
+    assert result.retrieved_evidence == []
 
 
 class StaticProvider(BaseRAGProvider):
@@ -162,6 +174,20 @@ def test_rag_provider_removes_unsupported_additional_properties_from_sdk_schema(
     serialized = json.dumps(config.response_schema)
     assert "additionalProperties" not in serialized
     assert "additional_properties" not in serialized
+    assert config.max_output_tokens == 512
+
+
+def test_rag_provider_enforces_shared_request_budget_before_transport(monkeypatch):
+    client = MagicMock()
+    client.models.generate_content.return_value = SimpleNamespace(
+        text=json.dumps({"answer": "Grounded answer.", "cited_source_ids": ["rag:cop-description"]})
+    )
+    monkeypatch.setenv("GEMINI_TEST_REQUEST_BUDGET", "1")
+    provider = GeminiRAGProvider(api_key="test-key", client=client)
+    provider.generate("Does COP4331 cover object-oriented design?", [chunk()])
+    with pytest.raises(ProviderRequestBudgetExhausted):
+        provider.generate("Does COP4331 cover object-oriented design?", [chunk()])
+    assert client.models.generate_content.call_count == 1
 
 
 def _candidate(record, batch_id):

@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from backend.acquisition_budget import claim_test_budget
 from backend.course_descriptions.models import normalize_course_code, utc_now
 from backend.course_descriptions.parser import ParseError, parse_course_detail
 from backend.course_descriptions.storage import validate_record
@@ -51,7 +52,16 @@ def acquire_exact_course_description(course_code: str, *, client: httpx.Client |
         result = future.result(timeout=timeout + 2)
         return {**result, "coalesced": True, "request_count": 0}
     try:
-        result = _run(code, url, timeout=timeout, client=client)
+        budget = claim_test_budget("catalog")
+        if not budget["allowed"]:
+            result = {
+                "status": "acquisition_budget_exhausted", "record": None,
+                "request_count": 0, "cleanup": "not_started", "test_budget": budget,
+            }
+        else:
+            result = _run(code, url, timeout=timeout, client=client)
+            if budget["enforced"]:
+                result["test_budget"] = budget
         future.set_result(result)
         return result
     except BaseException as exc:
