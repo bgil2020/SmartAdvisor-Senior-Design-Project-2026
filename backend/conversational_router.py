@@ -264,8 +264,18 @@ def handle_conversation(req: ConversationRequest):
             )
             if record.get("record_category") == source_category
         ]
+        evidence_acceptance = {
+            "session_evidence_submitted": len(req.session_evidence),
+            "session_evidence_accepted": len(valid_records),
+            "session_evidence_matched": len(matches),
+            "session_evidence_reused": bool(matches),
+        }
         acquired: list[dict[str, Any]] = []
-        acquisition: dict[str, Any] = {"status": "not_needed", "additional_source_acquisitions": 0}
+        acquisition: dict[str, Any] = {
+            "status": "not_needed",
+            "additional_source_acquisitions": 0,
+            **evidence_acceptance,
+        }
         if not matches:
             if source_category == "syllabus" and (not scope.get("term_id") or not scope.get("section")):
                 return _build_response(
@@ -296,7 +306,10 @@ def handle_conversation(req: ConversationRequest):
                 result = acquire_exact_syllabus(scope["course_code"], scope["term_id"], scope["section"])
             else:
                 result = acquire_exact_course_description(scope["course_code"])
-            acquisition = {key: value for key, value in result.items() if key != "record"}
+            acquisition = {
+                **{key: value for key, value in result.items() if key != "record"},
+                **evidence_acceptance,
+            }
             acquisition["source_category"] = source_category
             acquisition["additional_source_acquisitions"] = (
                 int(result["request_count"])

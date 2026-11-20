@@ -91,9 +91,14 @@ def _run_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
             mapping["view_url"],
             limits=BrowserProbeLimits(max_rendered_html_bytes=maximum_html_bytes),
         )
-        observations = {**probe, "cleanup": "completed"}
-        if probe["status"] != "anonymous_full_document":
-            return {"status": probe["status"], "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+        probe_status = str(probe.get("status", "incomplete_extraction"))
+        observations = {
+            **{key: value for key, value in probe.items() if key != "status"},
+            "probe_status": probe_status,
+            "cleanup": "completed",
+        }
+        if probe_status != "anonymous_full_document":
+            return {**observations, "status": probe_status, "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000)}
         try:
             record = parse_rendered_syllabus(
                 session.last_html, course_code=mapping["course_code"], term_id=mapping["term_id"], term_name=mapping["term_name"],
@@ -101,10 +106,10 @@ def _run_mapping(mapping: dict[str, Any]) -> dict[str, Any]:
                 fetched_at=utc_now(), raw_evidence_ref="session-memory:rendered-html", instructor=mapping.get("instructor"), render_complete=True,
             )
         except SyllabusParseError as exc:
-            return {"status": exc.code, "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+            return {**observations, "status": exc.code, "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000)}
         if validate_record(record):
-            return {"status": "candidate_rejected", "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
-        return {"status": "acquired", "record": attach_provenance(record), "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000), **observations}
+            return {**observations, "status": "candidate_rejected", "record": None, "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000)}
+        return {**observations, "status": "acquired", "record": attach_provenance(record), "request_count": probe["logical_navigations"], "duration_ms": round((time.monotonic() - started) * 1000)}
 
 
 def synthetic_smoke(url: str) -> dict[str, Any]:

@@ -85,10 +85,18 @@ def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():
     first = ask("What does the grading section say for COP 4331?", evidence, {"course_code": "COP4331", "term_id": "202608", "section": "002"})
     assert first["status"] == "grounded_answer"
     assert first["acquisition"]["additional_source_acquisitions"] == 0
+    assert first["acquisition"]["session_evidence_submitted"] == 1
+    assert first["acquisition"]["session_evidence_accepted"] == 1
+    assert first["acquisition"]["session_evidence_matched"] == 1
+    assert first["acquisition"]["session_evidence_reused"] is True
     assert first["citations"]
     follow_up = ask("What are the learning outcomes for that class?", evidence, first["source_scope"])
     assert follow_up["status"] == "grounded_answer"
     assert follow_up["acquisition"]["additional_source_acquisitions"] == 0
+    assert follow_up["acquisition"]["session_evidence_submitted"] == 1
+    assert follow_up["acquisition"]["session_evidence_accepted"] == 1
+    assert follow_up["acquisition"]["session_evidence_matched"] == 1
+    assert follow_up["acquisition"]["session_evidence_reused"] is True
     assert follow_up["source_scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"}
 
 
@@ -139,6 +147,23 @@ def test_tampered_client_verification_is_rejected():
     valid, errors = validate_session_records([tampered])
     assert not valid
     assert any("content_sha256" in item or "provenance" in item for item in errors)
+
+
+def test_tampered_session_evidence_is_not_reported_as_accepted_or_reused(monkeypatch):
+    tampered = record()
+    tampered["document_text"] = "invented"
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "false")
+
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [tampered],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+
+    assert data["acquisition"]["session_evidence_submitted"] == 1
+    assert data["acquisition"]["session_evidence_accepted"] == 0
+    assert data["acquisition"]["session_evidence_matched"] == 0
+    assert data["acquisition"]["session_evidence_reused"] is False
 
 
 def test_contextual_reference_with_multiple_sections_requires_clarification():
@@ -251,3 +276,28 @@ def test_syllabus_test_budget_blocks_second_browser_start(monkeypatch):
     assert second["status"] == "acquisition_budget_exhausted"
     assert second["request_count"] == 0
     assert starts == 1
+
+
+def test_conversation_exposes_final_and_probe_acquisition_statuses_separately(monkeypatch):
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setattr(
+        "backend.conversational_router.acquire_exact_syllabus",
+        lambda *_args: {
+            "status": "course_identity_mismatch",
+            "probe_status": "anonymous_full_document",
+            "record": None,
+            "request_count": 1,
+            "actual_observed_responses": 7,
+            "cleanup": "completed",
+        },
+    )
+
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+
+    assert data["status"] == "acquisition_failed"
+    assert data["acquisition"]["status"] == "course_identity_mismatch"
+    assert data["acquisition"]["probe_status"] == "anonymous_full_document"

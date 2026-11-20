@@ -1,0 +1,86 @@
+{
+  "acquisition": {
+    "access_denials": 0,
+    "additional_source_acquisitions": 1,
+    "cleanup": "completed",
+    "duration_ms": 3500,
+    "essential_document_failures": 0,
+    "essential_document_requests": 1,
+    "final_status": "acquired",
+    "limits": {
+      "access_denial_threshold": 1,
+      "essential_failure_budget": 2,
+      "max_rendered_html_bytes": 2097152,
+      "total_response_budget": 60
+    },
+    "logical_navigations": 1,
+    "observed_browser_responses": 25,
+    "probe_status": "anonymous_full_document",
+    "stop_reason": "rendered_document_ready",
+    "test_budget": {
+      "allowed": true,
+      "enforced": true,
+      "limit": 1,
+      "used": 1
+    }
+  },
+  "artifacts": {
+    "diagnostics": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026\\.worktrees\\main-verified\\docs\\acquisition-evidence\\cap4773-live-acquisition-next.json",
+    "redacted_screenshot": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026\\.worktrees\\main-verified\\docs\\acquisition-evidence\\cap4773-live-ui-next-redacted.png"
+  },
+  "attempt_label": "future-second-attempt-requires-separate-approval",
+  "citation": {
+    "count": 1,
+    "locator": "heading:Course Grading Scale",
+    "record_id": "fau-simple-syllabus:syllabus:cap4773:202608:001:fjhz2vvga",
+    "rendered": "unknown",
+    "url_matches_document": true
+  },
+  "cleanup": {
+    "backend_stopped": true,
+    "browser_closed": true,
+    "frontend_stopped": true
+  },
+  "conclusion": "failed",
+  "contains_raw_source_or_signature": false,
+  "elapsed_ms": 12141,
+  "evidence": {
+    "academic_section_count": 14,
+    "content_sha256": "3c971166e157cef535ea88d5a7c130c0e6c24781d7cb4464ac1b22e3816ed07e",
+    "course_code": "CAP4773",
+    "document_character_count": 8391,
+    "record_category": "syllabus",
+    "record_count": 1,
+    "record_id": "fau-simple-syllabus:syllabus:cap4773:202608:001:fjhz2vvga",
+    "section": "001",
+    "signature_present": true,
+    "signature_scheme": "hmac-sha256-v1",
+    "signed_evidence_valid": "unknown",
+    "source_document_id": "fjhz2vvga",
+    "source_url_matches_document": true,
+    "term_id": "202608"
+  },
+  "failure": {
+    "error_type": "ModuleNotFoundError",
+    "stage": "response_validation"
+  },
+  "failure_stage": "response_validation",
+  "request": {
+    "approved_scope_sent": true,
+    "prior_session_evidence_supplied": false,
+    "ui_conversation_submissions": 1
+  },
+  "response": {
+    "generation_fallback_used": true,
+    "generation_source": "source_excerpt_fallback",
+    "response_code": "SESSION_EVIDENCE_ANSWER",
+    "source_scope": {
+      "course_code": "CAP4773",
+      "section": "001",
+      "term_id": "202608"
+    },
+    "status": "grounded_answer"
+  },
+  "schema_version": "1.0",
+  "tested_head": "0fca051c6b43108a8fc6d33a8566b26b19893c4f"
+}
