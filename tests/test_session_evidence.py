@@ -255,6 +255,23 @@ def test_stable_backend_key_allows_browser_evidence_after_restart(monkeypatch):
     assert valid[0]["record_id"] == retained["record_id"]
 
 
+def test_legacy_signed_record_remains_valid_without_reparsing_table_whitespace():
+    legacy = {key: value for key, value in record().items() if key != "session_provenance"}
+    legacy["academic_sections"][-1]["text"] = "A90% - 100%B80% - 89%"
+    legacy["document_text"] = "\n\n".join(
+        f"{section['heading']}\n{section['text']}" for section in legacy["academic_sections"]
+    )
+    legacy["exact_source_text"] = legacy["document_text"]
+    legacy["content_sha256"] = syllabus_content_hash(legacy)
+    retained = attach_provenance(legacy)
+
+    valid, errors = validate_session_records([retained])
+
+    assert errors == []
+    assert valid[0]["content_sha256"] == retained["content_sha256"]
+    assert valid[0]["academic_sections"][-1]["text"] == "A90% - 100%B80% - 89%"
+
+
 def test_provenance_survives_separate_backend_processes():
     unsigned = {key: value for key, value in record().items() if key != "session_provenance"}
     environment = os.environ.copy()

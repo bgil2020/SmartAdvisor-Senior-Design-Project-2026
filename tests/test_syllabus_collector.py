@@ -96,6 +96,37 @@ def test_extracts_complete_document_identity_sections_and_locators():
     assert validate_batch(batch("parsed-one", [item]))["valid"] is True
 
 
+def test_parser_preserves_grading_table_cell_and_row_boundaries():
+    html = """
+    <main data-syllabus-document>
+      <h1>CAP 4773-001 Fall 2026</h1>
+      <h2>Course Grading Scale</h2>
+      <table>
+        <tr><th>Grade</th><th>Range</th></tr>
+        <tr><td>A</td><td>90.0% - 100.00%</td></tr>
+        <tr><td>B+</td><td>87% - 89%</td></tr>
+      </table>
+    </main>
+    """
+    parsed = parse_rendered_syllabus(
+        html,
+        course_code="CAP4773",
+        term_id="202608",
+        term_name="Fall 2026",
+        section="001",
+        source_document_id="table-fixture",
+        source_url="https://example.test/doc/table-fixture",
+        fetched_at="2026-11-20T00:00:00Z",
+        raw_evidence_ref="synthetic-table-fixture",
+    )
+    scale = parsed["academic_sections"][0]["text"]
+
+    assert "Grade\tRange" in scale
+    assert "A\t90.0% - 100.00%" in scale
+    assert "B+\t87% - 89%" in scale
+    assert "A90.0%" not in scale
+
+
 def test_rejects_library_shell_login_redirect_and_missing_or_ambiguous_text():
     shell = (FIXTURES / "library_shell.html").read_text(encoding="utf-8")
     assert classify_page(shell, "https://fau.simplesyllabus.com/en-US/syllabus-library") == "javascript_shell_awaiting_render"

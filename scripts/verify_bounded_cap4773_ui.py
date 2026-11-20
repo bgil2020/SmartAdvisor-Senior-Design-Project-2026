@@ -1,4 +1,4 @@
-"""One separately approved CAP4773 acquisition and two-turn Gemini UI check.
+"""One separately approved CAP4773 acquisition and Gemini grading diagnostic.
 
 Diagnostics exclude source/answer text, prompts, signatures, credentials, and
 private data. Running this file requires a new explicit live-source approval.
@@ -30,8 +30,8 @@ EXPECTED_SCOPE = {"course_code": "CAP4773", "term_id": "202608", "section": "001
 EXPECTED_DOCUMENT = "fjhz2vvga"
 EXPECTED_URL = "https://fau.simplesyllabus.com/doc/fjhz2vvga/Fall-2026-1-Full-Term-CAP-4773-001-Intro-Data-Science-Analytics?mode=view"
 CHROME_PATH = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
-EVIDENCE_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-acquisition-gemini-reuse-rerun-next.json"
-SCREENSHOT_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-ui-gemini-reuse-rerun-next-redacted.png"
+EVIDENCE_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-grade-relationship-diagnostic-next.json"
+SCREENSHOT_PATH = ROOT / "docs" / "acquisition-evidence" / "cap4773-live-grade-relationship-diagnostic-next-redacted.png"
 
 
 def require(condition: bool, message: str) -> None:
@@ -68,7 +68,7 @@ def sanitized_diagnostics(
     state = code_state or current_code_state()
     return {
         "schema_version": "1.0",
-        "attempt_label": "future-acquisition-gemini-and-evidence-reuse-requires-separate-approval",
+        "attempt_label": "future-single-turn-grade-relationship-diagnostic-requires-separate-approval",
         "conclusion": "in_progress",
         "tested_head": state["tested_head"],
         "combined_harness_uncommitted": state["tracked_changes_present"],
@@ -132,7 +132,7 @@ def sanitized_diagnostics(
         "preflight": None,
         "provider": {
             "model": MODEL,
-            "request_budget": 2,
+            "request_budget": 1,
             "accepted_provider_answers": 0,
             "automatic_retries": 0,
         },
@@ -207,22 +207,118 @@ def _without_nonclaim_identifiers(text: str, record: dict[str, Any]) -> str:
     return cleaned
 
 
-def _grade_ranges(text: str) -> set[tuple[str, str, str]]:
+def _relation_sort_key(item: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(item.get("grade", "")), str(item.get("kind", "")),
+        str(item.get("low", item.get("value", ""))), str(item.get("high", item.get("operator", ""))),
+    )
+
+
+def _grade_relationships(text: str) -> list[dict[str, Any]]:
+    """Extract bounded grade relationships while retaining operator semantics."""
     label_first = re.compile(
         rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])"
-        rf"\s*(?:is|:|=|\()?\s*(?P<low>{NUMBER_TOKEN})\s*{RANGE_SEPARATOR}\s*(?P<high>{NUMBER_TOKEN})",
+        rf"[ \t]*(?:is|:|=|\()?[ \t]*(?P<low>{NUMBER_TOKEN})[ \t]*(?P<separator>{RANGE_SEPARATOR})[ \t]*(?P<high>{NUMBER_TOKEN})",
         re.IGNORECASE,
     )
     range_first = re.compile(
-        rf"(?P<low>{NUMBER_TOKEN})\s*{RANGE_SEPARATOR}\s*(?P<high>{NUMBER_TOKEN})\s*"
+        rf"(?P<low>{NUMBER_TOKEN})[ \t]*(?P<separator>{RANGE_SEPARATOR})[ \t]*(?P<high>{NUMBER_TOKEN})[ \t]*"
         rf"(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])",
         re.IGNORECASE,
     )
-    return {
-        (match.group("label").upper(), _normalize_number(match.group("low")), _normalize_number(match.group("high")))
-        for pattern in (label_first, range_first)
-        for match in pattern.finditer(text)
+    interval = re.compile(
+        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])\s*(?:is|:|=)?\s*"
+        rf"(?P<left>[\[(])\s*(?P<low>{NUMBER_TOKEN})\s*,\s*(?P<high>{NUMBER_TOKEN})\s*(?P<right>[\])])",
+        re.IGNORECASE,
+    )
+    threshold = re.compile(
+        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])\s*(?:is|:|=)?\s*"
+        rf"(?P<operator>>=|<=|>|<|at\s+least|at\s+most|more\s+than|less\s+than)\s*(?P<value>{NUMBER_TOKEN})",
+        re.IGNORECASE,
+    )
+    relationships: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for pattern in (label_first, range_first):
+        for match in pattern.finditer(text):
+            item = {
+                "grade": match.group("label").upper(),
+                "kind": "range",
+                "low": _normalize_number(match.group("low")),
+                "high": _normalize_number(match.group("high")),
+                "low_inclusive": "unspecified",
+                "high_inclusive": "unspecified",
+                "notation": match.group("separator").casefold(),
+            }
+            relationships[(item["grade"], "range", item["low"], item["high"], "unspecified", "unspecified")] = item
+    for match in interval.finditer(text):
+        item = {
+            "grade": match.group("label").upper(),
+            "kind": "range",
+            "low": _normalize_number(match.group("low")),
+            "high": _normalize_number(match.group("high")),
+            "low_inclusive": match.group("left") == "[",
+            "high_inclusive": match.group("right") == "]",
+            "notation": "interval",
+        }
+        relationships[(item["grade"], "range", item["low"], item["high"], item["low_inclusive"], item["high_inclusive"])] = item
+    operator_map = {
+        "at least": ">=", "at most": "<=", "more than": ">", "less than": "<",
     }
+    for match in threshold.finditer(text):
+        raw_operator = re.sub(r"\s+", " ", match.group("operator").casefold())
+        item = {
+            "grade": match.group("label").upper(),
+            "kind": "threshold",
+            "operator": operator_map.get(raw_operator, raw_operator),
+            "value": _normalize_number(match.group("value")),
+            "notation": raw_operator,
+        }
+        relationships[(item["grade"], "threshold", item["operator"], item["value"])] = item
+    return sorted(relationships.values(), key=_relation_sort_key)
+
+
+def _grade_label_candidates(text: str) -> set[str]:
+    near_number = re.compile(
+        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?=(?:\s|:|=|\(|\[)*{NUMBER_TOKEN})",
+        re.IGNORECASE,
+    )
+    return {match.group("label").upper() for match in near_number.finditer(text)}
+
+
+def _relations_compatible(answer: dict[str, Any], source: dict[str, Any]) -> bool:
+    if answer.get("grade") != source.get("grade") or answer.get("kind") != source.get("kind"):
+        return False
+    if answer.get("kind") == "threshold":
+        return answer.get("operator") == source.get("operator") and answer.get("value") == source.get("value")
+    if answer.get("low") != source.get("low") or answer.get("high") != source.get("high"):
+        return False
+    for field in ("low_inclusive", "high_inclusive"):
+        left, right = answer.get(field), source.get(field)
+        if left != "unspecified" and right != "unspecified" and left != right:
+            return False
+    return True
+
+
+def _relationship_comparison(
+    answer: list[dict[str, Any]],
+    source: list[dict[str, Any]],
+    source_status: str,
+) -> list[dict[str, Any]]:
+    comparisons: list[dict[str, Any]] = []
+    for claim in answer[:16]:
+        source_for_grade = [item for item in source if item.get("grade") == claim.get("grade")]
+        if any(_relations_compatible(claim, item) for item in source_for_grade):
+            status = "match"
+        elif source_status == "succeeded":
+            status = "mismatch"
+        else:
+            status = "unknown"
+        comparisons.append({
+            "grade": claim.get("grade"),
+            "source_relationships": source_for_grade[:4],
+            "answer_relationship": claim,
+            "status": status,
+        })
+    return comparisons
 
 
 def _category_percentages(text: str) -> set[tuple[str, str]]:
@@ -231,10 +327,13 @@ def _category_percentages(text: str) -> set[tuple[str, str]]:
         rf"\s*(?:is|are|:|=)\s*(?P<number>{NUMBER_TOKEN})\s*%?",
         re.IGNORECASE,
     )
-    return {
-        (re.sub(r"\s+", " ", match.group("label")).strip(" -():").casefold(), _normalize_number(match.group("number")))
-        for match in pattern.finditer(text)
-    }
+    relationships = set()
+    for match in pattern.finditer(text):
+        label = re.sub(r"\s+", " ", match.group("label")).strip(" -():")
+        if re.fullmatch(GRADE_LABEL, label, flags=re.IGNORECASE):
+            continue
+        relationships.add((label.casefold(), _normalize_number(match.group("number"))))
+    return relationships
 
 
 def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
@@ -254,9 +353,27 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
     answer_numbers = {_normalize_number(value) for value in re.findall(NUMBER_TOKEN, answer_claim_text)}
     source_numbers = {_normalize_number(value) for value in re.findall(NUMBER_TOKEN, source_text)}
     numeric_claims_supported = answer_numbers.issubset(source_numbers)
-    answer_grade_ranges = _grade_ranges(answer_claim_text)
-    source_grade_ranges = _grade_ranges(source_text)
-    unsupported_grade_ranges = sorted(answer_grade_ranges - source_grade_ranges)
+    answer_grade_relationships = _grade_relationships(answer_claim_text)
+    source_grade_relationships = _grade_relationships(source_text)
+    source_grade_candidates = _grade_label_candidates(source_text)
+    extracted_source_grades = {item["grade"] for item in source_grade_relationships}
+    if not answer_grade_relationships:
+        source_relationship_status = "not_applicable"
+    elif not source_grade_relationships:
+        source_relationship_status = "indeterminate"
+    elif source_grade_candidates - extracted_source_grades:
+        source_relationship_status = "partial"
+    else:
+        source_relationship_status = "succeeded"
+    grade_comparison = _relationship_comparison(
+        answer_grade_relationships, source_grade_relationships, source_relationship_status,
+    )
+    unsupported_grade_relationships = [
+        item["answer_relationship"] for item in grade_comparison if item["status"] == "mismatch"
+    ]
+    unverified_grade_relationships = [
+        item["answer_relationship"] for item in grade_comparison if item["status"] == "unknown"
+    ]
     answer_categories = _category_percentages(answer_claim_text)
     source_categories = _category_percentages(source_text)
     unsupported_categories = sorted(answer_categories - source_categories)
@@ -270,7 +387,9 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
         "passed": (
             locators_resolved
             and numeric_claims_supported
-            and not unsupported_grade_ranges
+            and source_relationship_status in {"succeeded", "not_applicable"}
+            and not unsupported_grade_relationships
+            and not unverified_grade_relationships
             and not unsupported_categories
             and citations_inline
         ),
@@ -278,11 +397,15 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
         "numeric_claim_count": len(answer_numbers),
         "numeric_claims_supported": numeric_claims_supported,
         "unsupported_numeric_values": sorted(answer_numbers - source_numbers)[:12],
-        "grade_range_claim_count": len(answer_grade_ranges),
+        "grade_range_claim_count": len(answer_grade_relationships),
+        "answer_grade_relationship_count": len(answer_grade_relationships),
+        "source_grade_relationship_count": len(source_grade_relationships),
+        "source_relationship_extraction": source_relationship_status,
+        "grade_relationship_comparison": grade_comparison,
         "unsupported_grade_ranges": [
-            {"grade": label, "low": low, "high": high}
-            for label, low, high in unsupported_grade_ranges[:12]
+            item for item in unsupported_grade_relationships[:12]
         ],
+        "unverified_grade_relationships": unverified_grade_relationships[:12],
         "category_percentage_claim_count": len(answer_categories),
         "unsupported_category_percentages": [
             {"category": label, "percentage": percentage}
@@ -380,7 +503,7 @@ async def execute() -> dict[str, Any]:
         "GEMINI_MODEL": MODEL,
         "GEMINI_TIMEOUT_SECONDS": "10",
         "GEMINI_MAX_OUTPUT_TOKENS": "512",
-        "GEMINI_TEST_REQUEST_BUDGET": "2",
+        "GEMINI_TEST_REQUEST_BUDGET": "1",
         "SESSION_EVIDENCE_SIGNING_KEY": signing_key,
         "CATALOG_ACQUISITION_ENABLED": "false",
         "SYLLABUS_ACQUISITION_ENABLED": "true",
@@ -515,87 +638,9 @@ async def execute() -> dict[str, Any]:
         require(EXPECTED_DOCUMENT in str(citation.get("url", "")), "Citation document identity mismatch")
         require(diagnostics["citation"]["rendered"] is True, "Citation was not rendered in the UI")
 
-        diagnostics["failure_stage"] = "follow_up_submission"
-        await page.get_by_label("Student Question or Planning Query:").fill(
-            "Which letter grade ranges are listed in that same syllabus grading scale?"
-        )
-        async with page.expect_response(
-            lambda follow_response: follow_response.url == f"{BACKEND_URL}/conversation" and follow_response.request.method == "POST",
-            timeout=45_000,
-        ) as follow_response_info:
-            await page.get_by_role("button", name="Send").click()
-        follow_response = await follow_response_info.value
-        follow_payload = await follow_response.json()
-        follow_diagnostics = sanitized_follow_up(follow_payload)
-        diagnostics["follow_up"] = follow_diagnostics
-        diagnostics["failure_stage"] = "follow_up_validation"
-
-        follow_request = conversation_requests[1] if len(conversation_requests) == 2 else {}
-        submitted_evidence = follow_request.get("session_evidence") if isinstance(follow_request.get("session_evidence"), list) else []
-        submitted_record = submitted_evidence[0] if submitted_evidence and isinstance(submitted_evidence[0], dict) else {}
-        submitted_provenance = submitted_record.get("session_provenance") if isinstance(submitted_record.get("session_provenance"), dict) else {}
-        follow_diagnostics["submitted_evidence_count"] = len(submitted_evidence)
-        follow_diagnostics["submitted_record_id_matches"] = submitted_record.get("record_id") == record.get("record_id")
-        follow_diagnostics["submitted_signed_evidence"] = (
-            submitted_provenance.get("scheme") == "hmac-sha256-v1" and bool(submitted_provenance.get("signature"))
-        )
-        follow_acquisition = follow_payload.get("acquisition") if isinstance(follow_payload.get("acquisition"), dict) else {}
-        follow_citations = follow_payload.get("citations") if isinstance(follow_payload.get("citations"), list) else []
-        follow_citation = follow_citations[0] if follow_citations else {}
-        follow_support = support_check(follow_payload, record)
-        follow_diagnostics["answer_support_check"] = follow_support
-        budget = acquisition.get("test_budget") if isinstance(acquisition.get("test_budget"), dict) else {}
-        follow_diagnostics["acquisition_budget_remaining_after_first"] = (
-            budget.get("limit") - budget.get("used")
-            if isinstance(budget.get("limit"), int) and isinstance(budget.get("used"), int)
-            else "unknown"
-        )
-        try:
-            await page.locator('ol[aria-label="Source citations"]').last.wait_for(state="visible", timeout=5_000)
-            follow_diagnostics["citation_rendered"] = True
-        except Exception:
-            follow_diagnostics["citation_rendered"] = False
-        backend_accepted_reuse = (
-            follow_acquisition.get("session_evidence_submitted") == 1
-            and follow_acquisition.get("session_evidence_accepted") == 1
-            and follow_acquisition.get("session_evidence_matched") == 1
-            and follow_acquisition.get("session_evidence_reused") is True
-        )
-        diagnostics["evidence"]["backend_acceptance_via_follow_up"] = backend_accepted_reuse
-        diagnostics["provider"]["accepted_provider_answers"] = sum(
-            1
-            for item in (payload, follow_payload)
-            if item.get("generation_source") == "provider"
-            and item.get("generation_fallback_used") is False
-            and item.get("model_id") == MODEL
-        )
-
-        # Persist the complete two-turn metadata and redacted UI before assertions.
-        await capture_redacted_screenshot(page, diagnostics)
-        if diagnostics_path_available:
-            write_diagnostics(diagnostics)
-
-        require(follow_response.status == 200, "Follow-up conversation HTTP status was not successful")
-        require(len(conversation_requests) == 2, "Expected exactly two UI conversation submissions")
-        require(len(submitted_evidence) == 1, "Frontend did not retain and submit one evidence record")
-        require(follow_diagnostics["submitted_record_id_matches"] is True, "Frontend submitted the wrong evidence record")
-        require(follow_diagnostics["submitted_signed_evidence"] is True, "Frontend did not retain signed evidence")
-        require(follow_diagnostics["acquisition_budget_remaining_after_first"] == 0, "Follow-up acquisition budget was not exhausted before follow-up")
-        require(backend_accepted_reuse, "Backend did not accept and match the submitted evidence")
-        require(follow_acquisition.get("status") == "not_needed", "Follow-up did not reuse retained evidence")
-        require(follow_acquisition.get("additional_source_acquisitions") == 0, "Follow-up attempted another source acquisition")
-        require(follow_payload.get("status") == "grounded_answer", "Follow-up was not source grounded")
-        require(follow_payload.get("response_code") == "SESSION_EVIDENCE_ANSWER", "Follow-up evidence was insufficient")
-        require(follow_payload.get("source_scope") == EXPECTED_SCOPE, "Follow-up source scope did not match")
-        require(follow_payload.get("generation_source") == "provider", "Follow-up was not accepted provider generation")
-        require(follow_payload.get("generation_fallback_used") is False, "Follow-up used fallback generation")
-        require(follow_payload.get("model_id") == MODEL, "Follow-up used the wrong generation model")
-        require(follow_support["passed"] is True, "Follow-up answer was not supported by its cited retained evidence")
-        require(bool(follow_citations) and follow_citation.get("record_id") == record.get("record_id"), "Follow-up citation record identity mismatch")
-        require(EXPECTED_DOCUMENT in str(follow_citation.get("url", "")), "Follow-up citation document identity mismatch")
-        require(follow_diagnostics["citation_rendered"] is True, "Follow-up citation was not rendered in the UI")
         diagnostics["conclusion"] = "passed"
         diagnostics["failure_stage"] = None
+        return diagnostics
     except BaseException as exc:
         failure = exc
         diagnostics["conclusion"] = "failed"
@@ -630,11 +675,11 @@ async def bounded() -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--approved-live-combined", action="store_true")
+    parser.add_argument("--approved-live-grade-diagnostic", action="store_true")
     args = parser.parse_args()
     require(
-        args.approved_live_combined,
-        "Combined live verification requires explicit approval and --approved-live-combined",
+        args.approved_live_grade_diagnostic,
+        "Live grade diagnostic requires explicit approval and --approved-live-grade-diagnostic",
     )
     print(json.dumps(asyncio.run(bounded()), sort_keys=True))
     return 0

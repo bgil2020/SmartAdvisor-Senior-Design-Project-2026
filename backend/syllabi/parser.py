@@ -48,8 +48,10 @@ class _RenderedParser(HTMLParser):
                 self._finish_section()
             self._heading_level = tag
             self.current_heading_parts = []
-        elif self.document_depth and tag in {"p", "li", "br", "div"} and self.current_heading_parts is not None:
+        elif self.document_depth and tag in {"p", "li", "br", "div", "table", "tr"} and self.current_heading_parts is not None:
             self.current_body_parts.append("\n")
+        elif self.document_depth and tag in {"td", "th"} and self.current_heading_parts is not None:
+            self.current_body_parts.append("\t")
 
     def handle_endtag(self, tag: str) -> None:
         if self.excluded_depth:
