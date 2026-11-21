@@ -10,6 +10,16 @@
   failed and no second turn ran.
 - No commits after published main have been pushed, merged, or deployed.
 
+Later local checkpoints remain distinct:
+
+- `c7b241544a46498f6a99fa508d279ca96085b84c`: passed single-turn live grading
+  diagnostic using fresh CAP4773 acquisition and one Gemini call.
+- `7a932fc04cd2d5883848a5d33ea1f03c95c8b2ae`: shared production grading
+  safeguard; offline verification only.
+
+The live two-turn acquisition + Gemini + follow-up evidence-reuse workflow is
+still unverified and must not be inferred from the single-turn pass.
+
 Before release, checkpoint the offline numeric-checker correction, reconcile it
 through the normal feature-branch/PR workflow, and rerun all backend/frontend
 checks. A new combined live test requires separate approval.
@@ -65,3 +75,26 @@ not proof of the deployed runtime.
    catalog GET, and exact-origin CORS using read-only requests.
 5. Publish only after the reconciled tree, CI, deployment consequences, and
    required approvals are known.
+
+## Exact approvals still required
+
+No item below is authorized by this handoff:
+
+1. **Docker verification approval:** start the Docker Desktop Linux engine and
+   allow the bounded `scripts/verify_container_512mb.ps1` build/run, including
+   registry downloads, one disposable local container, hard 512 MiB memory and
+   swap limits, synthetic startup smoke, and automatic removal.
+2. **Hosted configuration inspection:** authenticated read-only access to the
+   applied Vercel production variables/project routing and Render service
+   runtime, branch, environment-variable names, plan, and auto-deploy state.
+3. **Offline hosting-fix implementation:** add and test a Vercel SPA fallback,
+   select the reviewed production API-target mechanism, and add exact-origin
+   CORS regressions. This does not authorize dashboard writes or deployment.
+4. **Publication/deployment approval:** after reconciliation and fresh Docker,
+   backend, frontend, and browser checks, authorize a feature-branch push, PR,
+   required checks/review, and merge. The approval must explicitly acknowledge
+   that merge to `main` triggers the Vercel frontend and Render API deployments.
+5. **Dashboard-change approval:** separately authorize the exact non-secret
+   Vercel `VITE_API_URL`, Render `SMARTADVISOR_CORS_ORIGINS`, and any Render
+   Python-versus-Docker runtime change. No billing, plan, or live-provider flag
+   change is implied.
