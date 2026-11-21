@@ -107,6 +107,16 @@ class WrongRelationshipProvider(BaseRAGProvider):
         )
 
 
+class CorrectRelationshipProvider(BaseRAGProvider):
+    model_id = "fake-model"
+
+    def generate(self, question, evidence):
+        return GroundedProposal(
+            answer="A is 90% to 100%.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
 def test_valid_provider_citation_is_returned_with_source_contract():
     result = answer_information_question("Does COP4331 cover object-oriented design?", course_codes=["COP4331"], retriever=LexicalRetriever([chunk()]), provider=StaticProvider("rag:cop-description"))
     assert result.generation_source == "provider"
@@ -143,7 +153,7 @@ def test_unknown_provider_citation_triggers_extract_fallback():
     assert "unknown" not in result.answer.casefold()
 
 
-def test_application_citation_validation_does_not_semantically_check_grade_relationships():
+def test_application_rejects_demonstrably_wrong_grade_relationship_as_fallback():
     evidence = chunk(text="Grade scale: A is 90% to 100%; B is 80% to 89%.")
     result = answer_information_question(
         "What is the grade scale?",
@@ -152,10 +162,41 @@ def test_application_citation_validation_does_not_semantically_check_grade_relat
         provider=WrongRelationshipProvider(),
     )
 
+    assert result.generation_source == "source_excerpt_fallback"
+    assert result.generation_fallback_used is True
+    assert result.generation_fallback_reason.endswith("(GradeRelationshipIncorrect)")
+    assert result.sources[0]["source_id"] == evidence.chunk_id
+    assert "B is 90% to 100%" not in result.answer
+
+
+def test_application_accepts_correct_parseable_grade_relationship():
+    evidence = chunk(text="Grade scale: A\t90% to 100%\nB\t80% to 89%.")
+    result = answer_information_question(
+        "What is the grade scale?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([evidence]),
+        provider=CorrectRelationshipProvider(),
+    )
+
     assert result.generation_source == "provider"
     assert result.generation_fallback_used is False
-    assert result.sources[0]["source_id"] == evidence.chunk_id
-    assert "B is 90% to 100%" in result.answer
+    assert "A is 90% to 100%" in result.answer
+    assert any("not universal semantic verification" in item for item in result.limitations)
+
+
+def test_application_uses_fallback_when_grade_relationship_verification_is_inconclusive():
+    evidence = chunk(text="Grade scale: A90% to 100%B80% to 89%.")
+    result = answer_information_question(
+        "What is the grade scale?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([evidence]),
+        provider=CorrectRelationshipProvider(),
+    )
+
+    assert result.generation_source == "source_excerpt_fallback"
+    assert result.generation_fallback_used is True
+    assert result.generation_fallback_reason.endswith("(GradeRelationshipInconclusive)")
+    assert result.sources
 
 
 def test_provider_failure_preserves_citations_in_labeled_fallback():

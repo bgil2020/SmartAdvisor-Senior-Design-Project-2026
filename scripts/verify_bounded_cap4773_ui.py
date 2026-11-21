@@ -16,13 +16,19 @@ import subprocess
 import sys
 import time
 import urllib.request
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from backend.rag.grade_relationships import (
+    GRADE_LABEL,
+    NUMBER_TOKEN,
+    extract_grade_relationships,
+    normalize_number,
+    validate_grade_relationships,
+)
 FRONTEND_URL = "http://127.0.0.1:14173"
 BACKEND_URL = "http://127.0.0.1:18100"
 MODEL = "gemini-3.5-flash-lite"
@@ -173,20 +179,6 @@ def sanitized_follow_up(payload: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-NUMBER_TOKEN = r"\d+(?:\.\d+)?%?"
-GRADE_LABEL = r"[ABCDF][+-]?"
-RANGE_SEPARATOR = r"(?:-|–|—|to|through)"
-
-
-def _normalize_number(value: str) -> str:
-    try:
-        normalized = Decimal(value.rstrip("%")).normalize()
-    except InvalidOperation:
-        return value
-    rendered = format(normalized, "f")
-    return "0" if rendered in {"-0", ""} else rendered
-
-
 def _without_nonclaim_identifiers(text: str, record: dict[str, Any]) -> str:
     """Remove citations and scoped identifiers before academic-number comparison."""
     cleaned = re.sub(r"\[[^\]]+\]", " ", text)
@@ -207,120 +199,6 @@ def _without_nonclaim_identifiers(text: str, record: dict[str, Any]) -> str:
     return cleaned
 
 
-def _relation_sort_key(item: dict[str, Any]) -> tuple[str, str, str, str]:
-    return (
-        str(item.get("grade", "")), str(item.get("kind", "")),
-        str(item.get("low", item.get("value", ""))), str(item.get("high", item.get("operator", ""))),
-    )
-
-
-def _grade_relationships(text: str) -> list[dict[str, Any]]:
-    """Extract bounded grade relationships while retaining operator semantics."""
-    label_first = re.compile(
-        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])"
-        rf"[ \t]*(?:is|:|=|\()?[ \t]*(?P<low>{NUMBER_TOKEN})[ \t]*(?P<separator>{RANGE_SEPARATOR})[ \t]*(?P<high>{NUMBER_TOKEN})",
-        re.IGNORECASE,
-    )
-    range_first = re.compile(
-        rf"(?P<low>{NUMBER_TOKEN})[ \t]*(?P<separator>{RANGE_SEPARATOR})[ \t]*(?P<high>{NUMBER_TOKEN})[ \t]*"
-        rf"(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])",
-        re.IGNORECASE,
-    )
-    interval = re.compile(
-        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])\s*(?:is|:|=)?\s*"
-        rf"(?P<left>[\[(])\s*(?P<low>{NUMBER_TOKEN})\s*,\s*(?P<high>{NUMBER_TOKEN})\s*(?P<right>[\])])",
-        re.IGNORECASE,
-    )
-    threshold = re.compile(
-        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?![A-Za-z0-9+-])\s*(?:is|:|=)?\s*"
-        rf"(?P<operator>>=|<=|>|<|at\s+least|at\s+most|more\s+than|less\s+than)\s*(?P<value>{NUMBER_TOKEN})",
-        re.IGNORECASE,
-    )
-    relationships: dict[tuple[Any, ...], dict[str, Any]] = {}
-    for pattern in (label_first, range_first):
-        for match in pattern.finditer(text):
-            item = {
-                "grade": match.group("label").upper(),
-                "kind": "range",
-                "low": _normalize_number(match.group("low")),
-                "high": _normalize_number(match.group("high")),
-                "low_inclusive": "unspecified",
-                "high_inclusive": "unspecified",
-                "notation": match.group("separator").casefold(),
-            }
-            relationships[(item["grade"], "range", item["low"], item["high"], "unspecified", "unspecified")] = item
-    for match in interval.finditer(text):
-        item = {
-            "grade": match.group("label").upper(),
-            "kind": "range",
-            "low": _normalize_number(match.group("low")),
-            "high": _normalize_number(match.group("high")),
-            "low_inclusive": match.group("left") == "[",
-            "high_inclusive": match.group("right") == "]",
-            "notation": "interval",
-        }
-        relationships[(item["grade"], "range", item["low"], item["high"], item["low_inclusive"], item["high_inclusive"])] = item
-    operator_map = {
-        "at least": ">=", "at most": "<=", "more than": ">", "less than": "<",
-    }
-    for match in threshold.finditer(text):
-        raw_operator = re.sub(r"\s+", " ", match.group("operator").casefold())
-        item = {
-            "grade": match.group("label").upper(),
-            "kind": "threshold",
-            "operator": operator_map.get(raw_operator, raw_operator),
-            "value": _normalize_number(match.group("value")),
-            "notation": raw_operator,
-        }
-        relationships[(item["grade"], "threshold", item["operator"], item["value"])] = item
-    return sorted(relationships.values(), key=_relation_sort_key)
-
-
-def _grade_label_candidates(text: str) -> set[str]:
-    near_number = re.compile(
-        rf"(?<![A-Za-z0-9])(?P<label>{GRADE_LABEL})(?=(?:\s|:|=|\(|\[)*{NUMBER_TOKEN})",
-        re.IGNORECASE,
-    )
-    return {match.group("label").upper() for match in near_number.finditer(text)}
-
-
-def _relations_compatible(answer: dict[str, Any], source: dict[str, Any]) -> bool:
-    if answer.get("grade") != source.get("grade") or answer.get("kind") != source.get("kind"):
-        return False
-    if answer.get("kind") == "threshold":
-        return answer.get("operator") == source.get("operator") and answer.get("value") == source.get("value")
-    if answer.get("low") != source.get("low") or answer.get("high") != source.get("high"):
-        return False
-    for field in ("low_inclusive", "high_inclusive"):
-        left, right = answer.get(field), source.get(field)
-        if left != "unspecified" and right != "unspecified" and left != right:
-            return False
-    return True
-
-
-def _relationship_comparison(
-    answer: list[dict[str, Any]],
-    source: list[dict[str, Any]],
-    source_status: str,
-) -> list[dict[str, Any]]:
-    comparisons: list[dict[str, Any]] = []
-    for claim in answer[:16]:
-        source_for_grade = [item for item in source if item.get("grade") == claim.get("grade")]
-        if any(_relations_compatible(claim, item) for item in source_for_grade):
-            status = "match"
-        elif source_status == "succeeded":
-            status = "mismatch"
-        else:
-            status = "unknown"
-        comparisons.append({
-            "grade": claim.get("grade"),
-            "source_relationships": source_for_grade[:4],
-            "answer_relationship": claim,
-            "status": status,
-        })
-    return comparisons
-
-
 def _category_percentages(text: str) -> set[tuple[str, str]]:
     pattern = re.compile(
         rf"(?<![A-Za-z0-9])(?P<label>[A-Za-z][A-Za-z0-9 &/()-]{{0,48}}?)"
@@ -332,7 +210,7 @@ def _category_percentages(text: str) -> set[tuple[str, str]]:
         label = re.sub(r"\s+", " ", match.group("label")).strip(" -():")
         if re.fullmatch(GRADE_LABEL, label, flags=re.IGNORECASE):
             continue
-        relationships.add((label.casefold(), _normalize_number(match.group("number"))))
+        relationships.add((label.casefold(), normalize_number(match.group("number"))))
     return relationships
 
 
@@ -350,24 +228,11 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
     source_text = " ".join(text or "" for text in cited_texts)
     answer = str(payload.get("response_text", ""))
     answer_claim_text = _without_nonclaim_identifiers(answer, record)
-    answer_numbers = {_normalize_number(value) for value in re.findall(NUMBER_TOKEN, answer_claim_text)}
-    source_numbers = {_normalize_number(value) for value in re.findall(NUMBER_TOKEN, source_text)}
+    answer_numbers = {normalize_number(value) for value in re.findall(NUMBER_TOKEN, answer_claim_text)}
+    source_numbers = {normalize_number(value) for value in re.findall(NUMBER_TOKEN, source_text)}
     numeric_claims_supported = answer_numbers.issubset(source_numbers)
-    answer_grade_relationships = _grade_relationships(answer_claim_text)
-    source_grade_relationships = _grade_relationships(source_text)
-    source_grade_candidates = _grade_label_candidates(source_text)
-    extracted_source_grades = {item["grade"] for item in source_grade_relationships}
-    if not answer_grade_relationships:
-        source_relationship_status = "not_applicable"
-    elif not source_grade_relationships:
-        source_relationship_status = "indeterminate"
-    elif source_grade_candidates - extracted_source_grades:
-        source_relationship_status = "partial"
-    else:
-        source_relationship_status = "succeeded"
-    grade_comparison = _relationship_comparison(
-        answer_grade_relationships, source_grade_relationships, source_relationship_status,
-    )
+    grade_validation = validate_grade_relationships(answer_claim_text, [source_text])
+    grade_comparison = grade_validation["comparison"]
     unsupported_grade_relationships = [
         item["answer_relationship"] for item in grade_comparison if item["status"] == "mismatch"
     ]
@@ -387,7 +252,7 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
         "passed": (
             locators_resolved
             and numeric_claims_supported
-            and source_relationship_status in {"succeeded", "not_applicable"}
+            and grade_validation["verdict"] in {"verified", "not_applicable"}
             and not unsupported_grade_relationships
             and not unverified_grade_relationships
             and not unsupported_categories
@@ -397,10 +262,11 @@ def support_check(payload: dict[str, Any], record: dict[str, Any]) -> dict[str, 
         "numeric_claim_count": len(answer_numbers),
         "numeric_claims_supported": numeric_claims_supported,
         "unsupported_numeric_values": sorted(answer_numbers - source_numbers)[:12],
-        "grade_range_claim_count": len(answer_grade_relationships),
-        "answer_grade_relationship_count": len(answer_grade_relationships),
-        "source_grade_relationship_count": len(source_grade_relationships),
-        "source_relationship_extraction": source_relationship_status,
+        "grade_range_claim_count": grade_validation["answer_relationship_count"],
+        "answer_grade_relationship_count": grade_validation["answer_relationship_count"],
+        "source_grade_relationship_count": grade_validation["source_relationship_count"],
+        "source_relationship_extraction": grade_validation["source_extraction"],
+        "grade_relationship_verdict": grade_validation["verdict"],
         "grade_relationship_comparison": grade_comparison,
         "unsupported_grade_ranges": [
             item for item in unsupported_grade_relationships[:12]

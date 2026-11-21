@@ -255,7 +255,7 @@ def test_equivalent_interval_range_and_threshold_notation_match_without_losing_o
     ],
 )
 def test_relationship_extractor_supports_representative_table_orders(source_text, expected):
-    relationships = harness._grade_relationships(source_text)
+    relationships = harness.extract_grade_relationships(source_text)
     assert [(item["grade"], item["low"], item["high"]) for item in relationships] == expected
 
 
