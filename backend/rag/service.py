@@ -7,6 +7,11 @@ from typing import Any
 
 from .corpus import chunks_from_record
 from .generation import BaseRAGProvider, provider_from_environment
+from .grade_relationships import (
+    GradeRelationshipIncorrect,
+    GradeRelationshipInconclusive,
+    validate_grade_relationships,
+)
 from .models import EvidenceChunk, RAGResult, RetrievedEvidence
 from .retriever import LexicalRetriever, Retriever
 
@@ -82,9 +87,20 @@ def answer_information_question(
             if not cited or not cited.issubset(known):
                 raise ValueError("Provider cited an unknown or missing source ID")
             used = [item for item in evidence if item.chunk_id in cited]
+            grade_validation = validate_grade_relationships(
+                proposal.answer,
+                [item.text for item in used],
+            )
+            if grade_validation["verdict"] == "incorrect":
+                raise GradeRelationshipIncorrect("Generated grade relationship contradicts cited evidence")
+            if grade_validation["verdict"] == "inconclusive":
+                raise GradeRelationshipInconclusive("Cited evidence could not verify the generated grade relationship")
             inline_citations = " ".join(f"[{source_id}]" for source_id in proposal.cited_source_ids)
             answer = proposal.answer if all(f"[{source_id}]" in proposal.answer for source_id in proposal.cited_source_ids) else f"{proposal.answer} {inline_citations}"
-            return RAGResult(status="answered", answer=answer, generation_source="provider", model_id=selected_provider.model_id, sources=[_source(item) for item in used], retrieved_evidence=evidence, limitations=["Citation-ID validation confirms source identity, not the truth of every generated statement."])
+            limitations = ["Citation-ID validation confirms source identity, not the truth of every generated statement."]
+            if grade_validation["verdict"] == "verified":
+                limitations.append("Explicit parseable grade relationships were checked against cited text; this is not universal semantic verification.")
+            return RAGResult(status="answered", answer=answer, generation_source="provider", model_id=selected_provider.model_id, sources=[_source(item) for item in used], retrieved_evidence=evidence, limitations=limitations)
         except Exception as exc:
             return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason=f"Provider unavailable or rejected ({type(exc).__name__})", model_id=getattr(selected_provider, "model_id", None), sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])
     return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason="RAG_GENERATION_MODE is not set to gemini", sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])

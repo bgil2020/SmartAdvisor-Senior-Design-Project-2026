@@ -52,6 +52,20 @@ class FailingFixtureGenerationProvider(BaseRAGProvider):
         raise TimeoutError("offline forced provider failure")
 
 
+class CountingFixtureGenerationProvider(BaseRAGProvider):
+    model_id = "gemini-3.5-flash-lite"
+
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, question, evidence):
+        self.calls += 1
+        return GroundedProposal(
+            answer="The cited grading evidence answers this question.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
 def test_conversation_route_accepts_fixture_generation_with_citation_and_model(monkeypatch):
     monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: FixtureGenerationProvider())
     data = ask(
@@ -85,11 +99,66 @@ def test_reuses_exact_session_syllabus_with_zero_acquisition_and_citations():
     first = ask("What does the grading section say for COP 4331?", evidence, {"course_code": "COP4331", "term_id": "202608", "section": "002"})
     assert first["status"] == "grounded_answer"
     assert first["acquisition"]["additional_source_acquisitions"] == 0
+    assert first["acquisition"]["session_evidence_submitted"] == 1
+    assert first["acquisition"]["session_evidence_accepted"] == 1
+    assert first["acquisition"]["session_evidence_matched"] == 1
+    assert first["acquisition"]["session_evidence_reused"] is True
     assert first["citations"]
     follow_up = ask("What are the learning outcomes for that class?", evidence, first["source_scope"])
     assert follow_up["status"] == "grounded_answer"
     assert follow_up["acquisition"]["additional_source_acquisitions"] == 0
+    assert follow_up["acquisition"]["session_evidence_submitted"] == 1
+    assert follow_up["acquisition"]["session_evidence_accepted"] == 1
+    assert follow_up["acquisition"]["session_evidence_matched"] == 1
+    assert follow_up["acquisition"]["session_evidence_reused"] is True
     assert follow_up["source_scope"] == {"course_code": "COP4331", "term_id": "202608", "section": "002"}
+
+
+def test_combined_acquisition_provider_generation_and_follow_up_reuse_offline(monkeypatch):
+    acquired_record = record()
+    acquisition_calls = 0
+
+    def fake_acquisition(*_args):
+        nonlocal acquisition_calls
+        acquisition_calls += 1
+        return {
+            "status": "acquired",
+            "probe_status": "anonymous_full_document",
+            "record": acquired_record,
+            "request_count": 1,
+            "actual_observed_responses": 12,
+            "cleanup": "completed",
+        }
+
+    provider = CountingFixtureGenerationProvider()
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setattr("backend.conversational_router.acquire_exact_syllabus", fake_acquisition)
+    monkeypatch.setattr("backend.rag.service.provider_from_environment", lambda: provider)
+    context = {"course_code": "COP4331", "term_id": "202608", "section": "002"}
+
+    first = ask("What grading information is in the syllabus for COP 4331?", [], context)
+    assert first["acquisition"]["status"] == "acquired"
+    assert first["acquisition"]["additional_source_acquisitions"] == 1
+    assert first["generation_source"] == "provider"
+    assert first["generation_fallback_used"] is False
+    assert first["model_id"] == "gemini-3.5-flash-lite"
+    assert len(first["acquired_evidence"]) == 1
+
+    follow_up = ask(
+        "Which letter grade ranges are listed in that same syllabus grading scale?",
+        first["acquired_evidence"],
+        first["source_scope"],
+    )
+    assert follow_up["generation_source"] == "provider"
+    assert follow_up["generation_fallback_used"] is False
+    assert follow_up["model_id"] == "gemini-3.5-flash-lite"
+    assert follow_up["acquisition"]["additional_source_acquisitions"] == 0
+    assert follow_up["acquisition"]["session_evidence_submitted"] == 1
+    assert follow_up["acquisition"]["session_evidence_accepted"] == 1
+    assert follow_up["acquisition"]["session_evidence_matched"] == 1
+    assert follow_up["acquisition"]["session_evidence_reused"] is True
+    assert acquisition_calls == 1
+    assert provider.calls == 2
 
 
 def test_reuses_localized_redirect_source_with_zero_acquisition(monkeypatch):
@@ -141,6 +210,23 @@ def test_tampered_client_verification_is_rejected():
     assert any("content_sha256" in item or "provenance" in item for item in errors)
 
 
+def test_tampered_session_evidence_is_not_reported_as_accepted_or_reused(monkeypatch):
+    tampered = record()
+    tampered["document_text"] = "invented"
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "false")
+
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [tampered],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+
+    assert data["acquisition"]["session_evidence_submitted"] == 1
+    assert data["acquisition"]["session_evidence_accepted"] == 0
+    assert data["acquisition"]["session_evidence_matched"] == 0
+    assert data["acquisition"]["session_evidence_reused"] is False
+
+
 def test_contextual_reference_with_multiple_sections_requires_clarification():
     second = {key: value for key, value in record().items() if key != "session_provenance"}
     second["section_scope"] = {"section": "003"}
@@ -167,6 +253,23 @@ def test_stable_backend_key_allows_browser_evidence_after_restart(monkeypatch):
     valid, errors = validate_session_records([retained])
     assert errors == []
     assert valid[0]["record_id"] == retained["record_id"]
+
+
+def test_legacy_signed_record_remains_valid_without_reparsing_table_whitespace():
+    legacy = {key: value for key, value in record().items() if key != "session_provenance"}
+    legacy["academic_sections"][-1]["text"] = "A90% - 100%B80% - 89%"
+    legacy["document_text"] = "\n\n".join(
+        f"{section['heading']}\n{section['text']}" for section in legacy["academic_sections"]
+    )
+    legacy["exact_source_text"] = legacy["document_text"]
+    legacy["content_sha256"] = syllabus_content_hash(legacy)
+    retained = attach_provenance(legacy)
+
+    valid, errors = validate_session_records([retained])
+
+    assert errors == []
+    assert valid[0]["content_sha256"] == retained["content_sha256"]
+    assert valid[0]["academic_sections"][-1]["text"] == "A90% - 100%B80% - 89%"
 
 
 def test_provenance_survives_separate_backend_processes():
@@ -251,3 +354,28 @@ def test_syllabus_test_budget_blocks_second_browser_start(monkeypatch):
     assert second["status"] == "acquisition_budget_exhausted"
     assert second["request_count"] == 0
     assert starts == 1
+
+
+def test_conversation_exposes_final_and_probe_acquisition_statuses_separately(monkeypatch):
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setattr(
+        "backend.conversational_router.acquire_exact_syllabus",
+        lambda *_args: {
+            "status": "course_identity_mismatch",
+            "probe_status": "anonymous_full_document",
+            "record": None,
+            "request_count": 1,
+            "actual_observed_responses": 7,
+            "cleanup": "completed",
+        },
+    )
+
+    data = ask(
+        "What does the grading section say for COP 4331?",
+        [],
+        {"course_code": "COP4331", "term_id": "202608", "section": "002"},
+    )
+
+    assert data["status"] == "acquisition_failed"
+    assert data["acquisition"]["status"] == "course_identity_mismatch"
+    assert data["acquisition"]["probe_status"] == "anonymous_full_document"

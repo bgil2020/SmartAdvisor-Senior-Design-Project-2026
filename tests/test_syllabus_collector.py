@@ -32,6 +32,44 @@ class FakeBrowserSession:
     def close(self): self.closed = True
 
 
+class FakeRuntimeSession:
+    def __init__(self, html: str, final_url: str):
+        self.last_html = html
+        self.final_url = final_url
+
+
+def full_document_probe() -> dict:
+    return {
+        "status": "anonymous_full_document",
+        "stop_reason": "rendered_document_ready",
+        "logical_navigations": 1,
+        "actual_observed_responses": 7,
+        "essential_document_requests": 1,
+        "essential_document_failures": 0,
+        "telemetry_responses": 1,
+        "access_denials": 0,
+        "cancelled": False,
+        "limits": {
+            "essential_failure_budget": 2,
+            "access_denial_threshold": 1,
+            "total_response_budget": 60,
+            "max_rendered_html_bytes": 2 * 1024 * 1024,
+        },
+    }
+
+
+def runtime_mapping(course_code: str = "COP4331") -> dict:
+    return {
+        "course_code": course_code,
+        "term_id": "202608",
+        "term_name": "Fall 2026 1 Full Term",
+        "section": "002",
+        "instructor": "Ionut Cardei",
+        "source_document_id": "sb4d8l8wb",
+        "view_url": "https://fau.simplesyllabus.com/doc/sb4d8l8wb/Fall-2026-COP-4331-002?mode=view",
+    }
+
+
 def record(section="002", source_id="sb4d8l8wb"):
     html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8").replace("4331-002", f"4331-{section}")
     return parse_rendered_syllabus(html, course_code="COP4331", term_id="202608", term_name="Fall 2026 1 Full Term", section=section, source_document_id=source_id, source_url=f"https://fau.simplesyllabus.com/doc/{source_id}/COP-4331?mode=view", fetched_at="2026-10-30T12:00:00Z", raw_evidence_ref="tests/syllabi/fixtures/rendered_complete.html", instructor="Ionut Cardei")
@@ -56,6 +94,37 @@ def test_extracts_complete_document_identity_sections_and_locators():
     assert "Section navigation" not in item["document_text"]
     assert "Privacy Terms Support" not in item["document_text"]
     assert validate_batch(batch("parsed-one", [item]))["valid"] is True
+
+
+def test_parser_preserves_grading_table_cell_and_row_boundaries():
+    html = """
+    <main data-syllabus-document>
+      <h1>CAP 4773-001 Fall 2026</h1>
+      <h2>Course Grading Scale</h2>
+      <table>
+        <tr><th>Grade</th><th>Range</th></tr>
+        <tr><td>A</td><td>90.0% - 100.00%</td></tr>
+        <tr><td>B+</td><td>87% - 89%</td></tr>
+      </table>
+    </main>
+    """
+    parsed = parse_rendered_syllabus(
+        html,
+        course_code="CAP4773",
+        term_id="202608",
+        term_name="Fall 2026",
+        section="001",
+        source_document_id="table-fixture",
+        source_url="https://example.test/doc/table-fixture",
+        fetched_at="2026-11-20T00:00:00Z",
+        raw_evidence_ref="synthetic-table-fixture",
+    )
+    scale = parsed["academic_sections"][0]["text"]
+
+    assert "Grade\tRange" in scale
+    assert "A\t90.0% - 100.00%" in scale
+    assert "B+\t87% - 89%" in scale
+    assert "A90.0%" not in scale
 
 
 def test_rejects_library_shell_login_redirect_and_missing_or_ambiguous_text():
@@ -187,6 +256,54 @@ def test_browser_probe_ignores_telemetry_failure_when_rendered_document_is_usabl
     assert result["stop_reason"] == "rendered_document_ready"
     assert result["telemetry_responses"] == 1
     assert not session.cancelled and session.closed
+
+
+def test_runtime_full_document_probe_preserves_acquired_status(monkeypatch):
+    from backend.syllabi import runtime
+
+    html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
+    session = FakeRuntimeSession(html, runtime_mapping()["view_url"])
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-runtime-test-signing-key-1234567890")
+    monkeypatch.setattr(runtime, "PlaywrightSession", lambda **_kwargs: session)
+    monkeypatch.setattr(runtime, "probe_browser_session", lambda *_args, **_kwargs: full_document_probe())
+
+    result = runtime._run_mapping(runtime_mapping())
+
+    assert result["status"] == "acquired"
+    assert result["probe_status"] == "anonymous_full_document"
+    assert result["record"]["course_code"] == "COP4331"
+    assert result["record"]["session_provenance"]["scheme"] == "hmac-sha256-v1"
+
+
+def test_runtime_full_document_probe_does_not_mask_parser_failure(monkeypatch):
+    from backend.syllabi import runtime
+
+    html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
+    session = FakeRuntimeSession(html, runtime_mapping()["view_url"])
+    monkeypatch.setattr(runtime, "PlaywrightSession", lambda **_kwargs: session)
+    monkeypatch.setattr(runtime, "probe_browser_session", lambda *_args, **_kwargs: full_document_probe())
+
+    result = runtime._run_mapping(runtime_mapping(course_code="CAP4773"))
+
+    assert result["status"] == "course_identity_mismatch"
+    assert result["probe_status"] == "anonymous_full_document"
+    assert result["record"] is None
+
+
+def test_runtime_full_document_probe_does_not_mask_candidate_rejection(monkeypatch):
+    from backend.syllabi import runtime
+
+    html = (FIXTURES / "rendered_complete.html").read_text(encoding="utf-8")
+    session = FakeRuntimeSession(html, runtime_mapping()["view_url"])
+    monkeypatch.setattr(runtime, "PlaywrightSession", lambda **_kwargs: session)
+    monkeypatch.setattr(runtime, "probe_browser_session", lambda *_args, **_kwargs: full_document_probe())
+    monkeypatch.setattr(runtime, "validate_record", lambda _record: ["content identity mismatch"])
+
+    result = runtime._run_mapping(runtime_mapping())
+
+    assert result["status"] == "candidate_rejected"
+    assert result["probe_status"] == "anonymous_full_document"
+    assert result["record"] is None
 
 
 def test_browser_probe_cleans_up_on_error_without_touching_accepted_content(tmp_path):

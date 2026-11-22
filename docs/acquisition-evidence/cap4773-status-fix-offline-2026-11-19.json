@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "verification_kind": "offline_acquisition_status_regression",
+  "tested_base_head": "0fca051c6b43108a8fc6d33a8566b26b19893c4f",
+  "working_tree_state": "uncommitted status fix, harness update, and regression tests",
+  "external_source_requests": 0,
+  "gemini_requests": 0,
+  "results": {
+    "focused_runtime_and_harness_tests": {
+      "passed": 24,
+      "failed": 0
+    },
+    "affected_backend_tests": {
+      "passed": 79,
+      "failed": 0,
+      "warnings": 1
+    },
+    "complete_backend_tests": {
+      "passed": 284,
+      "failed": 0,
+      "warnings": 1
+    },
+    "python_syntax_check": "passed",
+    "git_diff_check": "passed"
+  },
+  "contract": {
+    "final_status_authoritative": true,
+    "probe_status_separate": true,
+    "acquired_status_regression": "passed",
+    "parser_failure_status_regression": "passed",
+    "candidate_rejected_status_regression": "passed",
+    "conversation_consumer_regression": "passed",
+    "failure_diagnostics_redacted": true
+  },
+  "live_acquisition_performed": false,
+  "contains_credentials_source_text_or_signatures": false
+}

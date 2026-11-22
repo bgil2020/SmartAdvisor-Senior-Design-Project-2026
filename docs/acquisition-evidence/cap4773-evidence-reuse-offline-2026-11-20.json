@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "verification_kind": "offline_browser_evidence_reuse_acceptance",
+  "tested_base_head": "0fca051c6b43108a8fc6d33a8566b26b19893c4f",
+  "working_tree_state": "uncommitted acquisition status, sanitized acceptance metadata, harness, and regression changes",
+  "external_source_requests": 0,
+  "gemini_requests": 0,
+  "results": {
+    "focused_acquisition_and_harness_tests": {
+      "passed": 45,
+      "failed": 0
+    },
+    "complete_backend_tests": {
+      "passed": 289,
+      "failed": 0,
+      "warnings": 1
+    },
+    "frontend_tests": {
+      "passed": 43,
+      "failed": 0
+    },
+    "frontend_lint": "passed",
+    "offline_browser_replay": "passed",
+    "future_live_harness_preflight": "passed",
+    "python_syntax_check": "passed",
+    "git_diff_check": "passed"
+  },
+  "browser_reuse_evidence": {
+    "submitted_session_evidence": 1,
+    "accepted_session_evidence": 1,
+    "matched_session_evidence": 1,
+    "session_evidence_reused": true,
+    "additional_source_acquisitions": 0,
+    "follow_up_status": "grounded_answer",
+    "follow_up_response_code": "SESSION_EVIDENCE_ANSWER",
+    "follow_up_citation_count": 1
+  },
+  "security": {
+    "backend_hmac_implementation_changed": false,
+    "valid_evidence_test_passed": true,
+    "tampered_evidence_rejection_test_passed": true,
+    "harness_standalone_signature_recheck_required": false
+  },
+  "live_acquisition_performed": false,
+  "contains_credentials_source_text_prompts_or_signatures": false
+}

@@ -1,0 +1,113 @@
+{
+  "acquisition": {
+    "access_denials": 0,
+    "additional_source_acquisitions": 1,
+    "cleanup": "completed",
+    "duration_ms": 3390,
+    "essential_document_failures": 0,
+    "essential_document_requests": 1,
+    "final_status": "acquired",
+    "limits": {
+      "access_denial_threshold": 1,
+      "essential_failure_budget": 2,
+      "max_rendered_html_bytes": 2097152,
+      "total_response_budget": 60
+    },
+    "logical_navigations": 1,
+    "observed_browser_responses": 25,
+    "probe_status": "anonymous_full_document",
+    "session_evidence_accepted": 0,
+    "session_evidence_matched": 0,
+    "session_evidence_reused": false,
+    "session_evidence_submitted": 0,
+    "stop_reason": "rendered_document_ready",
+    "test_budget": {
+      "allowed": true,
+      "enforced": true,
+      "limit": 1,
+      "used": 1
+    }
+  },
+  "artifacts": {
+    "diagnostics": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026\\.worktrees\\main-verified\\docs\\acquisition-evidence\\cap4773-live-acquisition-gemini-reuse-next.json",
+    "redacted_screenshot": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026\\.worktrees\\main-verified\\docs\\acquisition-evidence\\cap4773-live-ui-gemini-reuse-next-redacted.png"
+  },
+  "attempt_label": "future-acquisition-gemini-and-evidence-reuse-requires-separate-approval",
+  "citation": {
+    "count": 1,
+    "locator": "heading:Course Grading Scale",
+    "record_id": "fau-simple-syllabus:syllabus:cap4773:202608:001:fjhz2vvga",
+    "rendered": true,
+    "url_matches_document": true
+  },
+  "cleanup": {
+    "backend_stopped": true,
+    "browser_closed": true,
+    "frontend_stopped": true
+  },
+  "combined_harness_uncommitted": true,
+  "conclusion": "failed",
+  "contains_raw_source_or_signature": false,
+  "elapsed_ms": 11265,
+  "evidence": {
+    "academic_section_count": 14,
+    "backend_acceptance_via_follow_up": "unknown",
+    "content_sha256": "3c971166e157cef535ea88d5a7c130c0e6c24781d7cb4464ac1b22e3816ed07e",
+    "course_code": "CAP4773",
+    "document_character_count": 8391,
+    "record_category": "syllabus",
+    "record_count": 1,
+    "record_id": "fau-simple-syllabus:syllabus:cap4773:202608:001:fjhz2vvga",
+    "section": "001",
+    "signature_present": true,
+    "signature_scheme": "hmac-sha256-v1",
+    "source_document_id": "fjhz2vvga",
+    "source_url_matches_document": true,
+    "term_id": "202608"
+  },
+  "failure": {
+    "error_type": "RuntimeError",
+    "stage": "response_validation"
+  },
+  "failure_stage": "response_validation",
+  "follow_up": null,
+  "preflight": {
+    "configured_key_matches_account_evidence": true,
+    "mapping_verified": true,
+    "offline_tests_passed": true,
+    "ports_idle": true,
+    "provider_retries": 0
+  },
+  "provider": {
+    "accepted_provider_answers": 1,
+    "automatic_retries": 0,
+    "model": "gemini-3.5-flash-lite",
+    "request_budget": 2
+  },
+  "request": {
+    "approved_scope_sent": true,
+    "prior_session_evidence_supplied": false,
+    "ui_conversation_submissions": 1
+  },
+  "response": {
+    "answer_support_check": {
+      "citation_ids_inline": true,
+      "cited_locators_resolved": true,
+      "numeric_claim_count": 23,
+      "numeric_claims_supported": false,
+      "passed": false
+    },
+    "generation_fallback_used": false,
+    "generation_source": "provider",
+    "model_id": "gemini-3.5-flash-lite",
+    "response_code": "SESSION_EVIDENCE_ANSWER",
+    "source_scope": {
+      "course_code": "CAP4773",
+      "section": "001",
+      "term_id": "202608"
+    },
+    "status": "grounded_answer"
+  },
+  "schema_version": "1.0",
+  "tested_head": "f9a79fb33c51805dc57fb9861bb297f1332d6ac9"
+}

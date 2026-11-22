@@ -172,10 +172,6 @@ export default function App() {
   const [completedCourseHistory, setCompletedCourseHistory] =
     useState<{ course_code: string; semester: string }[]>([]);
 
-  
-  const [courseWarning, setCourseWarning] =
-    useState<string | null>(null);
-
   const [historyVersion, setHistoryVersion] =
     useState(0);
 
@@ -249,9 +245,6 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
-    setCompletedCourseHistory([]);
-    setCourseWarning(null);
-
     if (!accountId) return;
 
     const loadCompletedCourses = async () => {
@@ -288,42 +281,25 @@ export default function App() {
     return code.replace(/\s+/g, '').toUpperCase();
   };
 
-  const checkCompletedCourse = (courseCode: string) => {
+  const courseWarning = useMemo(() => {
+    if (!accountId || !selectedCourseCode) return null;
+
     const completed = completedCourseHistory.find(
       course =>
         normalizeCourseCode(course.course_code) ===
-        normalizeCourseCode(courseCode)
+        normalizeCourseCode(selectedCourseCode)
     );
 
-    if (completed) {
-      setCourseWarning(
-        `You have already completed ${courseCode} in ${completed.semester}.`
-      );
-    } else {
-      setCourseWarning(null);
-    }
-  };
-
-  useEffect(() => {
-    const completed = completedCourseHistory.find(
-      course =>
-        course.course_code.replace(/\s+/g, '').toUpperCase() ===
-        selectedCourseCode.replace(/\s+/g, '').toUpperCase()
-    );
-
-    setCourseWarning(
-      selectedCourseCode && completed
-        ? `You have already completed ${selectedCourseCode} in ${completed.semester}.`
-        : null
-    );
-  }, [selectedCourseCode, completedCourseHistory]);
+    return completed
+      ? `You have already completed ${selectedCourseCode} in ${completed.semester}.`
+      : null;
+  }, [accountId, selectedCourseCode, completedCourseHistory]);
 
 
   // --- Fetch sections when course selected (with race condition prevention) ---
   const handleSelectCourse = (courseCode: string) => {
     const reqId = ++sectionsRequestIdRef.current;
     setSelectedCourseCode(courseCode);
-    checkCompletedCourse(courseCode);
     setAvailableSections([]);
     setSectionsError(null);
 
@@ -645,7 +621,6 @@ onClick={async () => {
   }
 
   setCompletedCourseHistory([]);
-  setCourseWarning(null);
   setSelectedCourseCode('');
   setAvailableSections([]);
   setSelectedSections([]);

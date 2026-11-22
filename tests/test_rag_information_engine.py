@@ -97,6 +97,26 @@ class FailingProvider(BaseRAGProvider):
         raise TimeoutError("simulated")
 
 
+class WrongRelationshipProvider(BaseRAGProvider):
+    model_id = "fake-model"
+
+    def generate(self, question, evidence):
+        return GroundedProposal(
+            answer="B is 90% to 100%.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
+class CorrectRelationshipProvider(BaseRAGProvider):
+    model_id = "fake-model"
+
+    def generate(self, question, evidence):
+        return GroundedProposal(
+            answer="A is 90% to 100%.",
+            cited_source_ids=[evidence[0].chunk_id],
+        )
+
+
 def test_valid_provider_citation_is_returned_with_source_contract():
     result = answer_information_question("Does COP4331 cover object-oriented design?", course_codes=["COP4331"], retriever=LexicalRetriever([chunk()]), provider=StaticProvider("rag:cop-description"))
     assert result.generation_source == "provider"
@@ -131,6 +151,52 @@ def test_unknown_provider_citation_triggers_extract_fallback():
     assert result.generation_source == "source_excerpt_fallback"
     assert result.generation_fallback_used is True
     assert "unknown" not in result.answer.casefold()
+
+
+def test_application_rejects_demonstrably_wrong_grade_relationship_as_fallback():
+    evidence = chunk(text="Grade scale: A is 90% to 100%; B is 80% to 89%.")
+    result = answer_information_question(
+        "What is the grade scale?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([evidence]),
+        provider=WrongRelationshipProvider(),
+    )
+
+    assert result.generation_source == "source_excerpt_fallback"
+    assert result.generation_fallback_used is True
+    assert result.generation_fallback_reason.endswith("(GradeRelationshipIncorrect)")
+    assert result.sources[0]["source_id"] == evidence.chunk_id
+    assert "B is 90% to 100%" not in result.answer
+
+
+def test_application_accepts_correct_parseable_grade_relationship():
+    evidence = chunk(text="Grade scale: A\t90% to 100%\nB\t80% to 89%.")
+    result = answer_information_question(
+        "What is the grade scale?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([evidence]),
+        provider=CorrectRelationshipProvider(),
+    )
+
+    assert result.generation_source == "provider"
+    assert result.generation_fallback_used is False
+    assert "A is 90% to 100%" in result.answer
+    assert any("not universal semantic verification" in item for item in result.limitations)
+
+
+def test_application_uses_fallback_when_grade_relationship_verification_is_inconclusive():
+    evidence = chunk(text="Grade scale: A90% to 100%B80% to 89%.")
+    result = answer_information_question(
+        "What is the grade scale?",
+        course_codes=["COP4331"],
+        retriever=LexicalRetriever([evidence]),
+        provider=CorrectRelationshipProvider(),
+    )
+
+    assert result.generation_source == "source_excerpt_fallback"
+    assert result.generation_fallback_used is True
+    assert result.generation_fallback_reason.endswith("(GradeRelationshipInconclusive)")
+    assert result.sources
 
 
 def test_provider_failure_preserves_citations_in_labeled_fallback():
@@ -188,6 +254,30 @@ def test_rag_provider_enforces_shared_request_budget_before_transport(monkeypatc
     with pytest.raises(ProviderRequestBudgetExhausted):
         provider.generate("Does COP4331 cover object-oriented design?", [chunk()])
     assert client.models.generate_content.call_count == 1
+
+
+def test_rag_provider_allows_exactly_two_combined_turns_before_transport_block(monkeypatch):
+    client = MagicMock()
+    client.models.generate_content.return_value = SimpleNamespace(
+        text=json.dumps({"answer": "Grounded answer.", "cited_source_ids": ["rag:cop-description"]})
+    )
+    monkeypatch.setenv("GEMINI_TEST_REQUEST_BUDGET", "2")
+    provider = GeminiRAGProvider(api_key="test-key", client=client)
+
+    provider.generate("First grounded question?", [chunk()])
+    provider.generate("Different grounded follow-up?", [chunk()])
+    with pytest.raises(ProviderRequestBudgetExhausted):
+        provider.generate("Unexpected third question?", [chunk()])
+
+    assert client.models.generate_content.call_count == 2
+    assert all(
+        call.kwargs["model"] == "gemini-3.5-flash-lite"
+        for call in client.models.generate_content.call_args_list
+    )
+    assert all(
+        call.kwargs["config"].max_output_tokens == 512
+        for call in client.models.generate_content.call_args_list
+    )
 
 
 def _candidate(record, batch_id):

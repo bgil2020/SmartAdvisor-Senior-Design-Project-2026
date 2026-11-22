@@ -8,6 +8,9 @@ RUN npm run build
 
 FROM mcr.microsoft.com/playwright/python:v1.56.0-noble
 
+ARG SMARTADVISOR_SOURCE_FINGERPRINT=unrecorded
+LABEL org.opencontainers.image.source-fingerprint="${SMARTADVISOR_SOURCE_FINGERPRINT}"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8000 \
@@ -20,7 +23,11 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY --from=frontend-build /frontend/dist /app/frontend/dist
-RUN chmod +x /app/scripts/container-entrypoint.sh
+# Windows checkouts can supply CRLF despite the Linux shebang. Normalize the
+# copied entrypoint inside the image so the deployed artifact is portable.
+RUN sed -i 's/\r$//' /app/scripts/container-entrypoint.sh \
+    && ! grep -q "$(printf '\r')" /app/scripts/container-entrypoint.sh \
+    && chmod +x /app/scripts/container-entrypoint.sh
 
 EXPOSE 8000
 ENTRYPOINT ["/app/scripts/container-entrypoint.sh"]
