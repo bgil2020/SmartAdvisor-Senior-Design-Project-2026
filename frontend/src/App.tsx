@@ -105,6 +105,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [studentName, setStudentName] = useState('');
   const [authReady, setAuthReady] = useState(false);
+  const [accountId, setAccountId] = useState<string | null>(null);
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -114,6 +115,7 @@ export default function App() {
           event === 'SIGNED_OUT'
         ) {
           const user = session?.user;
+          setAccountId(user?.id ?? null);
 
           setStudentName(
             user
@@ -142,6 +144,18 @@ export default function App() {
   const [availableSections, setAvailableSections] = useState<RawSectionRecord[]>([]);
   const [loadingSections, setLoadingSections] = useState(false);
   const [sectionsError, setSectionsError] = useState<string | null>(null);
+
+  const [completedCourseHistory, setCompletedCourseHistory] =
+    useState<{ course_code: string; semester: string }[]>([]);
+
+  
+  const [courseWarning, setCourseWarning] =
+    useState<string | null>(null);
+
+  const [historyVersion, setHistoryVersion] =
+    useState(0);
+
+
 
   // Student's proposed schedule of selected sections
   const [selectedSections, setSelectedSections] = useState<RawSectionRecord[]>([]);
@@ -206,11 +220,86 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+  
+  
+  useEffect(() => {
+    let active = true;
+
+    setCompletedCourseHistory([]);
+    setCourseWarning(null);
+
+    if (!accountId) return;
+
+    const loadCompletedCourses = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('student_course_history')
+          .select('course_code, semester')
+          .eq('user_id', accountId)
+          .eq('status', 'Completed');
+
+        if (error) throw error;
+
+        if (active) {
+          setCompletedCourseHistory(data || []);
+        }
+      } catch (err) {
+        if (active) {
+          setCompletedCourseHistory([]);
+          console.error('Unable to load completed courses.', err);
+        }
+      }
+    };
+
+    loadCompletedCourses();
+
+    return () => {
+      active = false;
+    };
+  }, [historyVersion, accountId]);
+
+
+
+  const normalizeCourseCode = (code: string) => {
+    return code.replace(/\s+/g, '').toUpperCase();
+  };
+
+  const checkCompletedCourse = (courseCode: string) => {
+    const completed = completedCourseHistory.find(
+      course =>
+        normalizeCourseCode(course.course_code) ===
+        normalizeCourseCode(courseCode)
+    );
+
+    if (completed) {
+      setCourseWarning(
+        `You have already completed ${courseCode} in ${completed.semester}.`
+      );
+    } else {
+      setCourseWarning(null);
+    }
+  };
+
+  useEffect(() => {
+    const completed = completedCourseHistory.find(
+      course =>
+        course.course_code.replace(/\s+/g, '').toUpperCase() ===
+        selectedCourseCode.replace(/\s+/g, '').toUpperCase()
+    );
+
+    setCourseWarning(
+      selectedCourseCode && completed
+        ? `You have already completed ${selectedCourseCode} in ${completed.semester}.`
+        : null
+    );
+  }, [selectedCourseCode, completedCourseHistory]);
+
 
   // --- Fetch sections when course selected (with race condition prevention) ---
   const handleSelectCourse = (courseCode: string) => {
     const reqId = ++sectionsRequestIdRef.current;
     setSelectedCourseCode(courseCode);
+    checkCompletedCourse(courseCode);
     setAvailableSections([]);
     setSectionsError(null);
 
@@ -490,13 +579,23 @@ export default function App() {
 
 <button
   type="button"
-  onClick={async () => {
-    const { error } = await supabase.auth.signOut();
+ 
+onClick={async () => {
+  const { error } = await supabase.auth.signOut();
 
-    if (error) {
-      alert('Unable to log out. Please try again.');
-    }
-  }}
+  if (error) {
+    alert('Unable to log out. Please try again.');
+    return;
+  }
+
+  setCompletedCourseHistory([]);
+  setCourseWarning(null);
+  setSelectedCourseCode('');
+  setAvailableSections([]);
+  setSelectedSections([]);
+  setHistoryVersion(previous => previous + 1);
+}}
+
   style={{
     marginTop: '12px',
     padding: '10px 20px',
@@ -522,7 +621,16 @@ export default function App() {
           onRemoveCourse={handleRemoveSection}
         />
 
-        <SemesterHistory />
+        
+
+<SemesterHistory
+  key={accountId ?? 'signed-out'}
+  onHistorySaved={() => {
+    setHistoryVersion(previous => previous + 1);
+  }}
+/>
+
+
 
         {/* 1. Real Course Selection & Section Browser */}
         <section style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
@@ -558,6 +666,34 @@ export default function App() {
                   </option>
                 ))}
               </select>
+
+{courseWarning && (
+  <div
+    role="alert"
+    style={{
+      marginTop: '12px',
+      padding: '14px 16px',
+      backgroundColor: '#fff7ed',
+      border: '1px solid #f59e0b',
+      borderRadius: '8px',
+      color: '#92400e'
+    }}
+  >
+    <strong>
+      ⚠ Previously Completed Course
+    </strong>
+
+    <p style={{ margin: '6px 0' }}>
+      {courseWarning}
+    </p>
+
+    <small>
+      Please review your academic history before
+      adding this course to your schedule.
+    </small>
+  </div>
+)}
+
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.75rem', color: '#6b7280', alignSelf: 'center' }}>Quick select:</span>
                 {['CAP 4773', 'COP 2220', 'CDA 4240C', 'MAC 2313'].map((code) => (
