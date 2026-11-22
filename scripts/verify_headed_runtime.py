@@ -5,19 +5,28 @@ import argparse
 import json
 import os
 from pathlib import Path
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import psutil
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from backend.syllabi.runtime import synthetic_smoke
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/synthetic.html":
-            body = b"<!doctype html><main data-smoke-ready><h1>Synthetic syllabus</h1><p>Rendered locally.</p></main>"
+            body = b"""<!doctype html><html><body><main data-syllabus-document>
+<h1>COP 4331-002 Object-Oriented Design &amp; Programming</h1>
+<p>Fall 2026 1 Full Term</p>
+<h2>Course Description</h2><p>Offline synthetic runtime verification.</p>
+<h2>Course Evaluation Method</h2><p>Projects and examinations are evaluated.</p>
+</main></body></html>"""
             self.send_response(200); self.send_header("Content-Type", "text/html"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
         elif self.path == "/slow":
             time.sleep(2)
@@ -36,19 +45,6 @@ def family_rss() -> int:
     return sum(item.memory_info().rss for item in family if item.is_running())
 
 
-def browser_launch_options() -> dict[str, object]:
-    options: dict[str, object] = {
-        "headless": False,
-        "args": ["--disable-dev-shm-usage", "--no-sandbox"],
-    }
-    executable = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE", "").strip()
-    if executable:
-        if not Path(executable).is_file():
-            raise RuntimeError("configured_browser_executable_missing")
-        options["executable_path"] = executable
-    return options
-
-
 def verify_application_ui(app_url: str) -> int:
     """Render the bundled Home and navigate through the real Chatbot control."""
     started = time.monotonic()
@@ -61,7 +57,7 @@ def verify_application_ui(app_url: str) -> int:
     page_errors: list[str] = []
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(**browser_launch_options())
+            browser = playwright.chromium.launch(headless=False)
             try:
                 page = browser.new_page()
                 page.on("console", lambda message: console_errors.append(message.type) if message.type == "error" else None)
@@ -130,33 +126,16 @@ def main() -> int:
         return verify_application_ui(args.app_url)
     server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
-    started = time.monotonic(); peak = family_rss(); timeout_cancelled = False
+    started = time.monotonic(); peak = family_rss()
     try:
-        with sync_playwright() as playwright:
-            try:
-                launch_options = browser_launch_options()
-            except RuntimeError as error:
-                print(json.dumps({"status": "failed", "reason": str(error)}))
-                return 2
-            browser = playwright.chromium.launch(**launch_options)
-            try:
-                page = browser.new_page()
-                page.goto("http://127.0.0.1:8765/synthetic.html", wait_until="domcontentloaded", timeout=5_000)
-                rendered = page.locator("[data-smoke-ready]").count() == 1 and "Rendered locally" in page.locator("main").inner_text()
-                peak = max(peak, family_rss())
-                try:
-                    page.goto("http://127.0.0.1:8765/slow", timeout=100)
-                except PlaywrightTimeoutError:
-                    timeout_cancelled = True
-                peak = max(peak, family_rss())
-            finally:
-                browser.close()
+        smoke = synthetic_smoke("http://127.0.0.1:8765/synthetic.html")
+        peak = max(peak, family_rss())
         time.sleep(0.2)
         chromium_left = [child.pid for child in psutil.Process().children(recursive=True) if "chrom" in child.name().casefold()]
+        passed = smoke.get("status") == "passed" and not chromium_left
         result = {
-            "status": "passed" if rendered and timeout_cancelled and not chromium_left else "failed",
-            "rendered": rendered,
-            "timeout_cancelled": timeout_cancelled,
+            **smoke,
+            "status": "passed" if passed else "failed",
             "chromium_children_after_close": chromium_left,
             "peak_family_rss_mb": round(peak / 1024 / 1024, 1),
             "duration_ms": round((time.monotonic() - started) * 1000),

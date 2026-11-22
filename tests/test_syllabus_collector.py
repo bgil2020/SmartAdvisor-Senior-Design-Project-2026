@@ -12,11 +12,68 @@ from backend.course_descriptions.storage import compare_batches
 from backend.syllabi.models import syllabus_content_hash
 from backend.syllabi.browser_probe import BrowserProbeLimits, probe_browser_session
 from backend.syllabi.parser import SyllabusParseError, classify_browser_observation, classify_page, parse_rendered_syllabus
+from backend.syllabi.playwright_driver import BrowserExecutableConfigurationError, resolve_browser_executable
 from backend.syllabi.probe import probe_documents
 from backend.syllabi.storage import accept_batch, rollback_accepted, validate_batch, validate_record
 from scripts.syllabus_browser_collect import classify_response_role
 
 FIXTURES = Path(__file__).parent / "syllabi" / "fixtures"
+
+
+def test_linux_acquisition_uses_playwright_managed_browser(tmp_path):
+    executable = tmp_path / "chromium"
+    executable.write_bytes(b"browser")
+    executable.chmod(0o755)
+
+    resolved = resolve_browser_executable(executable, environ={}, platform_name="Linux")
+
+    assert resolved.path == executable
+    assert resolved.source == "playwright"
+
+
+def test_windows_acquisition_preserves_local_chrome_default(tmp_path, monkeypatch):
+    from backend.syllabi import playwright_driver
+
+    executable = tmp_path / "chrome.exe"
+    executable.write_bytes(b"browser")
+    executable.chmod(0o755)
+    monkeypatch.setattr(playwright_driver, "WINDOWS_CHROME", executable)
+
+    resolved = resolve_browser_executable(tmp_path / "unused", environ={}, platform_name="Windows")
+
+    assert resolved.path == executable
+    assert resolved.source == "windows_default"
+
+
+def test_explicit_acquisition_browser_override_has_precedence(tmp_path):
+    explicit = tmp_path / "operator-browser"
+    bundled = tmp_path / "playwright-browser"
+    explicit.write_bytes(b"browser")
+    explicit.chmod(0o755)
+
+    resolved = resolve_browser_executable(
+        bundled,
+        environ={"ACQUISITION_CHROME_PATH": str(explicit)},
+        platform_name="Linux",
+    )
+
+    assert resolved.path == explicit
+    assert resolved.source == "explicit"
+
+
+def test_invalid_explicit_acquisition_browser_never_falls_back(tmp_path):
+    bundled = tmp_path / "playwright-browser"
+    bundled.write_bytes(b"browser")
+    bundled.chmod(0o755)
+
+    with pytest.raises(BrowserExecutableConfigurationError) as caught:
+        resolve_browser_executable(
+            bundled,
+            environ={"ACQUISITION_CHROME_PATH": str(tmp_path / "missing")},
+            platform_name="Linux",
+        )
+
+    assert caught.value.code == "explicit_browser_executable_invalid"
 
 
 class FakeBrowserSession:
@@ -273,6 +330,67 @@ def test_runtime_full_document_probe_preserves_acquired_status(monkeypatch):
     assert result["probe_status"] == "anonymous_full_document"
     assert result["record"]["course_code"] == "COP4331"
     assert result["record"]["session_provenance"]["scheme"] == "hmac-sha256-v1"
+
+
+def test_runtime_reports_invalid_explicit_browser_without_fallback(monkeypatch):
+    from backend.syllabi import runtime
+
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("ACQUISITION_BROWSER_MODE", "headed")
+    monkeypatch.setenv("ACQUISITION_CHROME_PATH", "definitely-missing-browser")
+    monkeypatch.setattr(runtime, "claim_test_budget", lambda _kind: {"allowed": True, "enforced": False})
+    monkeypatch.setattr(runtime, "_mapping", lambda *_args, **_kwargs: runtime_mapping())
+    monkeypatch.setattr(
+        runtime,
+        "_run_mapping",
+        lambda _mapping: (_ for _ in ()).throw(
+            BrowserExecutableConfigurationError(
+                "explicit_browser_executable_invalid",
+                "Acquisition browser executable is invalid (explicit).",
+            )
+        ),
+    )
+
+    result = runtime.acquire_exact_syllabus("COP4331", "202608", "002")
+
+    assert result["status"] == "runtime_error"
+    assert result["diagnostic"] == "explicit_browser_executable_invalid"
+    assert "record" in result and result["record"] is None
+
+
+def test_synthetic_smoke_uses_complete_runtime_mapping(monkeypatch):
+    from backend.syllabi import runtime
+
+    captured = {}
+
+    class SyntheticSession:
+        last_html = "<main data-syllabus-document></main>"
+        final_url = "http://127.0.0.1:8765/synthetic.html"
+
+    def fake_parse(_html, mapping, source_url):
+        captured.update(mapping)
+        captured["validated_source_url"] = source_url
+        return "acquired", {
+            "course_code": "COP4331",
+            "term_scope": {"term_id": "202608"},
+            "section_scope": {"section": "002"},
+            "source": {"source_id": "offline-runtime-smoke"},
+        }
+
+    monkeypatch.setenv("RENDER_STARTUP_BROWSER_SMOKE", "true")
+    monkeypatch.setattr(runtime, "PlaywrightSession", lambda **_kwargs: SyntheticSession())
+    monkeypatch.setattr(runtime, "probe_browser_session", lambda *_args, **_kwargs: {
+        "status": "anonymous_full_document", "logical_navigations": 1, "actual_observed_responses": 1,
+    })
+    monkeypatch.setattr(runtime, "_parse_and_validate_candidate", fake_parse)
+
+    result = runtime.synthetic_smoke("http://127.0.0.1:8765/synthetic.html")
+
+    assert result["status"] == "passed"
+    assert result["identity_validated"] is True
+    assert captured["view_url"] == "http://127.0.0.1:8765/synthetic.html"
+    assert captured["source_document_id"] == "offline-runtime-smoke"
+    assert captured["validated_source_url"].startswith("https://fau.simplesyllabus.com/doc/offline-runtime-smoke/")
 
 
 def test_runtime_full_document_probe_does_not_mask_parser_failure(monkeypatch):
