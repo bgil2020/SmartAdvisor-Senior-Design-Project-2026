@@ -2,6 +2,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import pandas as pd
 import os
 from pathlib import Path
@@ -22,6 +23,15 @@ app = FastAPI(
 )
 
 api_logger = get_api_logger()
+
+
+def configured_cors_origins(raw_origins: str | None = None) -> list[str]:
+    """Return the exact configured browser origins, ignoring blank entries."""
+    value = raw_origins if raw_origins is not None else os.getenv(
+        "SMARTADVISOR_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
+    )
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
 class ApiLoggingMiddleware:
@@ -68,14 +78,7 @@ class ApiLoggingMiddleware:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in os.getenv(
-            "SMARTADVISOR_CORS_ORIGINS",
-            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000",
-        ).split(",")
-        if origin.strip()
-    ],
+    allow_origins=configured_cors_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -486,5 +489,30 @@ def get_alternatives(
 # The container copies the Vite build here. Mounting last preserves all API
 # route precedence while making the reviewed artifact a single-origin app.
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+
+
+class SpaStaticFiles(StaticFiles):
+    """Serve index.html for extensionless client routes after API routing."""
+
+    client_routes = {"forms", "chatbot"}
+
+    async def get_response(self, path, scope):
+        leaf = Path(path).name
+        is_client_route = path.strip("/") in self.client_routes
+        try:
+            response = await super().get_response(path, scope)
+        except StarletteHTTPException as error:
+            if (
+                error.status_code == 404
+                and scope.get("method") in {"GET", "HEAD"}
+                and is_client_route
+            ):
+                return await super().get_response("index.html", scope)
+            raise
+        if response.status_code == 404 and scope.get("method") in {"GET", "HEAD"} and is_client_route:
+            return await super().get_response("index.html", scope)
+        return response
+
+
 if FRONTEND_DIST.exists() and os.getenv("SMARTADVISOR_SERVE_FRONTEND", "false").casefold() == "true":
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    app.mount("/", SpaStaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

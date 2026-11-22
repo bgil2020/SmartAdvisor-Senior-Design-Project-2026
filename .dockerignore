@@ -4,10 +4,13 @@ node_modules
 frontend/node_modules
 frontend/dist
 .pytest_cache
+__pycache__
+*.py[cod]
 .local-*
 .env
 .env.*
 logs
+docs/acquisition-evidence
 data/syllabi/raw
 data/syllabi/candidates
 data/syllabi/browser-profile

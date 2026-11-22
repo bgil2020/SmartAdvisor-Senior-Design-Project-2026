@@ -1,100 +1,117 @@
 # Release, Docker, and hosted-routing handoff
 
-## Release boundary
+Updated offline on 2026-11-21. No provider, syllabus-source, hosted POST,
+deployment, dashboard write, or billing action was performed during this work.
 
-- Published main remains `0fca051c6b43108a8fc6d33a8566b26b19893c4f`.
-- Local acquisition/reuse checkpoint: `f9a79fb33c51805dc57fb9861bb297f1332d6ac9`.
-- Local combined-harness checkpoint: `bceb2451a3e39542ce9ea20504da3e7b7bb4673c`.
-- The combined live workflow has **not** passed. Its first turn acquired the
-  exact CAP4773 source and accepted one Gemini answer, but the support gate
-  failed and no second turn ran.
-- No commits after published main have been pushed, merged, or deployed.
+## Release candidate
 
-Later local checkpoints remain distinct:
+- Published `origin/main`: `0fca051c6b43108a8fc6d33a8566b26b19893c4f`.
+- Local release candidate: `4f8a772b983e8658c827aa909891c5cc26c35d49`.
+- The candidate is six commits ahead of and zero commits behind `origin/main`.
+- `c7b241544a46498f6a99fa508d279ca96085b84c` contains the parser fix and the
+  passed single-turn live grading diagnostic.
+- `7a932fc04cd2d5883848a5d33ea1f03c95c8b2ae` contains the production grading
+  safeguard, verified offline only.
+- `4f8a772b983e8658c827aa909891c5cc26c35d49` is the evidence closeout. The
+  earlier instruction to checkpoint the numeric-checker correction is stale:
+  that work is already checkpointed in this ancestry.
+- The two-turn live acquisition + Gemini + follow-up evidence-reuse workflow
+  remains unverified.
 
-- `c7b241544a46498f6a99fa508d279ca96085b84c`: passed single-turn live grading
-  diagnostic using fresh CAP4773 acquisition and one Gemini call.
-- `7a932fc04cd2d5883848a5d33ea1f03c95c8b2ae`: shared production grading
-  safeguard; offline verification only.
+The isolated worktree is
+`D:\Projects\SmartAdvisor-Senior-Design-Project-2026\.worktrees\main-verified`.
+Local-only acquisition evidence remains untracked and excluded from Docker's
+build context. It must not be staged or published accidentally.
 
-The live two-turn acquisition + Gemini + follow-up evidence-reuse workflow is
-still unverified and must not be inferred from the single-turn pass.
+## Docker verification
 
-Before release, checkpoint the offline numeric-checker correction, reconcile it
-through the normal feature-branch/PR workflow, and rerun all backend/frontend
-checks. A new combined live test requires separate approval.
+Docker Desktop Linux engine 29.9.3 started without a settings change. The
+bounded verifier built the candidate plus the offline hosting changes and
+created exactly one disposable runtime container with 512 MiB memory, 512 MiB
+memory+swap, and restart policy `no`. Inspection confirmed acquisition and
+provider traffic were disabled. The container exited before application
+startup with code 127 because the Windows checkout supplied CRLF in the Bash
+entrypoint (`bash\r`). It was not OOM-killed, did not restart, and was removed.
 
-## Current Docker verification
+The Dockerfile now normalizes the copied entrypoint to LF and fails its build
+if any CR remains. One separately approved replacement container used image
+`sha256:ce9d9659021f11d91ffffa79aa163f545dcfbc70c36b82a5989153f0236414de`
+from source manifest
+`f8924f41e78ad694a25bbb34fbf325e45fcbd84ccc2a15f70d4f52a5152249f4`.
+It reached API health under the applied 512 MiB memory and memory+swap limits,
+used restart policy `no`, sampled 319.9 MiB idle, was not OOM-killed, did not
+restart, and was removed after a graceful stop attempt. The verifier then hit a
+Windows PowerShell `Invoke-WebRequest` legacy-parser exception before `/forms`.
+Therefore this is not a complete runtime/browser pass: sampled/cgroup peak,
+memory headroom, SPA routes/assets, Xvfb/Chromium state, and unknown-route
+behavior were not established. `-UseBasicParsing` is now applied offline for a
+future separately approved run. The sanitized failed-run record is local-only
+at `.local-docker-verification-20261121.json`.
 
-The root `Dockerfile` builds the Vite artifact, uses the Playwright Python
-1.56.0 Noble image, starts Xvfb, serves one Uvicorn worker on `$PORT`, and sets
-`SMARTADVISOR_SERVE_FRONTEND=true`. The entrypoint cleans up the API and Xvfb
-process group. `scripts/verify_container_512mb.ps1` is the bounded 512 MiB
-container check.
+## Applied hosting facts
 
-On 2026-11-20, Docker CLI `29.9.3` was installed, but the Docker Desktop Linux
-engine pipe was absent. No image build or constrained-container run was
-possible. Consequently Linux/Playwright compatibility, 512 MiB peak usage,
-OOM status, single-container SPA refreshes, and container cleanup remain
-unverified on the current tree.
+- GitHub Actions run `44645964260` successfully deployed Vercel production from
+  main commit `0fca051c6b43108a8fc6d33a8566b26b19893c4f` on 2026-11-20.
+- Vercel project reported by that workflow: `smartadvisor-group17-main`.
+- Production alias: `https://smartadvisor-group17-main.vercel.app`.
+- Current `/` returns 200; direct `/forms` and `/chatbot` return 404.
+- The current production bundle targets
+  `https://smartadvisor-group17-demo.onrender.com`.
+- That backend's `/` and `/courses?term=202608` return 200.
+- An exact-origin preflight from the production Vercel origin returns 200 with
+  `Access-Control-Allow-Origin` equal to that exact origin and methods
+  `GET, POST`.
 
-The checked-in `infra/render.yaml` uses Render's Python runtime with
-`pip install -r requirements.txt` and a plain Uvicorn start command. It does
-not select the root Dockerfile or configure Xvfb/Playwright acquisition.
-Applied Render dashboard settings must be inspected; repository defaults are
-not proof of the deployed runtime.
+Authenticated browser access to the Vercel and Render dashboards was not
+available in this chat, and no local Vercel/Render CLI session or token was
+present. Consequently the applied Render commit, runtime, plan, branch,
+auto-deploy setting, preview behavior, and environment-variable presence/scope
+remain unknown. Vercel's dashboard Git integration and variable scopes are also
+unknown. The repository GitHub workflow is independently configured to attempt
+a production Vercel deployment on every push to `main`; Render deployment on
+merge remains unknown until its applied service settings are inspected.
 
-## Known hosted fixes to investigate
+## Offline hosting corrections under review
 
-1. **Vercel SPA routing:** no tracked `vercel.json` supplies an SPA fallback.
-   Direct `/forms` and `/chatbot` refreshes therefore require a Vercel rewrite
-   to the built `index.html`, while preserving static assets.
-2. **Frontend API target:** `frontend/src/services/api.ts` defaults
-   `VITE_API_URL` to an empty string, which means same-origin requests. The
-   Vercel workflow performs `vercel pull` and `vercel deploy`, but the applied
-   production build variable is not established by repository files. Verify
-   that Vercel's production `VITE_API_URL` targets the intended Render API, or
-   add a reviewed proxy architecture; do not assume same-origin works across
-   the two hosts.
-3. **Exact-origin CORS:** Render must apply `SMARTADVISOR_CORS_ORIGINS` with the
-   exact production Vercel origin. Add preview origins only when explicitly
-   required and reviewed. The backend default allows localhost only.
-4. **Runtime alignment:** decide whether Render should remain Python-runtime
-   API-only or intentionally use the Docker image for headed acquisition.
-   Changing that runtime can trigger deployment and must follow the deployment,
-   cost, memory, and live-source approval gates.
+- `frontend/vercel.json`: official Vercel SPA fallback to `index.html`.
+- `backend/api.py`: extensionless SPA fallback for the single-container build,
+  mounted after API routes; exact CORS-origin parsing is now directly tested.
+- `infra/render.yaml`: selects the root Dockerfile and Docker build context with
+  a `/` health check. Repository edits do not change an existing Render service
+  unless its applied Blueprint/service configuration consumes them.
+- `scripts/verify_container_512mb.ps1`: stronger limits, traffic-disablement,
+  process, route, memory, restart/OOM, and cleanup assertions.
+- `.dockerignore`: excludes acquisition evidence from the image context.
+- `Dockerfile`: normalizes the Linux entrypoint line endings.
 
-## Next offline sequence
+The frontend continues to use the build-time `VITE_API_URL`. The currently
+deployed value resolves to the intended public Render endpoint, so no backend
+URL was hard-coded into source. Before release, confirm the production-scoped
+Vercel variable remains set to that endpoint. The Render exact-origin CORS
+behavior is currently correct, but its applied variable scope is unknown.
 
-1. Start Docker Desktop and run `scripts/verify_container_512mb.ps1` without
-   enabling live acquisition or Gemini.
-2. Add and test the Vercel SPA rewrite locally/build-time.
-3. Verify the non-secret applied variable names and exact origins in the Vercel
-   and Render dashboards; never copy values or credentials into evidence.
-4. Validate Home, `/forms`, and `/chatbot` direct loads plus backend health,
-   catalog GET, and exact-origin CORS using read-only requests.
-5. Publish only after the reconciled tree, CI, deployment consequences, and
-   required approvals are known.
+## Dependency advisory scope
 
-## Exact approvals still required
+`npm audit --omit=dev` reports zero production dependency vulnerabilities.
+The full audit reports 9 moderate and 2 high findings in development/build
+tooling. The high findings are Vite's development-editor path and Zod reached
+through ESLint tooling. The Docker final image copies only Vite's static build,
+not frontend `node_modules`, and Vercel serves the built artifact. No deployed
+end-user runtime exploit path was identified. The advisories remain documented;
+no force fix or dependency upgrade was applied.
 
-No item below is authorized by this handoff:
+## Remaining approvals
 
-1. **Docker verification approval:** start the Docker Desktop Linux engine and
-   allow the bounded `scripts/verify_container_512mb.ps1` build/run, including
-   registry downloads, one disposable local container, hard 512 MiB memory and
-   swap limits, synthetic startup smoke, and automatic removal.
-2. **Hosted configuration inspection:** authenticated read-only access to the
-   applied Vercel production variables/project routing and Render service
-   runtime, branch, environment-variable names, plan, and auto-deploy state.
-3. **Offline hosting-fix implementation:** add and test a Vercel SPA fallback,
-   select the reviewed production API-target mechanism, and add exact-origin
-   CORS regressions. This does not authorize dashboard writes or deployment.
-4. **Publication/deployment approval:** after reconciliation and fresh Docker,
-   backend, frontend, and browser checks, authorize a feature-branch push, PR,
-   required checks/review, and merge. The approval must explicitly acknowledge
-   that merge to `main` triggers the Vercel frontend and Render API deployments.
-5. **Dashboard-change approval:** separately authorize the exact non-secret
-   Vercel `VITE_API_URL`, Render `SMARTADVISOR_CORS_ORIGINS`, and any Render
-   Python-versus-Docker runtime change. No billing, plan, or live-provider flag
-   change is implied.
+1. If desired, separately approve one new bounded 512 MiB container to verify
+   the offline-only PowerShell parser correction, direct routes,
+   Xvfb/Chromium cleanup, and peak whole-container memory.
+2. Provide authenticated read-only dashboard access to establish Vercel and
+   Render applied settings.
+3. After all checks pass, authorize push, PR, required review/checks, and merge.
+   A main push will make the GitHub Vercel production workflow run; Render's
+   merge consequence is still unknown.
+4. Separately authorize any dashboard changes. Expected non-secret settings are
+   production `VITE_API_URL` on Vercel and exact production
+   `SMARTADVISOR_CORS_ORIGINS` on Render. Changing an existing Render service
+   from native Python to Docker would rebuild/redeploy it and must be explicitly
+   approved after runtime/plan/auto-deploy inspection.
