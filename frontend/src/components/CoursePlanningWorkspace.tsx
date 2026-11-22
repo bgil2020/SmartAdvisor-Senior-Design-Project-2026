@@ -17,6 +17,7 @@ interface Props {
   coursesError: string | null;
   selectedCourseCode: string;
   onSelectCourse: (courseCode: string) => void;
+  courseWarning?: string | null;
   availableSections: RawSectionRecord[];
   loadingSections: boolean;
   sectionsError: string | null;
@@ -45,6 +46,7 @@ export function CoursePlanningWorkspace({
   coursesError,
   selectedCourseCode,
   onSelectCourse,
+  courseWarning = null,
   availableSections,
   loadingSections,
   sectionsError,
@@ -101,6 +103,30 @@ export function CoursePlanningWorkspace({
             <option key={course.COURSE} value={course.COURSE}>{course.COURSE} — {course.TITLE}</option>
           ))}
         </select>
+
+{courseWarning && (
+  <div
+    role="alert"
+    style={{
+      marginTop: '12px',
+      padding: '14px 16px',
+      backgroundColor: '#fff7ed',
+      border: '1px solid #f59e0b',
+      borderRadius: '8px',
+      color: '#92400e'
+    }}
+  >
+    <strong>⚠ Previously Completed Course</strong>
+    <p style={{ margin: '6px 0' }}>
+      {courseWarning}
+    </p>
+    <small>
+      Please review your academic history before
+      adding this course to your schedule.
+    </small>
+  </div>
+)}
+
 
         <div className="planning-quick-select" aria-label="Quick-select courses">
           <span>Quick select:</span>
