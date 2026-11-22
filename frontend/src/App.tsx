@@ -701,6 +701,7 @@ onClick={async () => {
           coursesError={coursesError}
           selectedCourseCode={selectedCourseCode}
           onSelectCourse={handleSelectCourse}
+          courseWarning={courseWarning}
           availableSections={availableSections}
           loadingSections={loadingSections}
           sectionsError={sectionsError}
