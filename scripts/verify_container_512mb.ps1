@@ -199,7 +199,16 @@ try {
         throw "Unexpected Xvfb or Chromium process state after startup smoke."
     }
 
-    $startupRecord = docker logs $containerName 2>&1 | Select-String -Pattern '"peak_family_rss_mb"' | Select-Object -Last 1
+    $previousErrorAction = $ErrorActionPreference
+    try {
+        # Xvfb can write harmless keymap warnings to stderr. Native stderr must
+        # remain diagnostic input instead of becoming a terminating PS error.
+        $ErrorActionPreference = "Continue"
+        $containerLogs = docker logs $containerName 2>&1
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
+    $startupRecord = $containerLogs | Select-String -Pattern '"peak_family_rss_mb"' | Select-Object -Last 1
     if ($startupRecord) {
         $startup = $startupRecord.ToString() | ConvertFrom-Json
         $result.startup_browser_status = $startup.status
