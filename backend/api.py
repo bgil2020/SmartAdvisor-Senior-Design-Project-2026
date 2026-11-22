@@ -14,12 +14,14 @@ from .alternative_section_search import find_alternative_sections
 from .compatibility_router import router as compatibility_router
 from .conversational_router import router as conversational_router
 from .logging_config import get_api_logger
+from .dars_router import router as dars_router
 
 app = FastAPI(
     title="SmartAdvisor API",
     description="Backend API for retrieving FAU course and section data.",
     version="1.0.0",
 )
+app.include_router(dars_router)
 
 api_logger = get_api_logger()
 

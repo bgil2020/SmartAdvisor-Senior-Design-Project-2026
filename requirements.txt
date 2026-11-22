@@ -9,3 +9,5 @@ python-dotenv>=1.2.4
 google-genai>=2.0.0,<3
 playwright==1.56.0
 psutil>=6.0,<8
+PyMuPDF>=1.24
+python-multipart>=0.0.18

@@ -22,3 +22,28 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Private DARS files
+/backend/dars.pdf
+/backend/test_dars.pdf
+/backend/test_dars.py
+
+# Local backup files
+*.bak
+*.backup
+*.local-backup
+
+# Local deployment folder
+/smartadvisor-vercel-clean/
+# Local development reports
+/.local-report/
