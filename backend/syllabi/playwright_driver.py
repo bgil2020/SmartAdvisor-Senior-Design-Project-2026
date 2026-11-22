@@ -1,10 +1,58 @@
 """Concrete bounded Playwright session using an operator-installed browser."""
 from __future__ import annotations
 
+import os
+import platform
 import time
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 from urllib.parse import urlparse
+
+
+WINDOWS_CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+
+
+class BrowserExecutableConfigurationError(RuntimeError):
+    """Safe, operator-actionable browser configuration failure."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True)
+class ResolvedBrowserExecutable:
+    path: Path
+    source: str
+
+
+def resolve_browser_executable(
+    playwright_executable: str | Path,
+    *,
+    explicit_path: str | Path | None = None,
+    environ: Mapping[str, str] | None = None,
+    platform_name: str | None = None,
+) -> ResolvedBrowserExecutable:
+    """Resolve and validate the acquisition browser without silent fallback.
+
+    Precedence is an explicit factory argument, ``ACQUISITION_CHROME_PATH``,
+    the intentional local Windows Chrome default, then Playwright's supported
+    bundled Chromium discovery on other platforms.
+    """
+    environment = os.environ if environ is None else environ
+    configured = str(explicit_path).strip() if explicit_path is not None else environment.get("ACQUISITION_CHROME_PATH", "").strip()
+    system = platform.system() if platform_name is None else platform_name
+    if configured:
+        candidate, source, code = Path(configured), "explicit", "explicit_browser_executable_invalid"
+    elif system == "Windows":
+        candidate, source, code = WINDOWS_CHROME, "windows_default", "windows_browser_executable_invalid"
+    else:
+        candidate, source, code = Path(playwright_executable), "playwright", "playwright_browser_executable_invalid"
+    if not candidate.is_file() or not os.access(candidate, os.X_OK):
+        raise BrowserExecutableConfigurationError(code, f"Acquisition browser executable is invalid ({source}).")
+    return ResolvedBrowserExecutable(path=candidate, source=source)
 
 
 def classify_response_role(url: str, status: int, resource_type: str, document_id: str) -> str:
@@ -20,17 +68,21 @@ def classify_response_role(url: str, status: int, resource_type: str, document_i
 class PlaywrightSession:
     """One fresh nonpersistent browser context with a single shared deadline."""
 
-    def __init__(self, *, chrome: Path, document_id: str, readiness_text: str, visible: bool, deadline_seconds: float):
+    def __init__(self, *, chrome: Path | None = None, document_id: str, readiness_text: str, visible: bool, deadline_seconds: float):
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
             raise RuntimeError("Install the optional Python playwright package before browser collection") from exc
-        if not chrome.is_file():
-            raise RuntimeError("Configured Chrome executable was not found")
         if deadline_seconds <= 0:
             raise ValueError("Browser deadline must be positive")
         self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(executable_path=str(chrome), headless=not visible)
+        try:
+            resolved = resolve_browser_executable(self._pw.chromium.executable_path, explicit_path=chrome)
+            self.browser_executable_source = resolved.source
+            self._browser = self._pw.chromium.launch(executable_path=str(resolved.path), headless=not visible)
+        except BaseException:
+            self._pw.stop()
+            raise
         self._context = self._browser.new_context()
         self._page = self._context.new_page()
         self._document_id = document_id

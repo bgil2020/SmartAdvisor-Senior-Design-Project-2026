@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 # Load local environment variables from .env if present
 load_dotenv()
+SERVE_FRONTEND = os.getenv("SMARTADVISOR_SERVE_FRONTEND", "false").strip().casefold() == "true"
 
 from .alternative_section_search import find_alternative_sections
 from .compatibility_router import router as compatibility_router
@@ -131,6 +132,37 @@ def load_courses():
 courses = load_courses()
 
 
+def health_payload(records_loaded: int) -> dict[str, str | int]:
+    return {
+        "application": "SmartAdvisor",
+        "message": "SmartAdvisor API is running.",
+        "records_loaded": records_loaded,
+    }
+
+
+def register_health_routes(
+    target_app: FastAPI,
+    *,
+    serve_frontend: bool,
+    records_loaded: int,
+) -> None:
+    """Register stable health routes without shadowing the container SPA."""
+
+    def health():
+        return health_payload(records_loaded)
+
+    target_app.add_api_route("/health", health, methods=["GET"])
+    if not serve_frontend:
+        target_app.add_api_route("/", health, methods=["GET"])
+
+
+register_health_routes(
+    app,
+    serve_frontend=SERVE_FRONTEND,
+    records_loaded=len(courses),
+)
+
+
 def clean_value(value):
     if pd.isna(value):
         return None
@@ -203,15 +235,6 @@ def text_filter(dataframe, column, value):
         .str.casefold()
         == value.strip().casefold()
     ]
-
-
-@app.get("/")
-def home():
-    return {
-        "application": "SmartAdvisor",
-        "message": "SmartAdvisor API is running.",
-        "records_loaded": len(courses),
-    }
 
 
 @app.get("/courses")
@@ -516,5 +539,5 @@ class SpaStaticFiles(StaticFiles):
         return response
 
 
-if FRONTEND_DIST.exists() and os.getenv("SMARTADVISOR_SERVE_FRONTEND", "false").casefold() == "true":
+if FRONTEND_DIST.exists() and SERVE_FRONTEND:
     app.mount("/", SpaStaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

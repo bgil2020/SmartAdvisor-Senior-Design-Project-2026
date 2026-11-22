@@ -5,7 +5,8 @@ param(
     [string]$ExpectedImageId = "",
     [switch]$SkipBuild,
     [int]$StartupDeadlineSeconds = 60,
-    [int]$RuntimeDeadlineSeconds = 90
+    [int]$RuntimeDeadlineSeconds = 90,
+    [string]$ResultPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,6 +31,14 @@ $result = [ordered]@{
     oom_killed = $null
     startup_browser_peak_mb = $null
     startup_browser_status = "unknown"
+    home_browser_status = "unknown"
+    home_browser_rendered = $null
+    chatbot_browser_navigation = $null
+    chatbot_browser_rendered = $null
+    home_browser_failure_reason = $null
+    home_browser_console_errors = $null
+    home_browser_page_errors = $null
+    home_browser_page_error_summaries = @()
     xvfb_running = $null
     chromium_processes_after_smoke = $null
     routes = [ordered]@{}
@@ -49,6 +58,7 @@ $result = [ordered]@{
     app_running = $null
     static_assets_checked = 0
     health = "not_run"
+    failure = $null
 }
 
 function Get-ContainerMemoryBytes {
@@ -130,21 +140,24 @@ try {
             # The process can be between startup stages while the container remains alive.
         }
         try {
-            $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/" -TimeoutSec 2
+            $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 2
         } catch {
             $health = $null
         }
     } until ($health -or (Get-Date) -gt $deadline)
     if (-not $health) { throw "Container health did not become ready within $StartupDeadlineSeconds seconds." }
 
+    if ($health.application -ne "SmartAdvisor" -or $health.message -ne "SmartAdvisor API is running.") {
+        throw "Dedicated health endpoint returned an unexpected payload."
+    }
     $result.health = "passed"
-    $result.routes["/"] = "passed"
+    $result.routes["/health"] = "passed"
     $idleBytes = Get-ContainerMemoryBytes
     $result.idle_memory_mb = [math]::Round($idleBytes / 1MB, 1)
     if ($idleBytes -gt $peakBytes) { $peakBytes = $idleBytes }
 
     $spaResponses = @{}
-    foreach ($route in @("/forms", "/chatbot")) {
+    foreach ($route in @("/", "/forms", "/chatbot")) {
         Assert-RuntimeDeadline
         $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port$route" -TimeoutSec 5
         $spaResponses[$route] = $response
@@ -170,6 +183,26 @@ try {
         $result.static_assets_checked += 1
     }
     $result.routes["static_assets"] = "passed"
+
+    Assert-RuntimeDeadline
+    $homeBrowserOutput = docker exec $containerName python /app/scripts/verify_headed_runtime.py --app-url http://127.0.0.1:8000
+    $homeBrowser = ($homeBrowserOutput | Select-Object -Last 1) | ConvertFrom-Json
+    $result.home_browser_status = $homeBrowser.status
+    $result.home_browser_rendered = $homeBrowser.home_rendered
+    $result.chatbot_browser_navigation = $homeBrowser.chatbot_navigation
+    $result.chatbot_browser_rendered = $homeBrowser.chatbot_rendered
+    $result.home_browser_failure_reason = $homeBrowser.failure_reason
+    $result.home_browser_console_errors = $homeBrowser.console_error_count
+    $result.home_browser_page_errors = $homeBrowser.page_error_count
+    $result.home_browser_page_error_summaries = @($homeBrowser.page_error_summaries)
+    if (
+        $result.home_browser_status -ne "passed" -or
+        -not $result.home_browser_rendered -or
+        -not $result.chatbot_browser_navigation -or
+        -not $result.chatbot_browser_rendered
+    ) {
+        throw "Real bundled Home-to-Chatbot browser smoke did not pass."
+    }
 
     try {
         $unknown = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/unknown-release-probe" -TimeoutSec 5
@@ -227,6 +260,12 @@ try {
     $authoritativePeak = if ($null -ne $result.cgroup_peak_memory_mb) { $result.cgroup_peak_memory_mb } else { $result.peak_memory_mb }
     $result.memory_headroom_mb = [math]::Round(512 - $authoritativePeak, 1)
     Assert-RuntimeDeadline
+} catch {
+    $result.failure = [ordered]@{
+        type = $_.Exception.GetType().Name
+        message = $_.Exception.Message
+    }
+    throw
 } finally {
     $running = docker ps --all --filter "name=^/${containerName}$" --format "{{.Names}}"
     if ($running -eq $containerName) {
@@ -243,5 +282,9 @@ try {
         docker rm --force $containerName | Out-Null
         $result.container_removed = -not [bool](docker ps --all --filter "name=^/${containerName}$" --format "{{.Names}}")
     }
-    $result | ConvertTo-Json
+    $resultJson = $result | ConvertTo-Json -Depth 8
+    if ($ResultPath) {
+        $resultJson | Set-Content -LiteralPath $ResultPath -Encoding utf8
+    }
+    $resultJson
 }

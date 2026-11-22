@@ -5,7 +5,7 @@ import { WelcomeScreen } from './components/WelcomeScreen';
 import { CoursePlanningWorkspace } from './components/CoursePlanningWorkspace';
 import StudentLogin from './components/StudentLogin';
 import SemesterHistory from './components/SemesterHistory';
-import { supabase } from './lib/supabase';
+import { supabase, supabaseConfigured } from './lib/supabase';
 import {
   getCourses,
   getSections,
@@ -110,12 +110,14 @@ const SHOW_LEGACY_PLANNING_MARKUP = false;
 
 export default function App() {
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [studentName, setStudentName] = useState('');
-  const [authReady, setAuthReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(!supabaseConfigured);
+  const [studentName, setStudentName] = useState(supabaseConfigured ? '' : 'Student');
+  const [authReady, setAuthReady] = useState(!supabaseConfigured);
   const [accountId, setAccountId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!supabaseConfigured) return;
+
     const { data: { subscription } } =
       supabase.auth.onAuthStateChange(
         (event, session) => {
@@ -543,7 +545,7 @@ export default function App() {
       });
   };
   
-  if (!authReady) {
+  if (supabaseConfigured && !authReady) {
     return (
       <main style={{ padding: '2rem' }}>
         Loading SmartAdvisor...
@@ -551,7 +553,7 @@ export default function App() {
     );
   }
 
-  if (!isLoggedIn || !accountId) {
+  if (supabaseConfigured && (!isLoggedIn || !accountId)) {
     return (
       <StudentLogin
         onLogin={(name) => {
@@ -609,7 +611,7 @@ export default function App() {
   Welcome, {studentName}!
 </p>
 
-<button
+{supabaseConfigured && (<button
   type="button"
  
 onClick={async () => {
@@ -639,7 +641,7 @@ onClick={async () => {
   }}
 >
   Log Out
-</button>
+</button>)}
 
           <p style={{ color: '#4b5563', fontSize: '0.875rem' }}>
             Real course catalog, section scheduling, conflict resolution & compatibility support
@@ -697,12 +699,12 @@ onClick={async () => {
 
         
 
-<SemesterHistory
+{supabaseConfigured && (<SemesterHistory
   key={accountId ?? 'signed-out'}
   onHistorySaved={() => {
     setHistoryVersion(previous => previous + 1);
   }}
-/>
+/>) }
 
 
 

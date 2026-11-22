@@ -180,7 +180,7 @@ def main() -> int:
         stderr=subprocess.DEVNULL,
     )
     try:
-        wait_http(f"{BACKEND_URL}/", [backend, frontend])
+        wait_http(f"{BACKEND_URL}/health", [backend, frontend])
         wait_http(FRONTEND_URL, [backend, frontend])
         print(json.dumps(asyncio.run(verify(saved_record)), sort_keys=True))
         return 0

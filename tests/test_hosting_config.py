@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
-from backend.api import SpaStaticFiles, configured_cors_origins
+from backend.api import SpaStaticFiles, configured_cors_origins, register_health_routes
 
 
 def test_cors_configuration_allows_only_exact_configured_origin():
@@ -36,10 +36,25 @@ def test_cors_configuration_allows_only_exact_configured_origin():
     assert "access-control-allow-origin" not in rejected.headers
 
 
-def test_spa_fallback_preserves_assets_and_api_precedence(tmp_path: Path):
+def test_health_routes_preserve_api_only_root_compatibility():
+    probe = FastAPI()
+    register_health_routes(probe, serve_frontend=False, records_loaded=7)
+    client = TestClient(probe)
+    expected = {
+        "application": "SmartAdvisor",
+        "message": "SmartAdvisor API is running.",
+        "records_loaded": 7,
+    }
+
+    assert client.get("/health").json() == expected
+    assert client.get("/").json() == expected
+
+
+def test_spa_fallback_preserves_home_assets_and_api_precedence(tmp_path: Path):
     (tmp_path / "index.html").write_text('<div id="root"></div>', encoding="utf-8")
     (tmp_path / "asset.js").write_text("window.ready = true", encoding="utf-8")
     probe = FastAPI()
+    register_health_routes(probe, serve_frontend=True, records_loaded=1)
 
     @probe.get("/courses")
     def courses():
@@ -48,6 +63,10 @@ def test_spa_fallback_preserves_assets_and_api_precedence(tmp_path: Path):
     probe.mount("/", SpaStaticFiles(directory=tmp_path, html=True), name="frontend")
     client = TestClient(probe)
 
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json()["application"] == "SmartAdvisor"
+    assert client.get("/").text == '<div id="root"></div>'
     assert client.get("/forms").text == '<div id="root"></div>'
     assert client.get("/chatbot").text == '<div id="root"></div>'
     assert client.get("/asset.js").text == "window.ready = true"
