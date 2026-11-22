@@ -6,7 +6,7 @@ deployment, dashboard write, or billing action was performed during this work.
 ## Release candidate
 
 - Published `origin/main`: `e0bfb0fc61cc3501d8154a98ccac97a3fcf6c245`.
-- Container-tested release candidate: `9908adff25c0106078fca163679d026da09d7cdc`.
+- Container-tested release candidate: `5cc8b751ad155cfe1651eb50275868f869da0b02`.
 - Current main was merged into the release branch, preserving its DARS and
   semester-history work alongside the parser and grading safeguard commits.
 - `c7b241544a46498f6a99fa508d279ca96085b84c` contains the parser fix and the
@@ -45,6 +45,15 @@ peak was 149.7 MiB; the browser-family RSS diagnostic was 900.5 MiB because it
 double-counts shared pages and is not a cgroup measurement. There were zero
 restarts and no OOM kill. Graceful stop produced exit 143, and the test
 container was removed.
+
+After the current-main lint corrections, the third and final bounded attempt
+passed the same assertions on exact commit
+`5cc8b751ad155cfe1651eb50275868f869da0b02` and image
+`sha256:8a79eb3f45b150f84f95e31c37c744bf3a4d725f66bb6e08eeaf50ff448ac64a`.
+Idle usage was 378.1 MiB, Docker's sampled peak was 400.6 MiB, and the cgroup
+peak reached the 512 MiB limit. It was not OOM-killed and did not restart, but
+the measured peak headroom was zero; the release therefore has a complete
+functional container pass without demonstrated memory burst headroom.
 
 ## Applied hosting facts
 
