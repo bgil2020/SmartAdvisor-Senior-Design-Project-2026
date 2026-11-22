@@ -403,7 +403,7 @@ async def execute() -> dict[str, Any]:
             ["node", str(ROOT / "frontend" / "node_modules" / "vite" / "bin" / "vite.js"), "--host", "127.0.0.1", "--port", "14173"],
             cwd=ROOT / "frontend", env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-        await wait_http(f"{BACKEND_URL}/", [backend, frontend], started + 20)
+        await wait_http(f"{BACKEND_URL}/health", [backend, frontend], started + 20)
         await wait_http(FRONTEND_URL, [backend, frontend], started + 20)
 
         from playwright.async_api import async_playwright

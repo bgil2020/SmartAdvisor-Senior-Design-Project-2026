@@ -1,6 +1,7 @@
 """Offline headed-Chromium smoke: render, cancellation, cleanup, and process RSS."""
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -35,22 +36,86 @@ def family_rss() -> int:
     return sum(item.memory_info().rss for item in family if item.is_running())
 
 
+def browser_launch_options() -> dict[str, object]:
+    options: dict[str, object] = {
+        "headless": False,
+        "args": ["--disable-dev-shm-usage", "--no-sandbox"],
+    }
+    executable = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE", "").strip()
+    if executable:
+        if not Path(executable).is_file():
+            raise RuntimeError("configured_browser_executable_missing")
+        options["executable_path"] = executable
+    return options
+
+
+def verify_application_ui(app_url: str) -> int:
+    """Render the bundled Home and navigate through the real Chatbot control."""
+    started = time.monotonic()
+    peak = family_rss()
+    home_rendered = False
+    chatbot_navigation = False
+    chatbot_rendered = False
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(**browser_launch_options())
+            try:
+                page = browser.new_page()
+                page.goto(app_url.rstrip("/") + "/", wait_until="networkidle", timeout=10_000)
+                home_rendered = (
+                    page.get_by_role("heading", name="Welcome to SmartAdvisor").count() == 1
+                    and page.get_by_role("button", name="Open SmartAdvisor Chat").count() == 1
+                )
+                peak = max(peak, family_rss())
+                page.get_by_role("button", name="Open SmartAdvisor Chat").click(timeout=5_000)
+                page.wait_for_url("**/chatbot", timeout=5_000)
+                chatbot_navigation = page.url.endswith("/chatbot")
+                chatbot_rendered = page.get_by_role("heading", name="SmartAdvisor Chat").count() == 1
+                peak = max(peak, family_rss())
+            finally:
+                browser.close()
+        time.sleep(0.2)
+        chromium_left = [
+            child.pid
+            for child in psutil.Process().children(recursive=True)
+            if "chrom" in child.name().casefold()
+        ]
+        passed = home_rendered and chatbot_navigation and chatbot_rendered and not chromium_left
+        result = {
+            "status": "passed" if passed else "failed",
+            "home_rendered": home_rendered,
+            "chatbot_navigation": chatbot_navigation,
+            "chatbot_rendered": chatbot_rendered,
+            "chromium_children_after_close": chromium_left,
+            "peak_family_rss_mb": round(peak / 1024 / 1024, 1),
+            "duration_ms": round((time.monotonic() - started) * 1000),
+        }
+        print(json.dumps(result, sort_keys=True))
+        return 0 if passed else 1
+    except RuntimeError as error:
+        print(json.dumps({"status": "failed", "reason": str(error)}, sort_keys=True))
+        return 2
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--app-url")
+    args = parser.parse_args()
     if os.getenv("ACQUISITION_BROWSER_MODE") != "headed":
         print(json.dumps({"status": "failed", "reason": "headed_mode_not_selected"}))
         return 2
+    if args.app_url:
+        return verify_application_ui(args.app_url)
     server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
     started = time.monotonic(); peak = family_rss(); timeout_cancelled = False
     try:
         with sync_playwright() as playwright:
-            launch_options = {"headless": False, "args": ["--disable-dev-shm-usage", "--no-sandbox"]}
-            executable = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE", "").strip()
-            if executable:
-                if not Path(executable).is_file():
-                    print(json.dumps({"status": "failed", "reason": "configured_browser_executable_missing"}))
-                    return 2
-                launch_options["executable_path"] = executable
+            try:
+                launch_options = browser_launch_options()
+            except RuntimeError as error:
+                print(json.dumps({"status": "failed", "reason": str(error)}))
+                return 2
             browser = playwright.chromium.launch(**launch_options)
             try:
                 page = browser.new_page()
