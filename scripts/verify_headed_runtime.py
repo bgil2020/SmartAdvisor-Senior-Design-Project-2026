@@ -65,7 +65,7 @@ def verify_application_ui(app_url: str) -> int:
             try:
                 page = browser.new_page()
                 page.on("console", lambda message: console_errors.append(message.type) if message.type == "error" else None)
-                page.on("pageerror", lambda error: page_errors.append(type(error).__name__))
+                page.on("pageerror", lambda error: page_errors.append(str(error)[:240]))
                 try:
                     page.goto(app_url.rstrip("/") + "/", wait_until="networkidle", timeout=15_000)
                     heading = page.get_by_role("heading", name="Welcome to SmartAdvisor")
@@ -107,6 +107,7 @@ def verify_application_ui(app_url: str) -> int:
             "chatbot_rendered": chatbot_rendered,
             "console_error_count": len(console_errors),
             "page_error_count": len(page_errors),
+            "page_error_summaries": page_errors[:3],
             "chromium_children_after_close": chromium_left,
             "peak_family_rss_mb": round(peak / 1024 / 1024, 1),
             "duration_ms": round((time.monotonic() - started) * 1000),

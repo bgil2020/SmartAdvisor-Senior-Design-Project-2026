@@ -35,6 +35,10 @@ $result = [ordered]@{
     home_browser_rendered = $null
     chatbot_browser_navigation = $null
     chatbot_browser_rendered = $null
+    home_browser_failure_reason = $null
+    home_browser_console_errors = $null
+    home_browser_page_errors = $null
+    home_browser_page_error_summaries = @()
     xvfb_running = $null
     chromium_processes_after_smoke = $null
     routes = [ordered]@{}
@@ -187,6 +191,10 @@ try {
     $result.home_browser_rendered = $homeBrowser.home_rendered
     $result.chatbot_browser_navigation = $homeBrowser.chatbot_navigation
     $result.chatbot_browser_rendered = $homeBrowser.chatbot_rendered
+    $result.home_browser_failure_reason = $homeBrowser.failure_reason
+    $result.home_browser_console_errors = $homeBrowser.console_error_count
+    $result.home_browser_page_errors = $homeBrowser.page_error_count
+    $result.home_browser_page_error_summaries = @($homeBrowser.page_error_summaries)
     if (
         $result.home_browser_status -ne "passed" -or
         -not $result.home_browser_rendered -or
