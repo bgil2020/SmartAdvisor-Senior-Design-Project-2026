@@ -157,6 +157,7 @@ A teammate must independently follow this runbook and verify:
 Record the teammate's name, test date, screenshots, and any difficulties encountered.
 
 ## Current Verification Status
+| Offline local course-search fallback | Passed — React frontend and FastAPI backend successfully retrieved course information with Wi-Fi disabled on November 5, 2026. |
 
 
 ## Current Verification Status
@@ -212,3 +213,73 @@ PostgreSQL database named smartadvisor_demo.
 
 The team's SmartAdvisor-Development Supabase database was not
 modified during these tests.
+
+
+## 9. Demo Recovery and Fallback Procedures
+
+### Backend API Recovery
+
+If the local FastAPI backend stops during the demonstration:
+
+1. Open a PowerShell terminal in the SmartAdvisor repository root.
+2. Restart the backend:
+
+   ```powershell
+   python -m uvicorn backend.api:app --host 127.0.0.1 --port 8000
+   ```
+
+3. Open `http://127.0.0.1:8000/docs` and test `GET /courses`.
+4. If port 8000 is unavailable, use another free port, for example:
+
+   ```powershell
+   python -m uvicorn backend.api:app --host 127.0.0.1 --port 8002
+   ```
+
+5. Open `http://127.0.0.1:8002/docs` and verify that `GET /courses` returns HTTP 200.
+
+The port 8002 fallback was tested successfully on November 5, 2026. `GET /courses` returned HTTP 200 and 913 FAU course-section records.
+
+### Frontend Recovery
+
+If the backend port changes, the frontend must use the same API address. For a local Vite frontend, set `VITE_API_URL=http://127.0.0.1:8002` in `frontend/.env.local`, then restart the frontend development server:
+
+```powershell
+cd frontend
+npm.cmd run dev
+```
+
+Open the local Vite URL displayed in the terminal (typically `http://localhost:5173`) and test course search. This frontend fallback has not yet been verified during the current reliability testing.
+
+### Local Database Backup Recovery
+
+The PostgreSQL demo data is separate from the Excel-backed FastAPI course API.
+
+A backup was created outside the Git repository at:
+
+`Documents/SmartAdvisor-Demo-Backups/smartadvisor_demo_before_tests.backup`
+
+To avoid overwriting the original demo database, restore into a new, empty local recovery database using PostgreSQL 17:
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\createdb.exe" -U postgres -h 127.0.0.1 -p 5432 smartadvisor_restore_test
+```
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\pg_restore.exe" -U postgres -h 127.0.0.1 -p 5432 -d smartadvisor_restore_test --exit-on-error --no-owner --no-acl "$HOME\Documents\SmartAdvisor-Demo-Backups\smartadvisor_demo_before_tests.backup"
+```
+
+Create and restore into an empty database; if `smartadvisor_restore_test` already exists, use a different new name rather than overwriting it. Never run the restore on a shared database.
+
+The recovery test succeeded on November 4, 2026. The restored database contained 1 course, 0 sections, 0 risk rules, and 0 student profiles, matching the original backup.
+
+### Offline Demonstration Fallback
+
+The SmartAdvisor course API uses the local `data/FAU_Courses.xlsx` dataset and does not require the shared Supabase database for course retrieval. The backend can therefore be started locally without relying on the cloud database, provided its dependencies and source files are available.
+
+Before the demonstration, verify that the local frontend can connect to the local FastAPI backend and complete a representative course-search workflow without cloud services. Keep the approved demo source version and a prerecorded demonstration available as additional presentation fallbacks if the team prepares them.
+
+Offline frontend operation has not yet been tested as part of this reliability task. Do not claim the offline fallback is fully verified until a complete local demonstration succeeds without internet connectivity.
+
+### Reliability Evidence
+
+See `docs/DEMO_RELIABILITY_REPORT.md` for the three completed PostgreSQL seed/reset cycles, database backup/restore verification, and backend API recovery results. All database modifications were performed on the local `smartadvisor_demo` database, not the team's shared Supabase database.
