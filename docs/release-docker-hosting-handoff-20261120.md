@@ -5,9 +5,10 @@ deployment, dashboard write, or billing action was performed during this work.
 
 ## Release candidate
 
-- Published `origin/main`: `0fca051c6b43108a8fc6d33a8566b26b19893c4f`.
-- Local release candidate: `4f8a772b983e8658c827aa909891c5cc26c35d49`.
-- The candidate is six commits ahead of and zero commits behind `origin/main`.
+- Published `origin/main`: `e0bfb0fc61cc3501d8154a98ccac97a3fcf6c245`.
+- Container-tested release candidate: `9908adff25c0106078fca163679d026da09d7cdc`.
+- Current main was merged into the release branch, preserving its DARS and
+  semester-history work alongside the parser and grading safeguard commits.
 - `c7b241544a46498f6a99fa508d279ca96085b84c` contains the parser fix and the
   passed single-turn live grading diagnostic.
 - `7a932fc04cd2d5883848a5d33ea1f03c95c8b2ae` contains the production grading
@@ -25,33 +26,30 @@ build context. It must not be staged or published accidentally.
 
 ## Docker verification
 
-Docker Desktop Linux engine 29.9.3 started without a settings change. The
-bounded verifier built the candidate plus the offline hosting changes and
-created exactly one disposable runtime container with 512 MiB memory, 512 MiB
-memory+swap, and restart policy `no`. Inspection confirmed acquisition and
-provider traffic were disabled. The container exited before application
-startup with code 127 because the Windows checkout supplied CRLF in the Bash
-entrypoint (`bash\r`). It was not OOM-killed, did not restart, and was removed.
+Docker Desktop Linux engine 29.9.3 ran without a settings change. Attempt 1 on
+the reconciled tree passed application, route, asset, and process assertions,
+then stopped on a PowerShell-native stderr handling defect while reading the
+Xvfb log. The container was removed. The narrow log-capture correction was
+committed and tested before attempt 2.
 
-The Dockerfile now normalizes the copied entrypoint to LF and fails its build
-if any CR remains. One separately approved replacement container used image
-`sha256:ce9d9659021f11d91ffffa79aa163f545dcfbc70c36b82a5989153f0236414de`
-from source manifest
-`f8924f41e78ad694a25bbb34fbf325e45fcbd84ccc2a15f70d4f52a5152249f4`.
-It reached API health under the applied 512 MiB memory and memory+swap limits,
-used restart policy `no`, sampled 319.9 MiB idle, was not OOM-killed, did not
-restart, and was removed after a graceful stop attempt. The verifier then hit a
-Windows PowerShell `Invoke-WebRequest` legacy-parser exception before `/forms`.
-Therefore this is not a complete runtime/browser pass: sampled/cgroup peak,
-memory headroom, SPA routes/assets, Xvfb/Chromium state, and unknown-route
-behavior were not established. `-UseBasicParsing` is now applied offline for a
-future separately approved run. The sanitized failed-run record is local-only
-at `.local-docker-verification-20261121.json`.
+Attempt 2 passed using commit
+`9908adff25c0106078fca163679d026da09d7cdc` and image
+`sha256:5b54cf659d631b85b27d11179ed93c7a2e3626c567326934b29884f972d3dd5b`.
+Docker applied 512 MiB memory, 512 MiB memory+swap (zero additional swap), and
+restart policy `no`. Health, `/`, `/forms`, `/chatbot`, two real static assets,
+catalog GET, JSON 404 handling, synthetic headed Chromium, Xvfb/Uvicorn state,
+and Chromium cleanup passed. Acquisition and provider traffic were disabled;
+no conversation request ran. Idle usage was 149.7 MiB. Authoritative cgroup
+peak was 456 MiB, leaving 56 MiB peak headroom. Docker's point-in-time sampled
+peak was 149.7 MiB; the browser-family RSS diagnostic was 900.5 MiB because it
+double-counts shared pages and is not a cgroup measurement. There were zero
+restarts and no OOM kill. Graceful stop produced exit 143, and the test
+container was removed.
 
 ## Applied hosting facts
 
-- GitHub Actions run `44645964260` successfully deployed Vercel production from
-  main commit `0fca051c6b43108a8fc6d33a8566b26b19893c4f` on 2026-11-20.
+- GitHub Actions run `45010467762` successfully deployed Vercel production from
+  main commit `e0bfb0fc61cc3501d8154a98ccac97a3fcf6c245` on 2026-11-22.
 - Vercel project reported by that workflow: `smartadvisor-group17-main`.
 - Production alias: `https://smartadvisor-group17-main.vercel.app`.
 - Current `/` returns 200; direct `/forms` and `/chatbot` return 404.
@@ -102,16 +100,13 @@ no force fix or dependency upgrade was applied.
 
 ## Remaining approvals
 
-1. If desired, separately approve one new bounded 512 MiB container to verify
-   the offline-only PowerShell parser correction, direct routes,
-   Xvfb/Chromium cleanup, and peak whole-container memory.
-2. Provide authenticated read-only dashboard access to establish Vercel and
+1. Provide authenticated read-only dashboard access to establish Vercel and
    Render applied settings.
-3. After all checks pass, authorize push, PR, required review/checks, and merge.
+2. After all checks pass, authorize merge of the tested PR.
    A main push will make the GitHub Vercel production workflow run; Render's
    merge consequence is still unknown.
-4. Separately authorize any dashboard changes. Expected non-secret settings are
-   production `VITE_API_URL` on Vercel and exact production
-   `SMARTADVISOR_CORS_ORIGINS` on Render. Changing an existing Render service
-   from native Python to Docker would rebuild/redeploy it and must be explicitly
-   approved after runtime/plan/auto-deploy inspection.
+3. No dashboard changes are included in this release. Preserve production
+   `VITE_API_URL` on Vercel and exact production
+   `SMARTADVISOR_CORS_ORIGINS` on Render. The deployed Render service remains
+   native Python/FastAPI/Uvicorn on its reported Free plan; this release does
+   not convert it to Docker or publish `infra/render.yaml` changes.

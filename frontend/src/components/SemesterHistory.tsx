@@ -224,7 +224,7 @@ setStudent({
         setSaved(true);
         setMessage('Saved DARS history loaded successfully.');
 
-      } catch (err) {
+      } catch {
         if (active) {
           setError('Unable to load saved DARS history.');
         }
