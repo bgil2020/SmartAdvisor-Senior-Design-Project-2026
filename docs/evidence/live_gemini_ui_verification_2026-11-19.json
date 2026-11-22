@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "verification_kind": "bounded_live_gemini_generation_through_local_newer_ui",
+  "verified_at_local_date": "2026-11-19",
+  "repository": "D:\\Projects\\SmartAdvisor-Senior-Design-Project-2026",
+  "branch": "integration/micen-updated-frontend",
+  "tested_head": "bfdd4e6d7cb0de1a7d76988e2db9c64b8e74598b",
+  "tested_worktree_state": "checkpoint plus uncommitted generation-preflight changes",
+  "account_consistency": {
+    "configured_key_suffix_match": true,
+    "project_name": "Default Gemini Project",
+    "project_id": "gen-lang-client-0964532444",
+    "billing_tier_shown": "Free tier",
+    "billing_setup_action_shown": true,
+    "quota_allowance_proven": false
+  },
+  "request_bounds": {
+    "provider": "Google Gemini Developer API",
+    "model": "gemini-3.5-flash-lite",
+    "conversation_requests": 1,
+    "provider_request_budget": 1,
+    "provider_requests_used": 1,
+    "intent_parser_mode": "deterministic",
+    "generation_mode": "gemini",
+    "timeout_seconds": 10,
+    "max_output_tokens": 512,
+    "automatic_retries": 0,
+    "live_catalog_acquisition": false,
+    "live_syllabus_acquisition": false
+  },
+  "response": {
+    "generation_source": "provider",
+    "generation_fallback_used": false,
+    "model_id": "gemini-3.5-flash-lite",
+    "citation_count": 1,
+    "live_generation_badge_rendered": true,
+    "answer": "The grading for COP 4331 consists of projects at 60% and examinations at 40%.",
+    "accepted_source_id": "rag:f45e1085682d955d",
+    "citation_locator": "heading:Assessments and Grading"
+  },
+  "grounding": {
+    "fixture": "tests/syllabi/fixtures/rendered_complete.html",
+    "fixture_scope": {
+      "course_code": "COP4331",
+      "term_id": "202608",
+      "section": "002"
+    },
+    "support_check": "The approved fixture states that projects are 60 percent and examinations are 40 percent.",
+    "source_id_present_in_answer": true,
+    "citation_rendered_in_browser": true,
+    "provenance_validation_bypassed": false
+  },
+  "artifacts": {
+    "screenshot": "docs/ui-verification/live-gemini-chatbot.png",
+    "screenshot_sha256": "BA7760CED5109950C41A49FF79DF17A97E218D545A3386B44D00BD45F9498D34"
+  },
+  "conclusion": "PASS",
+  "description": "Live Gemini generation through the newer UI using approved fixture evidence.",
+  "servers_and_harness_processes_stopped": true,
+  "limitations": [
+    "This verifies one successful Free Tier request at the observed time; it does not establish an ongoing quota allowance.",
+    "This is not live syllabus acquisition and is not hosted verification."
+  ]
+}

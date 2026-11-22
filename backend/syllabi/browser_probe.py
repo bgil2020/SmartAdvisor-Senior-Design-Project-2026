@@ -25,9 +25,10 @@ class BrowserProbeLimits:
     essential_failure_budget: int = 2
     access_denial_threshold: int = 1
     total_response_budget: int = 60
+    max_rendered_html_bytes: int = 2 * 1024 * 1024
 
     def __post_init__(self) -> None:
-        if self.essential_failure_budget < 1 or self.access_denial_threshold < 1 or self.total_response_budget < 1:
+        if self.essential_failure_budget < 1 or self.access_denial_threshold < 1 or self.total_response_budget < 1 or self.max_rendered_html_bytes < 1024:
             raise ValueError("Browser probe limits must be positive")
 
 
@@ -87,8 +88,13 @@ def probe_browser_session(session: BrowserProbeSession, url: str, *, limits: Bro
                     cancel("total_response_budget_exhausted")
                     break
             elif kind == "snapshot":
+                html = str(event.get("html", ""))
+                if len(html.encode("utf-8")) > limits.max_rendered_html_bytes:
+                    status = "response_too_large"
+                    cancel("rendered_document_byte_limit_exhausted")
+                    break
                 status = classify_browser_observation(
-                    str(event.get("html", "")),
+                    html,
                     str(event.get("final_url", url)),
                     failed_requests=failed_requests,
                 )
@@ -117,5 +123,6 @@ def probe_browser_session(session: BrowserProbeSession, url: str, *, limits: Bro
             "essential_failure_budget": limits.essential_failure_budget,
             "access_denial_threshold": limits.access_denial_threshold,
             "total_response_budget": limits.total_response_budget,
+            "max_rendered_html_bytes": limits.max_rendered_html_bytes,
         },
     }

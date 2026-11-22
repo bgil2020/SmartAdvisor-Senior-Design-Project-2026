@@ -1,15 +1,17 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import OnlineOverrideEvaluator from './components/OnlineOverrideEvaluator';
-import StudentDashboard from './components/StudentDashboard';
+import { ConversationalAssistant } from './components/ConversationalAssistant';
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { CoursePlanningWorkspace } from './components/CoursePlanningWorkspace';
 import StudentLogin from './components/StudentLogin';
 import SemesterHistory from './components/SemesterHistory';
-import { ConversationalAssistant } from './components/ConversationalAssistant';
 import { supabase } from './lib/supabase';
 import {
   getCourses,
   getSections,
   getAlternatives,
   checkCompatibility,
+  matchedCourseCodes,
   ApiError,
   type RawCourseRecord,
   type RawSectionRecord,
@@ -25,6 +27,8 @@ import {
   type CourseSection,
 } from './utils/scheduleUtils';
 import { MOCK_SECTIONS } from './types/schedule';
+import { pathForView, viewFromPath, type AppView } from './utils/viewRouting';
+import { addSelectedSectionGroup, removeSelectedSection } from './utils/planningSelection';
 
 // --- Supplied Synthetic Student Profiles (from Synthetic Profiles.xlsx) ---
 interface SyntheticProfile {
@@ -101,40 +105,60 @@ const SYNTHETIC_PROFILES: SyntheticProfile[] = [
   },
 ];
 
+// Kept temporarily while the extracted shared workspace is verified against the former markup.
+const SHOW_LEGACY_PLANNING_MARKUP = false;
+
 export default function App() {
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [studentName, setStudentName] = useState('');
   const [authReady, setAuthReady] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
+
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (
-          event === 'INITIAL_SESSION' ||
-          event === 'SIGNED_IN' ||
-          event === 'SIGNED_OUT'
-        ) {
-          const user = session?.user;
-          setAccountId(user?.id ?? null);
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange(
+        (event, session) => {
+          if (
+            event === 'INITIAL_SESSION' ||
+            event === 'SIGNED_IN' ||
+            event === 'SIGNED_OUT'
+          ) {
+            const user = session?.user;
 
-          setStudentName(
-            user
-              ? String(user.user_metadata?.full_name || 'Student')
-              : ''
-          );
+            setAccountId(user?.id ?? null);
 
-          setIsLoggedIn(Boolean(user));
-          setAuthReady(true);
+            setStudentName(
+              user
+                ? String(user.user_metadata?.full_name || 'Student')
+                : ''
+            );
+
+            setIsLoggedIn(Boolean(user));
+            setAuthReady(true);
+          }
         }
-      }
-    );
+      );
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- 1. Real Course & Section State ---
-  // Keep all your existing course code below this line.
+  const [currentView, setCurrentView] =
+    useState<AppView>(() => viewFromPath(window.location.pathname));
 
+  const navigateToView = useCallback((view: AppView) => {
+    const nextPath = pathForView(view);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ view }, '', nextPath);
+    }
+    setCurrentView(view);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentView(viewFromPath(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   // --- 1. Real Course & Section State ---
   const [courses, setCourses] = useState<RawCourseRecord[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -339,7 +363,7 @@ export default function App() {
     if (selectedSections.some((s) => String(s.CRN) === crnStr)) {
       return; // already added
     }
-    const updated = [...selectedSections, ...records];
+    const updated = addSelectedSectionGroup(selectedSections, records);
     setSelectedSections(updated);
 
     // Invalidate open alternatives as selected schedule has changed
@@ -357,7 +381,7 @@ export default function App() {
   // --- Remove all section records for a CRN from proposed schedule ---
   const handleRemoveSection = (crn: number | string) => {
     const crnStr = String(crn);
-    const updated = selectedSections.filter((s) => String(s.CRN) !== crnStr);
+    const updated = removeSelectedSection(selectedSections, crnStr);
     setSelectedSections(updated);
 
     if (alternativesTarget && String(alternativesTarget.CRN) === crnStr) {
@@ -542,25 +566,57 @@ export default function App() {
         setLoadingCompat(false);
       });
   };
+  
   if (!authReady) {
+    return (
+      <main style={{ padding: '2rem' }}>
+        Loading SmartAdvisor...
+      </main>
+    );
+  }
+
+  if (!isLoggedIn || !accountId) {
+    return (
+      <StudentLogin
+        onLogin={(name) => {
+          setStudentName(name);
+          setIsLoggedIn(true);
+        }}
+      />
+    );
+  }
+
+  if (currentView === 'welcome') {
+    return <WelcomeScreen onNavigate={navigateToView} />;
+  }
+
+  const handleOverrideHandoff = (courseCode?: string) => {
+    setOverridePrefillCourse(courseCode);
+    navigateToView('forms');
+  };
   return (
-    <main style={{ padding: '2rem' }}>
-      Loading SmartAdvisor...
-    </main>
-  );
-}
-  if (!isLoggedIn) {
-  return (
-    <StudentLogin
-      onLogin={(name) => {
-        setStudentName(name);
-        setIsLoggedIn(true);
-      }}
-    />
-  );
-}
-  return (
-    <main style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', padding: '2rem' }}>
+    <div className="app-shell">
+      <header className="app-navbar">
+        <button type="button" className="app-brand" onClick={() => navigateToView('welcome')} aria-label="SmartAdvisor home">
+          <span className="app-brand-mark">SA</span>
+          <span>
+            <strong>SmartAdvisor</strong>
+            <small>Academic Intelligence Suite</small>
+          </span>
+        </button>
+        <nav aria-label="Primary navigation">
+          <button type="button" onClick={() => navigateToView('welcome')}>Home</button>
+          <button type="button" className={currentView === 'forms' ? 'active' : ''} onClick={() => navigateToView('forms')}>
+            Forms &amp; Engines
+          </button>
+          <button type="button" className={currentView === 'chat' ? 'active' : ''} onClick={() => navigateToView('chat')}>
+            AI Assistant Chat
+          </button>
+        </nav>
+      </header>
+
+      <main className="app-content">
+      {currentView === 'forms' && (
       <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gap: '2rem', textAlign: 'left' }}>
         
         {/* Header */}
@@ -614,11 +670,53 @@ onClick={async () => {
             Real course catalog, section scheduling, conflict resolution & compatibility support
           </p>
         </header>
+        
+{courseWarning && (
+  <div
+    role="alert"
+    style={{
+      padding: '14px 16px',
+      backgroundColor: '#fff7ed',
+      border: '1px solid #f59e0b',
+      borderRadius: '8px',
+      color: '#92400e'
+    }}
+  >
+    <strong>⚠ Previously Completed Course</strong>
 
-        <StudentDashboard
+    <p style={{ margin: '6px 0' }}>
+      {courseWarning}
+    </p>
+
+    <small>
+      Please review your academic history before
+      adding this course to your schedule.
+    </small>
+  </div>
+)}
+
+        <CoursePlanningWorkspace
+          courses={courses}
+          loadingCourses={loadingCourses}
+          coursesError={coursesError}
+          selectedCourseCode={selectedCourseCode}
+          onSelectCourse={handleSelectCourse}
+          availableSections={availableSections}
+          loadingSections={loadingSections}
+          sectionsError={sectionsError}
           selectedSections={selectedSections}
-          conflictCount={getConflictingSectionIds(allTimedSections).size}
-          onRemoveCourse={handleRemoveSection}
+          onAddSectionGroup={handleAddSectionGroup}
+          onRemoveSection={handleRemoveSection}
+          headingPrefix=""
+          showDemoSchedule={showDemoSchedule}
+          onShowDemoScheduleChange={setShowDemoSchedule}
+          onFindAlternatives={handleFindAlternatives}
+          alternativesTarget={alternativesTarget}
+          alternativesList={alternativesList}
+          loadingAlternatives={loadingAlternatives}
+          alternativesError={alternativesError}
+          onCloseAlternatives={() => setAlternativesTarget(null)}
+          onSwapAlternativeGroup={handleSwapAlternativeGroup}
         />
 
         
@@ -632,6 +730,7 @@ onClick={async () => {
 
 
 
+        {SHOW_LEGACY_PLANNING_MARKUP && (<>
         {/* 1. Real Course Selection & Section Browser */}
         <section style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#111827' }}>
@@ -696,7 +795,7 @@ onClick={async () => {
 
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.75rem', color: '#6b7280', alignSelf: 'center' }}>Quick select:</span>
-                {['CAP 4773', 'COP 2220', 'CDA 4240C', 'MAC 2313'].map((code) => (
+                {['CAP 4773', 'MAP 3305', 'CDA 4240C', 'MAC 2313'].map((code) => (
                   <button
                     key={code}
                     type="button"
@@ -1122,7 +1221,7 @@ onClick={async () => {
             <div style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#eff6ff', border: '1px solid #93c5fd', borderRadius: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e3a8a' }}>
-                  Alternative Sections for {alternativesTarget.COURSE} (Replacing CRN {String(alternativesTarget.CRN)})
+                  Alternative Sections for {alternativesTarget!.COURSE} (Replacing CRN {String(alternativesTarget!.CRN)})
                 </h3>
                 <button
                   type="button"
@@ -1134,7 +1233,7 @@ onClick={async () => {
               </div>
 
               <p style={{ fontSize: '0.8125rem', color: '#1e40af', marginBottom: '0.75rem' }}>
-                Queried backend endpoint: <code>GET /alternatives?crn={String(alternativesTarget.CRN)}</code>. Returns sections of the same course that do not conflict with your other selected classes.
+                Queried backend endpoint: <code>GET /alternatives?crn={String(alternativesTarget!.CRN)}</code>. Returns sections of the same course that do not conflict with your other selected classes.
               </p>
 
               {loadingAlternatives && <p style={{ fontSize: '0.875rem', color: '#2563eb' }}>Searching alternative sections...</p>}
@@ -1193,6 +1292,8 @@ onClick={async () => {
             </div>
           )}
         </section>
+
+        </>)}
 
         {/* 3. Course Compatibility Evaluator */}
         <section style={{ padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
@@ -1335,7 +1436,7 @@ onClick={async () => {
           )}
 
           {compatResult && (
-            <div style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
+            <div id="compatibility-response-card" style={{ marginTop: '1.5rem', padding: '1.25rem', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
               <div style={{ marginBottom: '1rem' }}>
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#0f172a', margin: '0 0 0.5rem 0' }}>
                   Compatibility Result for {compatResult.student_name} ({compatResult.major})
@@ -1368,7 +1469,7 @@ onClick={async () => {
                     {compatResult.matched_course_combinations.map((comb, i) => (
                       <div key={i} style={{ padding: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8125rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem', flexWrap: 'wrap', gap: '0.25rem' }}>
-                          <strong>Pair: {comb.courses.join(' + ')}</strong>
+                          <strong>Pair: {matchedCourseCodes(comb).join(' + ') || 'Course combination'}</strong>
                           <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#f1f5f9', color: '#334155', fontWeight: '600' }}>
                             {comb.baseline_rating}
                           </span>
@@ -1440,19 +1541,43 @@ onClick={async () => {
           )}
         </section>
 
-        {/* 4. Conversational Planning Assistant (Deterministic Prototype) */}
-        <ConversationalAssistant
-          defaultProfileId={compatProfileId}
-          defaultWorkHours={compatWorkHours}
-          defaultDifficulty={compatDifficulty}
-          defaultSatisfaction={compatSatisfaction}
-          defaultRecentCourses={compatRecentInput}
-          onOverrideHandoff={(courseCode) => setOverridePrefillCourse(courseCode)}
-        />
-
-        {/* 5. Online Course Override Guidance (Preserved) */}
+        {/* 4. Online Course Override Guidance (Preserved) */}
         <OnlineOverrideEvaluator key={overridePrefillCourse ?? 'blank'} prefillCourseCode={overridePrefillCourse} />
       </div>
+      )}
+
+      {currentView === 'chat' && (
+        <div className="chat-workspace" data-testid="chat-workspace">
+          <div className="chat-schedule-panel" aria-label="Course planning workspace">
+            <CoursePlanningWorkspace
+              compact
+              courses={courses}
+              loadingCourses={loadingCourses}
+              coursesError={coursesError}
+              selectedCourseCode={selectedCourseCode}
+              onSelectCourse={handleSelectCourse}
+              availableSections={availableSections}
+              loadingSections={loadingSections}
+              sectionsError={sectionsError}
+              selectedSections={selectedSections}
+              onAddSectionGroup={handleAddSectionGroup}
+              onRemoveSection={handleRemoveSection}
+            />
+          </div>
+          <div className="chat-conversation-panel" aria-label="Conversation panel">
+            <ConversationalAssistant
+              defaultProfileId={compatProfileId}
+              defaultWorkHours={compatWorkHours}
+              defaultDifficulty={compatDifficulty}
+              defaultSatisfaction={compatSatisfaction}
+              defaultRecentCourses={compatRecentInput}
+              selectedSections={selectedSections}
+              onOverrideHandoff={handleOverrideHandoff}
+            />
+          </div>
+        </div>
+      )}
     </main>
+    </div>
   );
 }

@@ -4,7 +4,7 @@
  */
 
 // Same-origin in production; Vite proxies these routes during local development.
-const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env?.VITE_API_URL || '').replace(/\/$/, '');
 
 export interface RawCourseRecord {
   COURSE: string;
@@ -69,11 +69,22 @@ export interface CompatibilityRequest {
 }
 
 export interface MatchedCourseCombination {
-  courses: string[];
-  baseline_rating: string;
+  course_a?: string;
+  course_b?: string;
+  courses?: string[];
+  baseline_rating: string | number;
   personalized_guidance: string;
   factors: string[];
   reasoning: string;
+}
+
+export function matchedCourseCodes(combination: MatchedCourseCombination): string[] {
+  if (Array.isArray(combination.courses) && combination.courses.length > 0) {
+    return combination.courses;
+  }
+  return [combination.course_a, combination.course_b].filter(
+    (course): course is string => typeof course === 'string' && course.length > 0,
+  );
 }
 
 export interface CompatibilityResponse {
@@ -231,6 +242,8 @@ export interface ConversationRequest {
   preferred_max_credits?: number | null;
   recent_courses?: string[] | null;
   term?: string | number | null;
+  sections?: import('../utils/planningSelection').ConversationSectionContext[] | null;
+  selected_sections?: import('../utils/planningSelection').ConversationSectionContext[] | null;
   session_evidence?: import('../utils/sessionEvidence').SessionEvidenceRecord[];
   session_context?: import('../utils/sessionEvidence').SessionSourceContext | null;
 }
@@ -259,6 +272,7 @@ export interface ConversationResponse {
   engine_executed: boolean;
   engine_result?: Record<string, unknown> | null;
   disclaimer: string;
+  model_id?: string | null;
   acquired_evidence?: import('../utils/sessionEvidence').SessionEvidenceRecord[];
   citations?: Array<Record<string, unknown>>;
   source_scope?: import('../utils/sessionEvidence').SessionSourceContext | null;

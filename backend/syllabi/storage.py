@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -39,8 +40,11 @@ def validate_record(record: Any) -> list[str]:
     for field in ("title", "document_text", "exact_source_text"):
         if not isinstance(record.get(field), str) or not record[field].strip(): errors.append(f"{field} must be non-empty text")
     parsed = urlparse(str(source.get("url", "")))
-    if parsed.scheme != "https" or parsed.hostname != "fau.simplesyllabus.com" or not parsed.path.startswith("/doc/"):
+    allowed_path = re.fullmatch(r"/(?:[a-z]{2}-[A-Z]{2}/)?doc/([^/]+)/.+", parsed.path)
+    if parsed.scheme != "https" or parsed.hostname != "fau.simplesyllabus.com" or not allowed_path:
         errors.append("source.url must be an allowed FAU Simple Syllabus document URL")
+    elif allowed_path.group(1) != str(source.get("source_id", "")):
+        errors.append("source.url document identity does not match source_id")
     sections = record.get("academic_sections")
     if not isinstance(sections, list) or not sections or any(not isinstance(item, dict) or not item.get("heading") or not item.get("text") or not item.get("locator") for item in sections):
         errors.append("academic_sections must contain located, non-empty sections")
