@@ -5,7 +5,8 @@ param(
     [string]$ExpectedImageId = "",
     [switch]$SkipBuild,
     [int]$StartupDeadlineSeconds = 60,
-    [int]$RuntimeDeadlineSeconds = 90
+    [int]$RuntimeDeadlineSeconds = 90,
+    [string]$ResultPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,6 +54,7 @@ $result = [ordered]@{
     app_running = $null
     static_assets_checked = 0
     health = "not_run"
+    failure = $null
 }
 
 function Get-ContainerMemoryBytes {
@@ -250,6 +252,12 @@ try {
     $authoritativePeak = if ($null -ne $result.cgroup_peak_memory_mb) { $result.cgroup_peak_memory_mb } else { $result.peak_memory_mb }
     $result.memory_headroom_mb = [math]::Round(512 - $authoritativePeak, 1)
     Assert-RuntimeDeadline
+} catch {
+    $result.failure = [ordered]@{
+        type = $_.Exception.GetType().Name
+        message = $_.Exception.Message
+    }
+    throw
 } finally {
     $running = docker ps --all --filter "name=^/${containerName}$" --format "{{.Names}}"
     if ($running -eq $containerName) {
@@ -266,5 +274,9 @@ try {
         docker rm --force $containerName | Out-Null
         $result.container_removed = -not [bool](docker ps --all --filter "name=^/${containerName}$" --format "{{.Names}}")
     }
-    $result | ConvertTo-Json
+    $resultJson = $result | ConvertTo-Json -Depth 8
+    if ($ResultPath) {
+        $resultJson | Set-Content -LiteralPath $ResultPath -Encoding utf8
+    }
+    $resultJson
 }

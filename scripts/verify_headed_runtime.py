@@ -56,22 +56,33 @@ def verify_application_ui(app_url: str) -> int:
     home_rendered = False
     chatbot_navigation = False
     chatbot_rendered = False
+    failure_reason = None
+    console_errors: list[str] = []
+    page_errors: list[str] = []
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(**browser_launch_options())
             try:
                 page = browser.new_page()
-                page.goto(app_url.rstrip("/") + "/", wait_until="networkidle", timeout=10_000)
-                home_rendered = (
-                    page.get_by_role("heading", name="Welcome to SmartAdvisor").count() == 1
-                    and page.get_by_role("button", name="Open SmartAdvisor Chat").count() == 1
-                )
-                peak = max(peak, family_rss())
-                page.get_by_role("button", name="Open SmartAdvisor Chat").click(timeout=5_000)
-                page.wait_for_url("**/chatbot", timeout=5_000)
-                chatbot_navigation = page.url.endswith("/chatbot")
-                chatbot_rendered = page.get_by_role("heading", name="SmartAdvisor Chat").count() == 1
-                peak = max(peak, family_rss())
+                page.on("console", lambda message: console_errors.append(message.type) if message.type == "error" else None)
+                page.on("pageerror", lambda error: page_errors.append(type(error).__name__))
+                try:
+                    page.goto(app_url.rstrip("/") + "/", wait_until="networkidle", timeout=15_000)
+                    heading = page.get_by_role("heading", name="Welcome to SmartAdvisor")
+                    chat_button = page.get_by_role("button", name="Open SmartAdvisor Chat")
+                    heading.wait_for(state="visible", timeout=15_000)
+                    chat_button.wait_for(state="visible", timeout=15_000)
+                    home_rendered = True
+                    peak = max(peak, family_rss())
+                    chat_button.click(timeout=5_000)
+                    page.wait_for_url("**/chatbot", timeout=5_000)
+                    chatbot_navigation = page.url.endswith("/chatbot")
+                    chat_heading = page.get_by_role("heading", name="SmartAdvisor Chat")
+                    chat_heading.wait_for(state="visible", timeout=10_000)
+                    chatbot_rendered = True
+                    peak = max(peak, family_rss())
+                except Exception as error:
+                    failure_reason = type(error).__name__
             finally:
                 browser.close()
         time.sleep(0.2)
@@ -80,12 +91,22 @@ def verify_application_ui(app_url: str) -> int:
             for child in psutil.Process().children(recursive=True)
             if "chrom" in child.name().casefold()
         ]
-        passed = home_rendered and chatbot_navigation and chatbot_rendered and not chromium_left
+        passed = (
+            home_rendered
+            and chatbot_navigation
+            and chatbot_rendered
+            and not chromium_left
+            and not console_errors
+            and not page_errors
+        )
         result = {
             "status": "passed" if passed else "failed",
+            "failure_reason": failure_reason,
             "home_rendered": home_rendered,
             "chatbot_navigation": chatbot_navigation,
             "chatbot_rendered": chatbot_rendered,
+            "console_error_count": len(console_errors),
+            "page_error_count": len(page_errors),
             "chromium_children_after_close": chromium_left,
             "peak_family_rss_mb": round(peak / 1024 / 1024, 1),
             "duration_ms": round((time.monotonic() - started) * 1000),
