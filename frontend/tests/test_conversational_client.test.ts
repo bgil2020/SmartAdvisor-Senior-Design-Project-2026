@@ -160,6 +160,15 @@ describe('Conversational Client Payload & State Handling', () => {
     assert.deepStrictEqual(quickPromptsForSelection(map, sources), []);
   });
 
+  it('offers topic and grading questions when exact syllabus discovery is available', () => {
+    const map = [{ course: 'MAP 3305', section: '003', crn: '16355', term: 202608 }];
+    const sources = { MAP3305: ['syllabus'] };
+    assert.deepStrictEqual(quickPromptsForSelection(map, sources), [
+      'What topics are covered in MAP 3305?',
+      'What grading information is in the syllabus for MAP 3305?',
+    ]);
+  });
+
   it('describes pending work without claiming unconfirmed completion', () => {
     const messages = pendingMessagesForRequest('What grading information is in the syllabus?', 1);
     assert.match(messages[1], /Looking for approved information/);

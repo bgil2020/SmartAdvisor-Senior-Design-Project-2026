@@ -44,8 +44,9 @@ export function quickPromptsForSelection(
   if (courses.length === 1) {
     if (!informationSources) return [`What topics are covered in ${courses[0]}?`, `What grading information is in the syllabus for ${courses[0]}?`];
     const sources = informationSources[normalizedCourse(courses[0])] ?? [];
+    const hasCourseContentSource = sources.includes('course_description') || sources.includes('syllabus');
     return [
-      ...(sources.includes('course_description') ? [`What topics are covered in ${courses[0]}?`] : []),
+      ...(hasCourseContentSource ? [`What topics are covered in ${courses[0]}?`] : []),
       ...(sources.includes('syllabus') ? [`What grading information is in the syllabus for ${courses[0]}?`] : []),
     ];
   }
@@ -54,7 +55,7 @@ export function quickPromptsForSelection(
     `Can I take ${courses[0]} and ${courses[1]} together?`,
   ];
   const firstSources = informationSources?.[normalizedCourse(courses[0])];
-  if (!informationSources || firstSources?.includes('course_description')) prompts.push(`What topics are covered in ${courses[0]}?`);
+  if (!informationSources || firstSources?.some((source) => source === 'course_description' || source === 'syllabus')) prompts.push(`What topics are covered in ${courses[0]}?`);
   return prompts;
 }
 

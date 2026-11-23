@@ -316,13 +316,20 @@ def handle_conversation(req: ConversationRequest):
             term_id=scope.get("term_id"),
             section=scope.get("section"),
         )
-        # A selected section supplies exact identity, but does not by itself turn
-        # every course-content question into a syllabus request. Reuse an
-        # already-retained syllabus for follow-ups; otherwise follow the
-        # question's syllabus-specific language.
+        # An explicitly selected section supplies the identity needed for the
+        # opt-in automatic syllabus resolver. Without that resolver, preserve
+        # the narrower legacy behavior and use course descriptions for ordinary
+        # content questions.
+        automatic_syllabus = (
+            os.getenv("SYLLABUS_ACQUISITION_ENABLED", "false").casefold() == "true"
+            and os.getenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "false").casefold() == "true"
+            and bool(scope.get("term_id"))
+            and bool(scope.get("section"))
+        )
         syllabus_question = bool(
             re.search(r"\b(syllabus|grading|grade|assignment|exam|attendance|instructor|textbook|due date|office hours)\b", message, re.I)
             or any(record.get("record_category") == "syllabus" for record in scoped_records)
+            or automatic_syllabus
         )
         source_category = "syllabus" if syllabus_question else "course_description"
         matches = [
@@ -378,6 +385,9 @@ def handle_conversation(req: ConversationRequest):
             }
             acquisition["source_category"] = source_category
             acquisition["additional_source_acquisitions"] = (
+                int(result["application_acquisition_attempts"])
+                if "application_acquisition_attempts" in result
+                else
                 int(result["request_count"])
                 if "request_count" in result
                 else int(result.get("status") not in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"})
@@ -385,11 +395,17 @@ def handle_conversation(req: ConversationRequest):
             if result.get("record"):
                 acquired = [result["record"]]
                 matches = acquired
-            elif result.get("status") in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"}:
+            elif result.get("status") in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping", "no_exact_source_match", "unsupported_term"}:
                 source_label = "syllabus" if source_category == "syllabus" else "course-information source"
-                if result.get("status") == "no_exact_approved_mapping":
+                if result.get("status") == "no_exact_source_match":
+                    unavailable_text = f"No exact public {source_label} was found for {scope['course_code']} in the selected term and section."
+                    unavailable_guidance = "Check the selection or consult the official source; SmartAdvisor will not use a different section."
+                elif result.get("status") == "no_exact_approved_mapping":
                     unavailable_text = f"No approved {source_label} is configured for {scope['course_code']}."
-                    unavailable_guidance = "Use the official course catalog or ask an authorized advisor. SmartAdvisor will not invent course content without a validated source."
+                    unavailable_guidance = "Use the official course source or ask an authorized advisor. SmartAdvisor will not invent course content without a validated source."
+                elif result.get("status") == "unsupported_term":
+                    unavailable_text = "The selected term could not be matched to a supported semester and year."
+                    unavailable_guidance = "Select a section with a Spring, Summer, or Fall term before requesting its syllabus."
                 else:
                     unavailable_text = f"The approved {source_label} lookup is not enabled in this deployment."
                     unavailable_guidance = "Use the official course source or ask an authorized advisor."

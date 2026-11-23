@@ -15,6 +15,7 @@ from backend.session_evidence import attach_provenance
 from .parser import SyllabusParseError, parse_rendered_syllabus
 from .browser_probe import BrowserProbeLimits, probe_browser_session
 from .playwright_driver import BrowserExecutableConfigurationError, PlaywrightSession
+from .discovery import discover_exact_syllabus
 from .storage import validate_record
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,14 +33,11 @@ def _mapping(course_code: str, term_id: str, section: str, manifest_path: Path =
 
 
 def acquire_exact_syllabus(course_code: str, term_id: str, section: str) -> dict[str, Any]:
-    """One logical headed navigation; never switches modes or invents a URL."""
+    """Acquire an exact syllabus using a tracked or exactly discovered identity."""
     if os.getenv("SYLLABUS_ACQUISITION_ENABLED", "false").casefold() != "true":
         return {"status": "disabled", "record": None, "duration_ms": 0, "cleanup": "not_started"}
     if os.getenv("ACQUISITION_BROWSER_MODE", "").casefold() != "headed":
         return {"status": "headed_mode_not_selected", "record": None, "duration_ms": 0, "cleanup": "not_started"}
-    mapping = _mapping(course_code, term_id, section)
-    if not mapping:
-        return {"status": "no_exact_approved_mapping", "record": None, "duration_ms": 0, "cleanup": "not_started"}
     key = (course_code.replace(" ", "").upper(), str(term_id), str(section))
     with _inflight_lock:
         future = _inflight.get(key)
@@ -58,7 +56,34 @@ def acquire_exact_syllabus(course_code: str, term_id: str, section: str) -> dict
                 "test_budget": budget,
             }
         else:
-            result = _run_mapping(mapping)
+            mapping = _mapping(course_code, term_id, section)
+            discovery: dict[str, Any] = {
+                "status": "not_needed",
+                "logical_navigations": 0,
+                "exact_match_count": 1,
+                "selection_strategy": "tracked_exact_mapping",
+            }
+            if mapping is None:
+                discovery = discover_exact_syllabus(course_code, term_id, section)
+                mapping = discovery.get("mapping")
+            if mapping is None:
+                status = str(discovery.get("status") or "no_exact_approved_mapping")
+                if status == "disabled":
+                    status = "no_exact_approved_mapping"
+                result = {
+                    "status": status,
+                    "record": None,
+                    "duration_ms": int(discovery.get("duration_ms") or 0),
+                    "cleanup": "completed" if discovery.get("logical_navigations") else "not_started",
+                    "request_count": int(discovery.get("logical_navigations") or 0),
+                    "source_discovery": {key: value for key, value in discovery.items() if key != "mapping"},
+                }
+            else:
+                result = _run_mapping(mapping)
+                discovery_requests = int(discovery.get("logical_navigations") or 0)
+                result["request_count"] = int(result.get("request_count") or 0) + discovery_requests
+                result["source_discovery"] = {key: value for key, value in discovery.items() if key != "mapping"}
+            result["application_acquisition_attempts"] = int(int(result.get("request_count") or 0) > 0)
             if budget["enforced"]:
                 result["test_budget"] = budget
         future.set_result(result)

@@ -337,11 +337,19 @@ def get_courses(
         enabled_source_categories.add("course_description")
     if os.getenv("SYLLABUS_ACQUISITION_ENABLED", "false").casefold() == "true":
         enabled_source_categories.add("syllabus")
+    automatic_syllabus_discovery = (
+        "syllabus" in enabled_source_categories
+        and os.getenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "false").casefold() == "true"
+    )
     for record in records:
         code = str(record.get("COURSE", "")).replace(" ", "").upper()
         mappings = information_sources.get(code, ())
         record["INFORMATION_SOURCE_MAPPINGS"] = list(mappings)
-        record["INFORMATION_SOURCES"] = [category for category in mappings if category in enabled_source_categories]
+        available = [category for category in mappings if category in enabled_source_categories]
+        if automatic_syllabus_discovery and "syllabus" not in available:
+            available.append("syllabus")
+        record["INFORMATION_SOURCES"] = available
+        record["INFORMATION_SOURCE_DISCOVERY"] = ["syllabus"] if automatic_syllabus_discovery else []
 
     return {
         "count": len(records),

@@ -393,6 +393,57 @@ def test_synthetic_smoke_uses_complete_runtime_mapping(monkeypatch):
     assert captured["validated_source_url"].startswith("https://fau.simplesyllabus.com/doc/offline-runtime-smoke/")
 
 
+def test_runtime_discovers_unmapped_exact_syllabus_with_one_application_budget(monkeypatch):
+    from backend.syllabi import runtime
+
+    mapping = runtime_mapping(course_code="MAP3305") | {
+        "section": "003",
+        "source_document_id": "discovered-doc",
+        "view_url": "https://fau.simplesyllabus.com/doc/discovered-doc/Fall-2026-MAP-3305-003?mode=view",
+    }
+    claimed = []
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("ACQUISITION_BROWSER_MODE", "headed")
+    monkeypatch.setattr(runtime, "claim_test_budget", lambda kind: claimed.append(kind) or {"allowed": True, "enforced": True, "limit": 1, "used": 1})
+    monkeypatch.setattr(runtime, "_mapping", lambda *_args: None)
+    monkeypatch.setattr(runtime, "discover_exact_syllabus", lambda *_args: {
+        "status": "exact_source_selected",
+        "mapping": mapping,
+        "logical_navigations": 1,
+        "exact_match_count": 1,
+        "selection_strategy": "first_exact_course_term_section_match",
+    })
+    monkeypatch.setattr(runtime, "_run_mapping", lambda selected: {
+        "status": "acquired", "record": {"course_code": selected["course_code"]},
+        "request_count": 1, "cleanup": "completed",
+    })
+
+    result = runtime.acquire_exact_syllabus("MAP3305", "202608", "003")
+
+    assert claimed == ["syllabus"]
+    assert result["status"] == "acquired"
+    assert result["request_count"] == 2
+    assert result["application_acquisition_attempts"] == 1
+    assert result["source_discovery"]["status"] == "exact_source_selected"
+    assert result["source_discovery"]["exact_match_count"] == 1
+    assert "mapping" not in result["source_discovery"]
+
+
+def test_runtime_exhausted_budget_prevents_discovery_and_document_navigation(monkeypatch):
+    from backend.syllabi import runtime
+
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("ACQUISITION_BROWSER_MODE", "headed")
+    monkeypatch.setattr(runtime, "claim_test_budget", lambda _kind: {"allowed": False, "enforced": True, "limit": 0, "used": 0})
+    monkeypatch.setattr(runtime, "_mapping", lambda *_args: (_ for _ in ()).throw(AssertionError("mapping lookup should not run")))
+    monkeypatch.setattr(runtime, "discover_exact_syllabus", lambda *_args: (_ for _ in ()).throw(AssertionError("discovery should not run")))
+
+    result = runtime.acquire_exact_syllabus("MAP3305", "202608", "003")
+
+    assert result["status"] == "acquisition_budget_exhausted"
+    assert result["request_count"] == 0
+
+
 def test_runtime_full_document_probe_does_not_mask_parser_failure(monkeypatch):
     from backend.syllabi import runtime
 

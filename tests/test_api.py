@@ -40,6 +40,19 @@ def test_courses_do_not_advertise_disabled_source_workflows(monkeypatch):
     assert cap["INFORMATION_SOURCES"] == ["syllabus"]
 
 
+def test_courses_advertise_opt_in_syllabus_discovery_without_claiming_static_mapping(monkeypatch):
+    monkeypatch.setenv("CATALOG_ACQUISITION_ENABLED", "false")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "true")
+
+    records = client.get("/courses").json()["courses"]
+    map_course = next(record for record in records if record["COURSE"].replace(" ", "") == "MAP3305")
+
+    assert map_course["INFORMATION_SOURCE_MAPPINGS"] == []
+    assert map_course["INFORMATION_SOURCES"] == ["syllabus"]
+    assert map_course["INFORMATION_SOURCE_DISCOVERY"] == ["syllabus"]
+
+
 def test_get_cap_4773_sections():
     response = client.get(
         "/sections",

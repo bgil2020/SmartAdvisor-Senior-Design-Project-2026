@@ -11,6 +11,7 @@ export interface RawCourseRecord {
   TITLE: string;
   INFORMATION_SOURCE_MAPPINGS?: Array<'course_description' | 'syllabus'>;
   INFORMATION_SOURCES?: Array<'course_description' | 'syllabus'>;
+  INFORMATION_SOURCE_DISCOVERY?: Array<'syllabus'>;
   DEPT?: string;
   METHOD?: string;
   CAMPUS?: string;
