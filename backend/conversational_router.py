@@ -151,6 +151,58 @@ class ConversationResponse(BaseModel):
     retrieved_evidence_count: int = 0
 
 
+def _selected_source_context(
+    selected_sections: list[Any] | None,
+    explicit_courses: list[str],
+    request_term: int | str | None,
+) -> dict[str, str | None] | None:
+    """Return one unambiguous selected section as informational source scope."""
+    candidates: dict[tuple[str, str | None, str | None], dict[str, str | None]] = {}
+    for item in selected_sections or []:
+        if not isinstance(item, dict):
+            continue
+        raw_course = item.get("course") or item.get("COURSE") or item.get("course_code")
+        if not raw_course:
+            continue
+        course = normalize_course_code(str(raw_course))
+        raw_term = item.get("term") or item.get("TERM") or request_term
+        raw_section = item.get("section") or item.get("SECT")
+        context = {
+            "course_code": course,
+            "term_id": str(raw_term).strip() if raw_term is not None and str(raw_term).strip() else None,
+            "section": str(raw_section).strip() if raw_section is not None and str(raw_section).strip() else None,
+        }
+        candidates[(course, context["term_id"], context["section"])] = context
+
+    requested = list(dict.fromkeys(normalize_course_code(course) for course in explicit_courses if course))
+    if len(requested) == 1:
+        matches = [context for context in candidates.values() if context["course_code"] == requested[0]]
+    elif not requested and len({context["course_code"] for context in candidates.values()}) == 1:
+        matches = list(candidates.values())
+    else:
+        return None
+    return matches[0] if len(matches) == 1 else None
+
+
+def _source_context_for_request(
+    session_context: dict[str, Any] | None,
+    selected_context: dict[str, str | None] | None,
+) -> dict[str, Any] | None:
+    """Combine retained context with the current unambiguous planner selection."""
+    if not selected_context:
+        return session_context
+    if not session_context:
+        return selected_context
+    retained_course = normalize_course_code(str(session_context.get("course_code") or ""))
+    selected_course = normalize_course_code(str(selected_context.get("course_code") or ""))
+    if retained_course and retained_course != selected_course:
+        return selected_context
+    return {
+        key: session_context.get(key) or selected_context.get(key)
+        for key in ("course_code", "term_id", "section")
+    }
+
+
 @router.post("/conversation", response_model=ConversationResponse)
 def handle_conversation(req: ConversationRequest):
     """
@@ -238,7 +290,17 @@ def handle_conversation(req: ConversationRequest):
                     explanation_limitations=["Session evidence was not accepted."],
                 )
         valid_records, evidence_errors = validate_session_records(req.session_evidence)
-        scope, clarification = resolve_scope(message, extracted_courses, valid_records, req.session_context)
+        selected_context = _selected_source_context(
+            req.selected_sections or req.sections,
+            extracted_courses,
+            req.term,
+        )
+        scope, clarification = resolve_scope(
+            message,
+            extracted_courses,
+            valid_records,
+            _source_context_for_request(req.session_context, selected_context),
+        )
         if clarification or scope is None:
             return _build_response(
                 status="clarification", raw_message=message, disposition="clarify",
@@ -248,20 +310,24 @@ def handle_conversation(req: ConversationRequest):
                 missing_context=["course_code", "term_id", "section"],
                 explanation_limitations=evidence_errors,
             )
+        scoped_records = matching_records(
+            valid_records,
+            course_code=scope["course_code"],
+            term_id=scope.get("term_id"),
+            section=scope.get("section"),
+        )
+        # A selected section supplies exact identity, but does not by itself turn
+        # every course-content question into a syllabus request. Reuse an
+        # already-retained syllabus for follow-ups; otherwise follow the
+        # question's syllabus-specific language.
         syllabus_question = bool(
-            scope.get("term_id")
-            or scope.get("section")
-            or re.search(r"\b(syllabus|grading|grade|assignment|exam|attendance|instructor|textbook|due date|office hours)\b", message, re.I)
+            re.search(r"\b(syllabus|grading|grade|assignment|exam|attendance|instructor|textbook|due date|office hours)\b", message, re.I)
+            or any(record.get("record_category") == "syllabus" for record in scoped_records)
         )
         source_category = "syllabus" if syllabus_question else "course_description"
         matches = [
             record
-            for record in matching_records(
-                valid_records,
-                course_code=scope["course_code"],
-                term_id=scope.get("term_id"),
-                section=scope.get("section"),
-            )
+            for record in scoped_records
             if record.get("record_category") == source_category
         ]
         evidence_acceptance = {

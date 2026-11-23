@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import type { RawSectionRecord } from '../src/services/api.ts';
 import { appendTranscriptEntry, isCurrentConversationEpoch } from '../src/utils/conversationState.ts';
-import { addSelectedSectionGroup, commonSelectedTerm, describeSelectedSections, removeSelectedSection, toConversationSections } from '../src/utils/planningSelection.ts';
+import { addSelectedSectionGroup, commonSelectedTerm, describeSelectedSections, formatTerm, normalizeTermInput, removeSelectedSection, singleSelectedSourceContext, toConversationSections } from '../src/utils/planningSelection.ts';
 import { mapGroupedSectionToCourseSection } from '../src/utils/scheduleUtils.ts';
 
 const row = (overrides: Partial<RawSectionRecord>): RawSectionRecord => ({
@@ -28,6 +28,19 @@ describe('shared planning selection', () => {
     ]);
     assert.equal(commonSelectedTerm(context), 202608);
     assert.match(describeSelectedSections(context), /CRN 12345/);
+    assert.match(describeSelectedSections(context), /Fall 2026/);
+  });
+
+  it('shows student-facing term names while retaining backend term identifiers', () => {
+    assert.equal(formatTerm(202608), 'Fall 2026');
+    assert.equal(formatTerm('202601'), 'Spring 2026');
+    assert.equal(formatTerm('202605'), 'Summer 2026');
+    assert.equal(normalizeTermInput('Fall 2026'), '202608');
+    assert.equal(normalizeTermInput('202608'), '202608');
+    assert.deepEqual(singleSelectedSourceContext(toConversationSections([row({})])), {
+      course_code: 'COP4331', term_id: '202608', section: '002',
+    });
+    assert.equal(singleSelectedSourceContext(toConversationSections([row({}), row({ CRN: 23456 })])), null);
   });
 
   it('preserves multiple meetings and labels asynchronous and missing schedules truthfully', () => {
