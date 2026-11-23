@@ -1,6 +1,16 @@
 import type { ConversationResponse } from '../services/api';
 import type { ConversationSectionContext } from './planningSelection';
 
+export const DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS = 75_000;
+const MIN_CONVERSATION_REQUEST_TIMEOUT_MS = 30_000;
+const MAX_CONVERSATION_REQUEST_TIMEOUT_MS = 120_000;
+
+export function normalizeConversationRequestTimeoutMs(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS;
+  return Math.max(MIN_CONVERSATION_REQUEST_TIMEOUT_MS, Math.min(Math.trunc(parsed), MAX_CONVERSATION_REQUEST_TIMEOUT_MS));
+}
+
 export function responseDetailLabel(response: ConversationResponse): string {
   if (response.response_code === 'SOURCE_SCOPE_INCOMPLETE' || response.response_code === 'SOURCE_SCOPE_AMBIGUOUS') {
     return 'Course details needed';

@@ -6,6 +6,17 @@ from backend.api import app
 client = TestClient(app)
 
 
+def test_runtime_config_uses_bounded_conversation_timeout(monkeypatch):
+    monkeypatch.setenv("CONVERSATION_REQUEST_TIMEOUT_SECONDS", "75")
+    assert client.get("/runtime-config").json() == {"conversation_request_timeout_ms": 75000}
+
+    monkeypatch.setenv("CONVERSATION_REQUEST_TIMEOUT_SECONDS", "999")
+    assert client.get("/runtime-config").json() == {"conversation_request_timeout_ms": 120000}
+
+    monkeypatch.setenv("CONVERSATION_REQUEST_TIMEOUT_SECONDS", "invalid")
+    assert client.get("/runtime-config").json() == {"conversation_request_timeout_ms": 75000}
+
+
 def test_get_all_courses():
     response = client.get("/courses")
     assert response.status_code == 200

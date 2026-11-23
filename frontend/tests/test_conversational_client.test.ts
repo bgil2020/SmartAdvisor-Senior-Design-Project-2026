@@ -2,10 +2,17 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import type { ConversationRequest, ConversationResponse } from '../src/services/api';
 import { mergeSessionEvidence, type SessionEvidenceRecord } from '../src/utils/sessionEvidence.ts';
-import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
+import { DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS, missingContextLabel, normalizeConversationRequestTimeoutMs, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
 import { CHAT_RETENTION_DAYS, MAX_SAVED_CONVERSATIONS, MAX_SAVED_MESSAGE_CHARACTERS, MAX_SAVED_MESSAGES, conversationTitle, historyFailureMessage, safeHistoryMetadata } from '../src/utils/conversationHistory.ts';
 
 describe('Conversational Client Payload & State Handling', () => {
+  it('uses a bounded runtime-configurable conversation deadline', () => {
+    assert.strictEqual(DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS, 75_000);
+    assert.strictEqual(normalizeConversationRequestTimeoutMs(90_000), 90_000);
+    assert.strictEqual(normalizeConversationRequestTimeoutMs(10_000), 30_000);
+    assert.strictEqual(normalizeConversationRequestTimeoutMs(500_000), 120_000);
+    assert.strictEqual(normalizeConversationRequestTimeoutMs('invalid'), 75_000);
+  });
   it('correctly structures payload with full synthetic workload context', () => {
     const payload: ConversationRequest = {
       message: 'Can I take COP 4331 and MAP 3305 together?',
