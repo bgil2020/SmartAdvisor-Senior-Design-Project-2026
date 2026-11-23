@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   parse12HourTo24Hour,
+  formatHourLabel,
+  formatTime12Hour,
   parseBackendDays,
   isValidTimeInterval,
   groupRawSectionsByCrn,
@@ -51,6 +53,16 @@ describe('Frontend-Backend Wiring Schedule Utilities', () => {
       assert.equal(parse12HourTo24Hour('25:00 PM'), null);
       assert.equal(parse12HourTo24Hour('04:65 PM'), null);
       assert.equal(parse12HourTo24Hour('00:30 AM'), null);
+    });
+  });
+
+  describe('student-facing calendar time labels', () => {
+    it('formats grid hours and meeting times using AM/PM', () => {
+      assert.equal(formatHourLabel(8), '8 AM');
+      assert.equal(formatHourLabel(12), '12 PM');
+      assert.equal(formatHourLabel(19), '7 PM');
+      assert.equal(formatTime12Hour('16:20'), '4:20 PM');
+      assert.equal(formatTime12Hour('19:00'), '7:00 PM');
     });
   });
 
@@ -140,6 +152,24 @@ describe('Frontend-Backend Wiring Schedule Utilities', () => {
       assert.equal(result.section.meetings[0].endTime, '20:50');
     });
 
+    it('keeps late-afternoon sections through 8 PM visible on the calendar', () => {
+      const result = mapBackendSectionToCourseSection({
+        CRN: 20155,
+        COURSE: 'COP 3035C',
+        SECT: '004',
+        TITLE: 'Programming II',
+        DAYS: 'M',
+        'BEG TIME': '04:20 PM',
+        'END TIME': '07:00 PM',
+        METHOD: 'In-Person',
+      });
+
+      assert.equal(result.isUnscheduled, false);
+      assert.equal(result.section.meetingCategory, 'in_grid');
+      assert.equal(result.section.meetings[0].startTime, '16:20');
+      assert.equal(result.section.meetings[0].endTime, '19:00');
+    });
+
     it('categorizes asynchronous online sections without scheduled meetings', () => {
       const raw: RawSectionRecord = {
         CRN: 20142,
@@ -180,7 +210,7 @@ describe('Frontend-Backend Wiring Schedule Utilities', () => {
   });
 
   describe('Out-of-Grid & Daytime Conflict Detection', () => {
-    it('detects overlap between two evening sections meeting outside 8am-6pm grid', () => {
+    it('detects overlap between two evening sections meeting outside the 8 AM-8 PM grid', () => {
       const eveningSecA = mapBackendSectionToCourseSection({
         CRN: 30001,
         COURSE: 'CAP 6635',

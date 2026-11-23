@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import type { ConversationRequest, ConversationResponse } from '../src/services/api';
 import { mergeSessionEvidence, type SessionEvidenceRecord } from '../src/utils/sessionEvidence.ts';
 import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
+import { CHAT_RETENTION_DAYS, MAX_SAVED_CONVERSATIONS, MAX_SAVED_MESSAGE_CHARACTERS, MAX_SAVED_MESSAGES, conversationTitle, safeHistoryMetadata } from '../src/utils/conversationHistory.ts';
 
 describe('Conversational Client Payload & State Handling', () => {
   it('correctly structures payload with full synthetic workload context', () => {
@@ -152,6 +153,26 @@ describe('Conversational Client Payload & State Handling', () => {
     const messages = pendingMessagesForRequest('What grading information is in the syllabus?', 1);
     assert.match(messages[1], /Looking for approved information/);
     assert.doesNotMatch(messages.join(' '), /acquired|fetched|Gemini/);
+  });
+
+  it('stores only bounded display metadata for conversation history', () => {
+    const response = {
+      status: 'grounded_answer', raw_message: 'Question', disposition: 'future_rag_candidate',
+      target_handler: 'future_informational_rag', response_code: 'RAG_ANSWERED', response_text: 'Answer',
+      safe_to_route: true, missing_context: [], extracted_courses: ['CAP4773'], engine_executed: false,
+      disclaimer: 'Verify with the official source.',
+      citations: [{ title: 'CAP 4773 syllabus', url: 'https://example.edu/source', locator: 'heading:grading' }],
+      acquired_evidence: [{ signature: 'must-not-persist', academic_sections: [{ text: 'raw source' }] }],
+    } satisfies ConversationResponse;
+    const metadata = safeHistoryMetadata(response, [{ course: 'CAP 4773', section: '001', crn: '18637', term: 202608 }]);
+    const serialized = JSON.stringify(metadata);
+    assert.equal(CHAT_RETENTION_DAYS, 30);
+    assert.equal(MAX_SAVED_CONVERSATIONS, 10);
+    assert.equal(MAX_SAVED_MESSAGES, 50);
+    assert.equal(MAX_SAVED_MESSAGE_CHARACTERS, 4000);
+    assert.equal(conversationTitle('  What   grading information is listed?  '), 'What grading information is listed?');
+    assert.doesNotMatch(serialized, /signature|raw source|acquired_evidence/);
+    assert.match(serialized, /CAP 4773 syllabus/);
   });
 });
 

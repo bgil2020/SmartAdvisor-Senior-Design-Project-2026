@@ -24,12 +24,25 @@ export interface CourseSection {
 
 export const DAYS: DayOfWeek[] = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
 export const START_HOUR = 8;  // 8:00 AM
-export const END_HOUR = 18;   // 6:00 PM
-export const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60; // 600 mins
+export const END_HOUR = 20;   // 8:00 PM
+export const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
 
 export function parseTimeToMinutes(timeStr: string): number {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+export function formatHourLabel(hour24: number): string {
+  const normalized = ((hour24 % 24) + 24) % 24;
+  const hour = normalized % 12 || 12;
+  return `${hour} ${normalized < 12 ? 'AM' : 'PM'}`;
+}
+
+export function formatTime12Hour(time24: string): string {
+  const [hourText, minuteText] = time24.split(':');
+  const hour = Number(hourText);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !/^\d{2}$/.test(minuteText ?? '')) return time24;
+  return `${hour % 12 || 12}:${minuteText} ${hour < 12 ? 'AM' : 'PM'}`;
 }
 
 export function isValidTimeInterval(start24: string | null | undefined, end24: string | null | undefined): boolean {
@@ -220,7 +233,7 @@ export function mapGroupedSectionToCourseSection(records: RawSectionRecord[]): M
     };
   }
 
-  // Check if all meetings fit standard daytime grid (Mon-Fri, 8am-6pm)
+  // Check if all meetings fit the readable planning grid (Mon-Fri, 8am-8pm).
   const standardDays: DayOfWeek[] = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
   const allFitInGrid = allMeetings.every((m) => {
     const sMins = parseTimeToMinutes(m.startTime);
