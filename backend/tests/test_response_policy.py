@@ -86,6 +86,22 @@ class TestResponsePolicy(unittest.TestCase):
         self.assertFalse(resp["safe_to_route"])
         self.assertIn("not enabled in the current prototype", resp["response_text"])
 
+    def test_course_content_paraphrases_are_future_rag_candidates(self):
+        messages = (
+            "What material is covered in EGN3343?",
+            "What topics are covered in EGN 3343?",
+            "What does EGN 3343 cover?",
+            "What will I learn in EGN 3343?",
+            "What is taught in EGN 3343?",
+        )
+        for message in messages:
+            with self.subTest(message=message):
+                resp = build_conversation_response(message)
+                self.assertEqual(resp["disposition"], "future_rag_candidate")
+                self.assertEqual(resp["target_handler"], "future_informational_rag")
+                self.assertEqual(resp["entities"]["course_codes"], ["EGN3343"])
+                self.assertTrue(resp["future_rag_candidate"])
+
     def test_future_rag_candidate_prerequisites(self):
         # 10. "What are the prerequisites for MAC 2313?" is a future RAG candidate.
         resp = build_conversation_response("What are the prerequisites for MAC 2313?")
