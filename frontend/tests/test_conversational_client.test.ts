@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import type { ConversationRequest, ConversationResponse } from '../src/services/api';
 import { mergeSessionEvidence, type SessionEvidenceRecord } from '../src/utils/sessionEvidence.ts';
+import { missingContextLabel, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
 
 describe('Conversational Client Payload & State Handling', () => {
   it('correctly structures payload with full synthetic workload context', () => {
@@ -119,6 +120,19 @@ describe('Conversational Client Payload & State Handling', () => {
 
     assert.strictEqual(mockResponse.status, 'rag_inactive');
     assert.strictEqual(mockResponse.engine_executed, false);
+  });
+
+  it('renders course-content routing metadata as student-facing language', () => {
+    const response = {
+      status: 'clarification', raw_message: 'What grading information is in the syllabus?',
+      disposition: 'clarify', target_handler: 'future_informational_rag', response_code: 'SOURCE_SCOPE_INCOMPLETE',
+      response_text: 'Please specify the term and section.', safe_to_route: false,
+      missing_context: ['term_id', 'section'], extracted_courses: ['CAP4773'], engine_executed: false,
+      disclaimer: 'Planning guidance.',
+    } satisfies ConversationResponse;
+
+    assert.strictEqual(responseDetailLabel(response), 'Course details needed');
+    assert.deepStrictEqual(response.missing_context.map(missingContextLabel), ['term', 'section']);
   });
 });
 

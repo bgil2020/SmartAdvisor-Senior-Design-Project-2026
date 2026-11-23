@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, sendConversationMessage, type ConversationRequest, type ConversationResponse, type RawSectionRecord } from '../services/api';
-import { commonSelectedTerm, describeSelectedSections, toConversationSections, type ConversationSectionContext } from '../utils/planningSelection';
+import { commonSelectedTerm, describeSelectedSections, formatTerm, normalizeTermInput, singleSelectedSourceContext, toConversationSections, type ConversationSectionContext } from '../utils/planningSelection';
 import { appendTranscriptEntry, isCurrentConversationEpoch } from '../utils/conversationState';
+import { missingContextLabel, responseDetailLabel } from '../utils/conversationPresentation';
 import { mergeSessionEvidence, type SessionEvidenceRecord, type SessionSourceContext } from '../utils/sessionEvidence';
 
 interface SyntheticProfile { student_id: string; name: string; major: string; work_hours: number; recent_difficulty: number; satisfied: 'yes' | 'mostly' | 'no'; recent_courses: string }
@@ -40,7 +41,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
   const usedSelectedSchedule = response.target_handler === 'scheduling_engine' && selection.length > 0;
   return (
     <div id={isLatest ? 'conversational-response-card' : undefined} className="assistant-response-card">
-      <div className="assistant-response-meta"><span className={`response-status response-${response.status}`}>{responseStatusLabel(response)}</span><span>{response.target_handler} · {response.response_code}</span></div>
+      <div className="assistant-response-meta"><span className={`response-status response-${response.status}`}>{responseStatusLabel(response)}</span><span>{responseDetailLabel(response)}</span></div>
       <p>{response.response_text}</p>
       {response.generation_source === 'provider' && <div className="response-generation"><strong>Live generation:</strong> Accepted Gemini answer{response.model_id ? ` · ${response.model_id}` : ''}</div>}
       {usedSelectedSchedule && <div className="response-context"><strong>Selected schedule sent:</strong> {describeSelectedSections(selection)}</div>}
@@ -53,7 +54,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
       )}
       {response.actionable_guidance && <div className="response-guidance"><strong>Guidance:</strong> {response.actionable_guidance}</div>}
       {response.generation_fallback_used && <div className="response-fallback"><strong>Cited fallback:</strong> The configured answer provider was unavailable or not enabled, so validated source excerpts are shown.</div>}
-      {response.missing_context.length > 0 && <div className="response-missing"><strong>Missing information:</strong> {response.missing_context.join(', ')}</div>}
+      {response.missing_context.length > 0 && <div className="response-missing"><strong>Missing information:</strong> {response.missing_context.map(missingContextLabel).join(', ')}</div>}
       {response.engine_executed && response.engine_result && (
         <div className="response-engine-result">
           {response.engine_result.assessment != null && <p><strong>Assessment:</strong> {String(response.engine_result.assessment)}</p>}
@@ -114,15 +115,17 @@ export const ConversationalAssistant: React.FC<Props> = ({
     setMessage(''); setLoading(true); setError(null);
     const recentCourses = recentCoursesInput.split(',').map((course) => course.trim()).filter(Boolean);
     const selectedTerm = commonSelectedTerm(selectionSnapshot);
+    const manualTerm = normalizeTermInput(sourceTerm);
+    const selectedSourceContext = singleSelectedSourceContext(selectionSnapshot);
     const payload: ConversationRequest = {
       message: trimmed, student_id: includeContext ? studentId : null, recent_difficulty: includeContext ? Number(recentDifficulty) : null,
       satisfied_with_performance: includeContext ? satisfaction : null, work_hours: includeContext ? Number(workHours) : null,
       preferred_max_credits: 15, recent_courses: includeContext && recentCourses.length > 0 ? recentCourses : null,
-      term: (sourceContext?.term_id ?? sourceTerm.trim()) || selectedTerm,
+      term: (sourceContext?.term_id ?? manualTerm) || selectedTerm,
       sections: selectionSnapshot.length > 0 ? selectionSnapshot : undefined,
       selected_sections: selectionSnapshot.length > 0 ? selectionSnapshot : undefined,
       session_evidence: sessionEvidence,
-      session_context: sourceContext ?? (sourceTerm.trim() || sourceSection.trim() ? { course_code: '', term_id: sourceTerm.trim() || null, section: sourceSection.trim() || null } : null),
+      session_context: sourceContext ?? (manualTerm || sourceSection.trim() ? { course_code: '', term_id: manualTerm ? String(manualTerm) : null, section: sourceSection.trim() || null } : selectedSourceContext),
     };
     try {
       const timeout = window.setTimeout(() => controller.abort('timeout'), 45_000);
@@ -158,7 +161,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
           <label>Past satisfaction<select value={satisfaction} onChange={(event) => setSatisfaction(event.target.value as 'yes' | 'mostly' | 'no')}><option value="yes">Yes</option><option value="mostly">Mostly</option><option value="no">No</option></select></label>
           <label className="context-wide">Recent courses<input value={recentCoursesInput} onChange={(event) => setRecentCoursesInput(event.target.value)} /></label>
         </div>}
-        <div className="source-context-row"><label>Source term<input aria-label="Source term" placeholder="202608" value={sourceContext?.term_id ?? sourceTerm} onChange={(event) => { setSourceContext(null); setSourceTerm(event.target.value); }} /></label><label>Section<input aria-label="Source section" placeholder="002" value={sourceContext?.section ?? sourceSection} onChange={(event) => { setSourceContext(null); setSourceSection(event.target.value); }} /></label></div>
+        <div className="source-context-row"><label>Source term<input aria-label="Source term" placeholder="Fall 2026" value={sourceContext?.term_id ? formatTerm(sourceContext.term_id) : sourceTerm} onChange={(event) => { setSourceContext(null); setSourceTerm(event.target.value); }} /></label><label>Section<input aria-label="Source section" placeholder="001" value={sourceContext?.section ?? sourceSection} onChange={(event) => { setSourceContext(null); setSourceSection(event.target.value); }} /></label></div>
       </details>
       <div className="selection-context-banner" role="status"><strong>Shared selection:</strong> {describeSelectedSections(currentSelection)}</div>
       <div className="conversation-transcript" ref={transcriptRef} aria-live="polite" onScroll={(event) => { const element = event.currentTarget; userReadOlderMessages.current = element.scrollHeight - element.scrollTop - element.clientHeight > 80; }}>

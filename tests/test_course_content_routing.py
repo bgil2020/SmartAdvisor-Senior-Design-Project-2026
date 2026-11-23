@@ -44,7 +44,12 @@ def test_exact_content_message_targets_egn3343_independent_of_selection(monkeypa
     assert data["response_code"] == "RAG_NO_RELEVANT_EVIDENCE"
     assert data["disposition"] == "future_rag_candidate"
     assert data["extracted_courses"] == ["EGN3343"]
-    assert data["source_scope"] == {"course_code": "EGN3343", "term_id": None, "section": None}
+    expected_scope = (
+        {"course_code": "EGN3343", "term_id": "202608", "section": "001"}
+        if selected_sections
+        else {"course_code": "EGN3343", "term_id": None, "section": None}
+    )
+    assert data["source_scope"] == expected_scope
     assert data["acquisition"]["status"] == "no_exact_approved_mapping"
     assert data["acquisition"]["additional_source_acquisitions"] == 0
     assert "Source-grounded" in data["response_text"]
@@ -105,12 +110,12 @@ def test_course_content_paraphrases_reach_grounded_generation_path(monkeypatch, 
     data = response.json()
     assert data["status"] == "grounded_answer"
     assert data["extracted_courses"] == ["EGN3343"]
-    assert data["source_scope"] == {"course_code": "EGN3343", "term_id": None, "section": None}
+    assert data["source_scope"] == {"course_code": "EGN3343", "term_id": "202608", "section": "001"}
     assert data["citations"][0]["course_code"] == "EGN3343"
     acquire.assert_called_once_with("EGN3343")
     assert answer.call_args.kwargs["course_codes"] == ["EGN3343"]
-    assert answer.call_args.kwargs["term_id"] is None
-    assert answer.call_args.kwargs["section"] is None
+    assert answer.call_args.kwargs["term_id"] == "202608"
+    assert answer.call_args.kwargs["section"] == "001"
 
 
 def test_syllabus_content_question_asks_for_missing_term_and_section(monkeypatch):
@@ -128,3 +133,159 @@ def test_syllabus_content_question_asks_for_missing_term_and_section(monkeypatch
     assert data["source_scope"] == {"course_code": "EGN3343", "term_id": None, "section": None}
     assert data["missing_context"] == ["term_id", "section"]
     assert "term and section" in data["response_text"]
+
+
+def test_selected_section_supplies_exact_syllabus_scope(monkeypatch):
+    """An exact selected section supplies source identity without another clarification."""
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "false")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+
+    response = client.post(
+        "/conversation",
+        json={
+            "message": "What grading information is in the syllabus for CAP 4773?",
+            "term": 202608,
+            "selected_sections": [
+                {"course": "CAP 4773", "section": "001", "crn": "18637", "term": 202608},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["response_code"] == "RAG_NO_RELEVANT_EVIDENCE"
+    assert data["source_scope"] == {"course_code": "CAP4773", "term_id": "202608", "section": "001"}
+    assert data["missing_context"] == []
+
+
+def test_selected_section_completes_retained_course_context(monkeypatch):
+    """A prior incomplete response cannot mask the exact current planner identity."""
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "false")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+
+    response = client.post(
+        "/conversation",
+        json={
+            "message": "What grading information is in the syllabus for CAP 4773?",
+            "session_context": {"course_code": "CAP4773", "term_id": None, "section": None},
+            "selected_sections": [
+                {"course": "CAP 4773", "section": "001", "crn": "18637", "term": 202608},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source_scope"] == {"course_code": "CAP4773", "term_id": "202608", "section": "001"}
+    assert data["response_code"] != "SOURCE_SCOPE_INCOMPLETE"
+
+
+def test_exact_live_message_uses_selected_scope_through_generation_path(monkeypatch):
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+    record = {
+        "record_id": "fixture:cap4773:202608:001",
+        "record_category": "syllabus",
+        "course_code": "CAP4773",
+        "term_scope": {"term_id": "202608"},
+        "section_scope": {"section": "001"},
+    }
+    acquisition = {"status": "acquired", "record": record, "request_count": 1, "cleanup": "complete"}
+    rag_result = SimpleNamespace(
+        status="answered",
+        answer="The validated offline fixture contains a grading scale.",
+        sources=[{
+            "source_id": "fixture:cap4773:grading",
+            "document_id": "fixture:cap4773:202608:001",
+            "course_code": "CAP4773",
+            "term_id": "202608",
+            "section": "001",
+            "title": "Synthetic CAP 4773 syllabus",
+            "url": "https://example.edu/fixtures/cap4773",
+            "locator": "section:grading",
+        }],
+        generation_source="source_excerpt_fallback",
+        model_id=None,
+        generation_fallback_used=True,
+        generation_fallback_reason="offline fake provider",
+        retrieved_evidence=[{"chunk_id": "fixture:cap4773:grading"}],
+        limitations=["Offline synthetic fixture."],
+    )
+
+    with (
+        patch.object(conversation_router, "acquire_exact_syllabus", return_value=acquisition) as acquire,
+        patch.object(conversation_router, "answer_information_records", return_value=rag_result) as answer,
+    ):
+        response = client.post(
+            "/conversation",
+            json={
+                "message": "What grading information is in the syllabus for CAP 4773?",
+                "selected_sections": [
+                    {"course": "CAP 4773", "section": "001", "crn": "18637", "term": 202608},
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "grounded_answer"
+    assert data["source_scope"] == {"course_code": "CAP4773", "term_id": "202608", "section": "001"}
+    assert data["citations"][0]["course_code"] == "CAP4773"
+    acquire.assert_called_once_with("CAP4773", "202608", "001")
+    assert answer.call_args.kwargs["term_id"] == "202608"
+    assert answer.call_args.kwargs["section"] == "001"
+
+
+def test_explicit_course_selects_its_section_from_multi_course_schedule(monkeypatch):
+    """Explicit course targeting remains authoritative in a larger selected schedule."""
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "false")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+
+    response = client.post(
+        "/conversation",
+        json={
+            "message": "What grading information is in the syllabus for EGN 3343?",
+            "selected_sections": THREE_COURSE_SELECTION,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source_scope"] == {"course_code": "EGN3343", "term_id": "202608", "section": "001"}
+    assert data["missing_context"] == []
+
+
+def test_single_selected_section_can_supply_implicit_course(monkeypatch):
+    """A singular planner selection resolves a course-content question without a code."""
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "false")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+
+    response = client.post(
+        "/conversation",
+        json={
+            "message": "What grading information is in the syllabus?",
+            "selected_sections": [{"course": "CAP4773", "section": "001", "term": "202608", "crn": "18637"}],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source_scope"] == {"course_code": "CAP4773", "term_id": "202608", "section": "001"}
+    assert data["extracted_courses"] == ["CAP4773"]
+
+
+def test_multiple_selected_sections_do_not_guess_an_implicit_course(monkeypatch):
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    response = client.post(
+        "/conversation",
+        json={"message": "What grading information is in the syllabus?", "selected_sections": THREE_COURSE_SELECTION},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "clarification"
+    assert data["response_code"] == "SOURCE_SCOPE_AMBIGUOUS"
