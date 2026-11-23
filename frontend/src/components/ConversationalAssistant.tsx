@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, sendConversationMessage, type ConversationRequest, type ConversationResponse, type RawSectionRecord } from '../services/api';
 import { commonSelectedTerm, describeSelectedSections, formatTerm, normalizeTermInput, singleSelectedSourceContext, toConversationSections, type ConversationSectionContext } from '../utils/planningSelection';
 import { appendTranscriptEntry, isCurrentConversationEpoch } from '../utils/conversationState';
-import { missingContextLabel, responseDetailLabel } from '../utils/conversationPresentation';
+import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../utils/conversationPresentation';
 import { mergeSessionEvidence, type SessionEvidenceRecord, type SessionSourceContext } from '../utils/sessionEvidence';
 
 interface SyntheticProfile { student_id: string; name: string; major: string; work_hours: number; recent_difficulty: number; satisfied: 'yes' | 'mostly' | 'no'; recent_courses: string }
@@ -11,8 +11,6 @@ const SAMPLE_PROFILES: SyntheticProfile[] = [
   { student_id: 'Z24567891', name: 'Alan Turing', major: 'Computer Science', work_hours: 20, recent_difficulty: 3, satisfied: 'mostly', recent_courses: 'COP3530, COT4400' },
   { student_id: 'Z24567894', name: 'Grace Hopper', major: 'Computer Science', work_hours: 0, recent_difficulty: 2, satisfied: 'yes', recent_courses: 'CDA3201C, COP3530' },
 ];
-const SAMPLE_PROMPTS = ['Do these classes conflict?', 'Can I take COP 4331 and MAP 3305 together?', 'What topics are covered in COP 4331?'];
-
 interface TranscriptEntry { id: number; role: 'user' | 'assistant'; text: string; response?: ConversationResponse; selectionSnapshot?: ConversationSectionContext[]; failed?: boolean }
 interface Props {
   defaultProfileId?: string; defaultWorkHours?: number; defaultDifficulty?: number;
@@ -43,7 +41,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
     <div id={isLatest ? 'conversational-response-card' : undefined} className="assistant-response-card">
       <div className="assistant-response-meta"><span className={`response-status response-${response.status}`}>{responseStatusLabel(response)}</span><span>{responseDetailLabel(response)}</span></div>
       <p>{response.response_text}</p>
-      {response.generation_source === 'provider' && <div className="response-generation"><strong>Live generation:</strong> Accepted Gemini answer{response.model_id ? ` · ${response.model_id}` : ''}</div>}
+      {response.generation_source === 'provider' && <div className="response-generation">Generated from the cited course information.</div>}
       {usedSelectedSchedule && <div className="response-context"><strong>Selected schedule sent:</strong> {describeSelectedSections(selection)}</div>}
       {!usedSelectedSchedule && response.extracted_courses.length > 0 && <div className="response-context"><strong>Courses identified in the question:</strong> {response.extracted_courses.join(', ')}</div>}
       {response.citations && response.citations.length > 0 && (
@@ -53,7 +51,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
         })}</ol>
       )}
       {response.actionable_guidance && <div className="response-guidance"><strong>Guidance:</strong> {response.actionable_guidance}</div>}
-      {response.generation_fallback_used && <div className="response-fallback"><strong>Cited fallback:</strong> The configured answer provider was unavailable or not enabled, so validated source excerpts are shown.</div>}
+      {response.generation_fallback_used && <div className="response-fallback">A generated summary was unavailable, so the relevant validated source excerpts are shown directly.</div>}
       {response.missing_context.length > 0 && <div className="response-missing"><strong>Missing information:</strong> {response.missing_context.map(missingContextLabel).join(', ')}</div>}
       {response.engine_executed && response.engine_result && (
         <div className="response-engine-result">
@@ -85,6 +83,8 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const [sourceSection, setSourceSection] = useState('');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState('');
+  const [pendingStage, setPendingStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const sessionEpoch = useRef(0);
   const entryId = useRef(0);
@@ -93,8 +93,15 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const formRef = useRef<HTMLFormElement | null>(null);
   const userReadOlderMessages = useRef(false);
   const currentSelection = useMemo(() => toConversationSections(selectedSections), [selectedSections]);
+  const quickPrompts = useMemo(() => quickPromptsForSelection(currentSelection), [currentSelection]);
+  const pendingMessages = useMemo(() => pendingMessagesForRequest(pendingQuestion, currentSelection.length), [pendingQuestion, currentSelection.length]);
 
   useEffect(() => { const container = transcriptRef.current; if (container && !userReadOlderMessages.current) container.scrollTop = container.scrollHeight; }, [transcript]);
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setInterval(() => setPendingStage((current) => Math.min(current + 1, pendingMessages.length - 1)), 2200);
+    return () => window.clearInterval(timer);
+  }, [loading, pendingMessages.length]);
 
   const handleProfileChange = (profileId: string) => {
     setStudentId(profileId);
@@ -112,7 +119,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
     pendingRequest.current = controller;
     userReadOlderMessages.current = false;
     setTranscript((current) => appendTranscriptEntry(current, { id: ++entryId.current, role: 'user', text: trimmed, selectionSnapshot }));
-    setMessage(''); setLoading(true); setError(null);
+    setMessage(''); setPendingQuestion(trimmed); setPendingStage(0); setLoading(true); setError(null);
     const recentCourses = recentCoursesInput.split(',').map((course) => course.trim()).filter(Boolean);
     const selectedTerm = commonSelectedTerm(selectionSnapshot);
     const manualTerm = normalizeTermInput(sourceTerm);
@@ -169,10 +176,13 @@ export const ConversationalAssistant: React.FC<Props> = ({
         {transcript.map((entry, index) => <article className={`chat-message chat-message-${entry.role} ${entry.failed ? 'chat-message-failed' : ''}`} key={entry.id}>
           {entry.role === 'assistant' ? <AssistantResponse entry={entry} isLatest={index === transcript.length - 1} /> : <><p>{entry.text}</p><small>Selection at send time: {describeSelectedSections(entry.selectionSnapshot ?? [])}</small></>}
         </article>)}
-        {loading && <div className="chat-pending" role="status">SmartAdvisor is checking the integrated backend…</div>}
+        {loading && <div className="chat-pending" role="status" aria-live="polite">
+          <div className="pending-progress-track" aria-hidden="true"><span /></div>
+          <div className="pending-message"><span className="pending-dots" aria-hidden="true"><i /><i /><i /></span>{pendingMessages[pendingStage]}</div>
+        </div>}
       </div>
       {error && <div className="conversation-error" role="alert">{error}</div>}
-      <div className="quick-prompts">{SAMPLE_PROMPTS.map((prompt) => <button type="button" key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}</div>
+      <div className="quick-prompts">{quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}</div>
       <form className="chat-composer" ref={formRef} onSubmit={handleSubmit}>
         <textarea id="conversational-message-input" aria-label="Student Question or Planning Query:" value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); formRef.current?.requestSubmit(); } }} placeholder="Ask about your selected classes…" rows={3} disabled={loading} />
         <button type="submit" id="conversational-submit-button" disabled={loading || !message.trim()}>{loading ? 'Sending…' : 'Send'}</button>

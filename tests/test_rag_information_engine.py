@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pytest
+import httpx
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from backend.course_descriptions.models import sha256_text, write_json
 from backend.course_descriptions.parser import parse_course_detail
 from backend.rag.corpus import chunks_from_record, import_validated_corpus
 from backend.rag.generation import BaseRAGProvider, GroundedProposal
-from backend.rag.generation import GeminiRAGProvider
+from backend.rag.generation import GeminiRAGProvider, OpenRouterRAGProvider, provider_from_environment
 from backend.app.conversational.gemini_parser import DEFAULT_GEMINI_MODEL
 from backend.app.conversational.provider_limits import ProviderRequestBudgetExhausted
 from backend.rag.models import EvidenceChunk
@@ -278,6 +279,65 @@ def test_rag_provider_allows_exactly_two_combined_turns_before_transport_block(m
         call.kwargs["config"].max_output_tokens == 512
         for call in client.models.generate_content.call_args_list
     )
+
+
+def test_openrouter_provider_uses_grounded_schema_without_exposing_key(monkeypatch):
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={
+            "model": "test/structured-model",
+            "choices": [{"message": {"content": json.dumps({
+                "answer": "Grounded answer.",
+                "cited_source_ids": ["rag:cop-description"],
+            })}}],
+        })
+
+    monkeypatch.delenv("OPENROUTER_TEST_REQUEST_BUDGET", raising=False)
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    provider = OpenRouterRAGProvider(api_key="secret-test-key", model_name="test/requested", client=client)
+    proposal = provider.generate("What is covered?", [chunk()])
+
+    assert proposal.cited_source_ids == ["rag:cop-description"]
+    assert provider.model_id == "test/structured-model"
+    assert len(requests) == 1
+    body = json.loads(requests[0].content)
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["provider"] == {"require_parameters": True}
+    assert body["max_completion_tokens"] == 512
+    assert requests[0].headers["authorization"] == "Bearer secret-test-key"
+
+
+def test_openrouter_budget_blocks_before_transport(monkeypatch):
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={
+            "model": "test/model",
+            "choices": [{"message": {"content": json.dumps({
+                "answer": "Grounded answer.",
+                "cited_source_ids": ["rag:cop-description"],
+            })}}],
+        })
+
+    monkeypatch.setenv("OPENROUTER_TEST_REQUEST_BUDGET", "1")
+    provider = OpenRouterRAGProvider(api_key="secret-test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    provider.generate("First question?", [chunk()])
+    with pytest.raises(ProviderRequestBudgetExhausted):
+        provider.generate("Second question?", [chunk()])
+    assert calls == 1
+
+
+def test_provider_selection_supports_openrouter_without_changing_gemini(monkeypatch):
+    monkeypatch.setenv("RAG_GENERATION_MODE", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    assert isinstance(provider_from_environment(), OpenRouterRAGProvider)
+    monkeypatch.setenv("RAG_GENERATION_MODE", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    assert isinstance(provider_from_environment(), GeminiRAGProvider)
 
 
 def _candidate(record, batch_id):
