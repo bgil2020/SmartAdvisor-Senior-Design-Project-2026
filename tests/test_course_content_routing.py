@@ -52,8 +52,8 @@ def test_exact_content_message_targets_egn3343_independent_of_selection(monkeypa
     assert data["source_scope"] == expected_scope
     assert data["acquisition"]["status"] == "no_exact_approved_mapping"
     assert data["acquisition"]["additional_source_acquisitions"] == 0
-    assert "Source-grounded" in data["response_text"]
-    assert "not enabled" in data["response_text"]
+    assert data["response_text"] == "No approved course-information source is configured for EGN3343."
+    assert "will not invent course content" in data["actionable_guidance"]
     acquire.assert_called_once_with("EGN3343")
 
 
@@ -236,6 +236,60 @@ def test_exact_live_message_uses_selected_scope_through_generation_path(monkeypa
     acquire.assert_called_once_with("CAP4773", "202608", "001")
     assert answer.call_args.kwargs["term_id"] == "202608"
     assert answer.call_args.kwargs["section"] == "001"
+
+
+def test_automatic_discovery_routes_selected_course_topics_to_exact_syllabus(monkeypatch):
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "true")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+    record = {
+        "record_id": "fixture:map3305:202608:003",
+        "record_category": "syllabus",
+        "course_code": "MAP3305",
+        "term_scope": {"term_id": "202608"},
+        "section_scope": {"section": "003"},
+    }
+    acquisition = {
+        "status": "acquired", "record": record, "request_count": 2,
+        "application_acquisition_attempts": 1,
+        "cleanup": "completed", "source_discovery": {"status": "exact_source_selected"},
+    }
+    rag_result = SimpleNamespace(
+        status="answered",
+        answer="The exact offline syllabus fixture lists the covered topics.",
+        sources=[{
+            "source_id": "fixture:map3305:topics", "document_id": record["record_id"],
+            "course_code": "MAP3305", "term_id": "202608", "section": "003",
+            "title": "Synthetic MAP 3305 syllabus", "url": "https://example.edu/fixture",
+            "locator": "heading:Course Description",
+        }],
+        generation_source="source_excerpt_fallback", model_id=None,
+        generation_fallback_used=True, generation_fallback_reason="offline fixture",
+        retrieved_evidence=[{"chunk_id": "fixture:map3305:topics"}], limitations=["Offline fixture."],
+    )
+
+    with (
+        patch.object(conversation_router, "acquire_exact_syllabus", return_value=acquisition) as acquire_syllabus,
+        patch.object(conversation_router, "acquire_exact_course_description") as acquire_catalog,
+        patch.object(conversation_router, "answer_information_records", return_value=rag_result),
+    ):
+        response = client.post(
+            "/conversation",
+            json={
+                "message": "What topics are covered in MAP 3305?",
+                "selected_sections": [{"course": "MAP3305", "section": "003", "term": "202608", "crn": "16355"}],
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "grounded_answer"
+    assert data["source_scope"] == {"course_code": "MAP3305", "term_id": "202608", "section": "003"}
+    assert data["acquisition"]["source_category"] == "syllabus"
+    assert data["acquisition"]["additional_source_acquisitions"] == 1
+    acquire_syllabus.assert_called_once_with("MAP3305", "202608", "003")
+    acquire_catalog.assert_not_called()
 
 
 def test_explicit_course_selects_its_section_from_multi_course_schedule(monkeypatch):

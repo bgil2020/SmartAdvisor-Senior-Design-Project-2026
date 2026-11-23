@@ -246,6 +246,7 @@ textarea {
 @media (prefers-reduced-motion: reduce) { .pending-progress-track span, .pending-dots i { animation: none; } .pending-progress-track span { width: 100%; } }
 .conversation-error { margin: .5rem 1rem 0; padding: .5rem; color: #991b1b; background: #fef2f2; border-radius: 6px; font-size: .72rem; }
 .quick-prompts { margin: 0; padding: .55rem .8rem; border-top: 1px solid #e2e8f0; background: #fff; }
+.quick-prompts-note { color: #64748b; font-size: .68rem; font-style: italic; }
 .chat-composer { display: grid; grid-template-columns: 1fr auto; gap: .5rem; padding: .75rem; border-top: 1px solid #e2e8f0; background: #fff; }
 .chat-composer textarea { min-width: 0; resize: none; padding: .6rem; border: 1px solid #cbd5e1; border-radius: 8px; color: #0f172a; background: #fff; font-size: .8rem; }
 .chat-composer button { align-self: stretch; padding: .6rem .8rem; color: #fff; background: #2563eb; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }

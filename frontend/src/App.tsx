@@ -177,6 +177,14 @@ export default function App() {
   const [historyVersion, setHistoryVersion] =
     useState(0);
 
+  const informationSourcesByCourse = useMemo(
+    () => Object.fromEntries(courses.map((course) => [
+      course.COURSE.replace(/\s+/g, '').toUpperCase(),
+      course.INFORMATION_SOURCES ?? [],
+    ])),
+    [courses],
+  );
+
 
 
   // Student's proposed schedule of selected sections
@@ -1550,6 +1558,7 @@ onClick={async () => {
               defaultSatisfaction={compatSatisfaction}
               defaultRecentCourses={compatRecentInput}
               selectedSections={selectedSections}
+              informationSourcesByCourse={informationSourcesByCourse}
               accountId={accountId}
               onOverrideHandoff={handleOverrideHandoff}
             />

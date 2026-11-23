@@ -447,6 +447,8 @@ def _render_text(payload: ExplanationProviderPayload, current_text: str) -> str:
     if template == "advisor_escalation":
         return "An academic advisor or authorized university office must make the official decision or perform the requested action."
     if template == "rag_inactive":
+        if payload.response_code == "RAG_NO_RELEVANT_EVIDENCE":
+            return current_text
         return "Source-grounded policy or catalog explanation is not enabled. Consult the official source or an authorized advisor."
 
     # Existing clarification/unsupported messages are already deterministic,

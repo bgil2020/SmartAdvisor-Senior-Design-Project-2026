@@ -9,6 +9,9 @@ const API_BASE_URL = (import.meta.env?.VITE_API_URL || '').replace(/\/$/, '');
 export interface RawCourseRecord {
   COURSE: string;
   TITLE: string;
+  INFORMATION_SOURCE_MAPPINGS?: Array<'course_description' | 'syllabus'>;
+  INFORMATION_SOURCES?: Array<'course_description' | 'syllabus'>;
+  INFORMATION_SOURCE_DISCOVERY?: Array<'syllabus'>;
   DEPT?: string;
   METHOD?: string;
   CAMPUS?: string;

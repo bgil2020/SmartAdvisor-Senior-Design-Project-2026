@@ -17,6 +17,7 @@ from .compatibility_router import router as compatibility_router
 from .conversational_router import router as conversational_router
 from .logging_config import get_api_logger
 from .dars_router import router as dars_router
+from .information_sources import approved_information_sources
 
 app = FastAPI(
     title="SmartAdvisor API",
@@ -330,6 +331,25 @@ def get_courses(
         ]
 
     records = dataframe_to_records(results)
+    information_sources = approved_information_sources()
+    enabled_source_categories: set[str] = set()
+    if os.getenv("CATALOG_ACQUISITION_ENABLED", "false").casefold() == "true":
+        enabled_source_categories.add("course_description")
+    if os.getenv("SYLLABUS_ACQUISITION_ENABLED", "false").casefold() == "true":
+        enabled_source_categories.add("syllabus")
+    automatic_syllabus_discovery = (
+        "syllabus" in enabled_source_categories
+        and os.getenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "false").casefold() == "true"
+    )
+    for record in records:
+        code = str(record.get("COURSE", "")).replace(" ", "").upper()
+        mappings = information_sources.get(code, ())
+        record["INFORMATION_SOURCE_MAPPINGS"] = list(mappings)
+        available = [category for category in mappings if category in enabled_source_categories]
+        if automatic_syllabus_discovery and "syllabus" not in available:
+            available.append("syllabus")
+        record["INFORMATION_SOURCES"] = available
+        record["INFORMATION_SOURCE_DISCOVERY"] = ["syllabus"] if automatic_syllabus_discovery else []
 
     return {
         "count": len(records),
