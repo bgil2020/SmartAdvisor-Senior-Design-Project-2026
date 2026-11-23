@@ -419,11 +419,19 @@ def handle_conversation(req: ConversationRequest):
                     generation_source="none", explanation_limitations=evidence_errors,
                 )
             else:
+                acquisition_status = str(result.get("status") or "unknown")
+                failure_text = {
+                    "discovery_error": "The public syllabus library search could not complete.",
+                    "discovery_response_budget_exhausted": "The public syllabus library exceeded the bounded response limit before an exact match was established.",
+                    "discovery_response_too_large": "The public syllabus library response exceeded the bounded size limit.",
+                    "source_access_denied": "The public syllabus library did not provide an anonymously accessible exact match.",
+                    "source_rate_limited": "The public syllabus library rate-limited this lookup.",
+                }.get(acquisition_status, "The exact approved source was not acquired, so I cannot provide a source-grounded answer.")
                 return _build_response(
                     status="acquisition_failed", raw_message=message, disposition=disposition, target_handler=target_handler,
                     response_code="SOURCE_ACQUISITION_UNAVAILABLE",
-                    response_text="The exact approved source was not acquired, so I cannot provide a source-grounded answer.",
-                    actionable_guidance="Check the course, term, and section. If they are correct, the source may be unavailable or acquisition may be disabled.",
+                    response_text=failure_text,
+                    actionable_guidance="The selected course, term, and section were preserved. Do not substitute another section; retry only after the reported source condition is resolved.",
                     safe_to_route=False, engine_executed=False, extracted_courses=[scope["course_code"]],
                     source_scope=scope, acquisition=acquisition, explanation_limitations=evidence_errors,
                 )
