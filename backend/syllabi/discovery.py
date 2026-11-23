@@ -21,6 +21,7 @@ from .playwright_driver import resolve_browser_executable
 LIBRARY_URL = "https://fau.simplesyllabus.com/en-US/syllabus-library"
 ALLOWED_HOST = "fau.simplesyllabus.com"
 _TERM_SEASONS = {"01": "Spring", "05": "Summer", "08": "Fall"}
+_TELEMETRY_TOKENS = ("sentry", "analytics", "telemetry", "google-analytics")
 
 
 class _DocumentLinkParser(HTMLParser):
@@ -49,6 +50,24 @@ class _DocumentLinkParser(HTMLParser):
 def term_name_from_id(term_id: str) -> str | None:
     match = re.fullmatch(r"(\d{4})(01|05|08)", str(term_id).strip())
     return f"{_TERM_SEASONS[match.group(2)]} {match.group(1)}" if match else None
+
+
+def display_course_code(course_code: str) -> str:
+    normalized = normalize_course_code(course_code)
+    match = re.fullmatch(r"([A-Z]+)(\d+[A-Z]*)", normalized)
+    return f"{match.group(1)} {match.group(2)}" if match else normalized
+
+
+def classify_discovery_response(url: str, resource_type: str) -> str:
+    """Count source data traffic, not fonts/images/static bundles, toward the cap."""
+    lowered = url.casefold()
+    if any(token in lowered for token in _TELEMETRY_TOKENS):
+        return "telemetry"
+    if urlparse(url).hostname != ALLOWED_HOST:
+        return "external"
+    if resource_type in {"document", "xhr", "fetch"}:
+        return "relevant_source"
+    return "static_asset"
 
 
 def _canonical_document_url(href: str, *, base_url: str = LIBRARY_URL) -> tuple[str, str, str] | None:
@@ -153,17 +172,28 @@ class PlaywrightDiscoverySession:
         self._page = self._context.new_page()
         self._limits = limits
         self._responses = 0
-        self._denied = False
+        self._relevant_responses = 0
+        self._access_denials = 0
+        self._page_access_denials = 0
+        self._rate_limited = False
         self._response_budget_exhausted = False
         self._page.on("response", self._on_response)
 
     def _on_response(self, response) -> None:
         self._responses += 1
-        if urlparse(response.url).hostname == ALLOWED_HOST and response.status in {401, 403, 429}:
-            self._denied = True
-        if self._responses >= self._limits.total_response_budget:
+        role = classify_discovery_response(response.url, response.request.resource_type)
+        if role != "relevant_source":
+            return
+        self._relevant_responses += 1
+        if response.status in {401, 403}:
+            self._access_denials += 1
+            if response.request.resource_type == "document":
+                self._page_access_denials += 1
+        if response.status == 429:
+            self._rate_limited = True
+        if self._relevant_responses >= self._limits.total_response_budget:
             self._response_budget_exhausted = True
-        if self._denied or self._response_budget_exhausted:
+        if self._rate_limited or self._response_budget_exhausted:
             try:
                 self._page.evaluate("window.stop()")
             except Exception:
@@ -174,13 +204,27 @@ class PlaywrightDiscoverySession:
         started = time.monotonic()
         self._page.goto(LIBRARY_URL, wait_until="domcontentloaded", timeout=timeout_ms)
         search = self._page.get_by_placeholder(re.compile(r"looking for something", re.I)).first
+        if search.count() == 0:
+            search = self._page.get_by_role("textbox", name=re.compile(r"search", re.I)).first
+        if search.count() == 0:
+            search = self._page.locator('input[type="search"], input').first
         search.fill(query, timeout=timeout_ms)
         search.press("Enter", timeout=timeout_ms)
-        self._page.wait_for_timeout(min(2_000, timeout_ms))
+        self._page.wait_for_timeout(min(750, timeout_ms))
+        remaining_ms = max(1_000, timeout_ms - int((time.monotonic() - started) * 1000))
+        try:
+            self._page.locator('a[href*="/doc/"]').first.wait_for(
+                state="attached",
+                timeout=min(10_000, remaining_ms),
+            )
+        except Exception:
+            # A no-result page is a valid rendered outcome. Exact matching below
+            # distinguishes it from access denial or rate limiting.
+            pass
         html = self._page.content()
         rendered_bytes = len(html.encode("utf-8"))
-        if self._denied:
-            status = "source_access_denied"
+        if self._rate_limited:
+            status = "source_rate_limited"
         elif self._response_budget_exhausted:
             status = "discovery_response_budget_exhausted"
         elif rendered_bytes > self._limits.max_rendered_html_bytes:
@@ -191,6 +235,9 @@ class PlaywrightDiscoverySession:
             "status": status,
             "html": html if status == "rendered" else "",
             "actual_observed_responses": self._responses,
+            "relevant_source_responses": self._relevant_responses,
+            "access_denials": self._access_denials,
+            "page_access_denials": self._page_access_denials,
             "rendered_html_bytes": rendered_bytes,
             "logical_navigations": 1,
             "duration_ms": round((time.monotonic() - started) * 1000),
@@ -226,7 +273,7 @@ def discover_exact_syllabus(
     )
     session = session_factory(visible=True, limits=limits)
     try:
-        result = session.search(f"{normalize_course_code(course_code)} {str(section).strip()}")
+        result = session.search(display_course_code(course_code))
     except Exception as exc:
         return {"status": "discovery_error", "mapping": None, "logical_navigations": 1, "error_type": type(exc).__name__}
     finally:
@@ -241,6 +288,8 @@ def discover_exact_syllabus(
         section=str(section),
     )
     if not candidates:
+        if int(result.get("page_access_denials") or 0) > 0:
+            return {**diagnostics, "status": "source_access_denied", "mapping": None, "exact_match_count": 0}
         return {**diagnostics, "status": "no_exact_source_match", "mapping": None, "exact_match_count": 0}
     return {
         **diagnostics,

@@ -292,6 +292,40 @@ def test_automatic_discovery_routes_selected_course_topics_to_exact_syllabus(mon
     acquire_catalog.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("discovery_error", "library search could not complete"),
+        ("discovery_response_budget_exhausted", "bounded response limit"),
+        ("source_access_denied", "anonymously accessible exact match"),
+        ("source_rate_limited", "rate-limited"),
+    ],
+)
+def test_discovery_failures_are_reported_without_raw_browser_details(monkeypatch, status, expected):
+    monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "true")
+    monkeypatch.setenv("SESSION_EVIDENCE_SIGNING_KEY", "offline-test-signing-key-with-sufficient-length")
+    failure = {
+        "status": status, "record": None, "request_count": 1,
+        "application_acquisition_attempts": 1, "error_type": "SensitiveBrowserDetail",
+    }
+
+    with patch.object(conversation_router, "acquire_exact_syllabus", return_value=failure):
+        response = client.post(
+            "/conversation",
+            json={
+                "message": "What topics are covered in MAP 3305?",
+                "selected_sections": [{"course": "MAP3305", "section": "003", "term": "202608", "crn": "16355"}],
+            },
+        )
+
+    data = response.json()
+    assert data["status"] == "acquisition_failed"
+    assert expected in data["response_text"]
+    assert "SensitiveBrowserDetail" not in data["response_text"]
+
+
 def test_explicit_course_selects_its_section_from_multi_course_schedule(monkeypatch):
     """Explicit course targeting remains authoritative in a larger selected schedule."""
     monkeypatch.setenv("CONVERSATIONAL_PARSER_MODE", "deterministic")

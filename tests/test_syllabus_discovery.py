@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from backend.syllabi.discovery import discover_exact_syllabus, exact_syllabus_candidates, term_name_from_id
+from backend.syllabi.discovery import (
+    classify_discovery_response,
+    discover_exact_syllabus,
+    display_course_code,
+    exact_syllabus_candidates,
+    term_name_from_id,
+)
 
 
 LIBRARY_HTML = """
@@ -19,6 +25,17 @@ def test_term_id_converts_to_user_facing_semester_and_year():
     assert term_name_from_id("202605") == "Summer 2026"
     assert term_name_from_id("202608") == "Fall 2026"
     assert term_name_from_id("Fall 2026") is None
+    assert display_course_code("MAP3305") == "MAP 3305"
+    assert display_course_code("COP 3035C") == "COP 3035C"
+
+
+def test_discovery_budget_counts_source_data_not_static_assets_or_telemetry():
+    assert classify_discovery_response("https://fau.simplesyllabus.com/en-US/syllabus-library", "document") == "relevant_source"
+    assert classify_discovery_response("https://fau.simplesyllabus.com/api/library", "fetch") == "relevant_source"
+    assert classify_discovery_response("https://fau.simplesyllabus.com/assets/app.js", "script") == "static_asset"
+    assert classify_discovery_response("https://fau.simplesyllabus.com/fonts/app.woff", "font") == "static_asset"
+    assert classify_discovery_response("https://sentry.example/envelope", "fetch") == "telemetry"
+    assert classify_discovery_response("https://cdn.example/app.js", "script") == "external"
 
 
 def test_exact_candidates_reject_wrong_term_section_and_host():
@@ -77,7 +94,7 @@ def test_discovery_selects_first_exact_match_and_cleans_up(monkeypatch):
     assert result["exact_match_count"] == 2
     assert result["selection_strategy"] == "first_exact_course_term_section_match"
     assert result["mapping"]["source_document_id"] == "firstdoc"
-    assert FakeSession.instances[0].query == "MAP3305 003"
+    assert FakeSession.instances[0].query == "MAP 3305"
     assert FakeSession.instances[0].closed is True
 
 
@@ -105,3 +122,56 @@ def test_discovery_error_is_sanitized_and_cleanup_still_runs(monkeypatch):
     assert result["error_type"] == "RuntimeError"
     assert "raw browser detail" not in str(result)
     assert BrokenSession.instances[0].closed is True
+
+
+def test_rendered_exact_match_survives_optional_access_denial_diagnostics(monkeypatch):
+    class DeniedButRenderedSession(FakeSession):
+        def search(self, query):
+            result = super().search(query)
+            return {**result, "access_denials": 1, "relevant_source_responses": 3}
+
+    DeniedButRenderedSession.instances.clear()
+    monkeypatch.setenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "true")
+
+    result = discover_exact_syllabus("MAP3305", "202608", "003", session_factory=DeniedButRenderedSession)
+
+    assert result["status"] == "exact_source_selected"
+    assert result["mapping"]["source_document_id"] == "firstdoc"
+    assert result["access_denials"] == 1
+
+
+def test_access_denial_without_exact_rendered_match_fails_closed(monkeypatch):
+    class DeniedWithoutResultSession(FakeSession):
+        def search(self, query):
+            return {
+                "status": "rendered", "html": "<main>No results</main>",
+                "logical_navigations": 1, "actual_observed_responses": 3,
+                "relevant_source_responses": 2, "access_denials": 1, "page_access_denials": 1,
+                "rendered_html_bytes": 23,
+            }
+
+    DeniedWithoutResultSession.instances.clear()
+    monkeypatch.setenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "true")
+
+    result = discover_exact_syllabus("MAP3305", "202608", "003", session_factory=DeniedWithoutResultSession)
+
+    assert result["status"] == "source_access_denied"
+    assert result["mapping"] is None
+
+
+def test_optional_auth_denial_without_result_does_not_claim_library_access_denial(monkeypatch):
+    class OptionalAuthDeniedSession(FakeSession):
+        def search(self, query):
+            return {
+                "status": "rendered", "html": "<main>No results</main>",
+                "logical_navigations": 1, "actual_observed_responses": 3,
+                "relevant_source_responses": 2, "access_denials": 1, "page_access_denials": 0,
+                "rendered_html_bytes": 23,
+            }
+
+    OptionalAuthDeniedSession.instances.clear()
+    monkeypatch.setenv("SYLLABUS_AUTO_DISCOVERY_ENABLED", "true")
+
+    result = discover_exact_syllabus("MAP3305", "202608", "003", session_factory=OptionalAuthDeniedSession)
+
+    assert result["status"] == "no_exact_source_match"
