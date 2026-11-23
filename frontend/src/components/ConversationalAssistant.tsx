@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, sendConversationMessage, type ConversationRequest, type ConversationResponse, type RawSectionRecord } from '../services/api';
+import { createConversation, deleteConversation, listConversationHistory, loadConversationMessages, saveConversationMessage, type ConversationSummary, type SavedConversationMessage } from '../services/conversationHistory';
 import { commonSelectedTerm, describeSelectedSections, formatTerm, normalizeTermInput, singleSelectedSourceContext, toConversationSections, type ConversationSectionContext } from '../utils/planningSelection';
 import { appendTranscriptEntry, isCurrentConversationEpoch } from '../utils/conversationState';
+import { safeHistoryMetadata } from '../utils/conversationHistory';
 import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../utils/conversationPresentation';
 import { mergeSessionEvidence, type SessionEvidenceRecord, type SessionSourceContext } from '../utils/sessionEvidence';
 
@@ -15,7 +17,7 @@ interface TranscriptEntry { id: number; role: 'user' | 'assistant'; text: string
 interface Props {
   defaultProfileId?: string; defaultWorkHours?: number; defaultDifficulty?: number;
   defaultSatisfaction?: 'yes' | 'mostly' | 'no'; defaultRecentCourses?: string;
-  selectedSections?: RawSectionRecord[]; onOverrideHandoff?: (courseCode?: string) => void;
+  selectedSections?: RawSectionRecord[]; onOverrideHandoff?: (courseCode?: string) => void; accountId?: string | null;
 }
 
 function safeSourceUrl(value: unknown): string | null {
@@ -68,7 +70,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
 
 export const ConversationalAssistant: React.FC<Props> = ({
   defaultProfileId = SAMPLE_PROFILES[0].student_id, defaultWorkHours = 5, defaultDifficulty = 1,
-  defaultSatisfaction = 'yes', defaultRecentCourses = 'CDA4240C, CDA4102, MAC2313', selectedSections = [], onOverrideHandoff,
+  defaultSatisfaction = 'yes', defaultRecentCourses = 'CDA4240C, CDA4102, MAC2313', selectedSections = [], onOverrideHandoff, accountId = null,
 }) => {
   const [message, setMessage] = useState('');
   const [studentId, setStudentId] = useState(defaultProfileId);
@@ -86,6 +88,13 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const [pendingQuestion, setPendingQuestion] = useState('');
   const [pendingStage, setPendingStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [history, setHistory] = useState<ConversationSummary[]>([]);
+  const [viewedConversation, setViewedConversation] = useState<ConversationSummary | null>(null);
+  const [viewedMessages, setViewedMessages] = useState<SavedConversationMessage[]>([]);
   const sessionEpoch = useRef(0);
   const entryId = useRef(0);
   const pendingRequest = useRef<AbortController | null>(null);
@@ -107,6 +116,37 @@ export const ConversationalAssistant: React.FC<Props> = ({
     setStudentId(profileId);
     const profile = SAMPLE_PROFILES.find((item) => item.student_id === profileId);
     if (profile) { setWorkHours(profile.work_hours); setRecentDifficulty(profile.recent_difficulty); setSatisfaction(profile.satisfied); setRecentCoursesInput(profile.recent_courses); }
+  };
+
+  const refreshHistory = async () => {
+    if (!accountId) return;
+    setHistoryLoading(true); setHistoryError(null);
+    try { setHistory(await listConversationHistory(accountId)); }
+    catch { setHistoryError('Conversation history is unavailable. The database migration may still need to be applied.'); }
+    finally { setHistoryLoading(false); }
+  };
+
+  const toggleHistory = () => {
+    const next = !historyOpen;
+    setHistoryOpen(next);
+    if (next) void refreshHistory();
+  };
+
+  const viewHistoryConversation = async (conversation: ConversationSummary) => {
+    if (!accountId) return;
+    setHistoryLoading(true); setHistoryError(null);
+    try { setViewedMessages(await loadConversationMessages(accountId, conversation.id)); setViewedConversation(conversation); }
+    catch { setHistoryError('This saved conversation could not be loaded.'); }
+    finally { setHistoryLoading(false); }
+  };
+
+  const removeHistoryConversation = async (conversationId: string) => {
+    if (!accountId) return;
+    try {
+      await deleteConversation(accountId, conversationId);
+      if (viewedConversation?.id === conversationId) { setViewedConversation(null); setViewedMessages([]); }
+      await refreshHistory();
+    } catch { setHistoryError('This saved conversation could not be deleted.'); }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -134,6 +174,18 @@ export const ConversationalAssistant: React.FC<Props> = ({
       session_evidence: sessionEvidence,
       session_context: sourceContext ?? (manualTerm || sourceSection.trim() ? { course_code: '', term_id: manualTerm ? String(manualTerm) : null, section: sourceSection.trim() || null } : selectedSourceContext),
     };
+    let persistedConversationId = currentConversationId;
+    if (accountId) {
+      try {
+        if (!persistedConversationId) {
+          persistedConversationId = await createConversation(accountId, trimmed);
+          setCurrentConversationId(persistedConversationId);
+        }
+        await saveConversationMessage(accountId, persistedConversationId, 'user', trimmed, safeHistoryMetadata(null, selectionSnapshot));
+      } catch {
+        setHistoryError('This message was sent, but it could not be added to conversation history.');
+      }
+    }
     try {
       const timeout = window.setTimeout(() => controller.abort('timeout'), 45_000);
       const response = await sendConversationMessage(payload, controller.signal).finally(() => window.clearTimeout(timeout));
@@ -142,6 +194,10 @@ export const ConversationalAssistant: React.FC<Props> = ({
       if (response.source_scope?.course_code) setSourceContext(response.source_scope);
       if (response.target_handler === 'online_override_eligibility_engine') onOverrideHandoff?.(response.extracted_courses[0]);
       setTranscript((current) => appendTranscriptEntry(current, { id: ++entryId.current, role: 'assistant', text: response.response_text, response, selectionSnapshot }));
+      if (accountId && persistedConversationId) {
+        void saveConversationMessage(accountId, persistedConversationId, 'assistant', response.response_text, safeHistoryMetadata(response, selectionSnapshot))
+          .catch(() => setHistoryError('The answer is visible, but it could not be added to conversation history.'));
+      }
     } catch (caught) {
       if (!isCurrentConversationEpoch(requestEpoch, sessionEpoch.current) || (controller.signal.aborted && controller.signal.reason !== 'timeout')) return;
       const detail = controller.signal.reason === 'timeout' ? 'The request timed out before the service completed.' : caught instanceof ApiError ? caught.message : 'Failed to communicate with the conversational service.';
@@ -152,12 +208,19 @@ export const ConversationalAssistant: React.FC<Props> = ({
 
   const clearChat = () => {
     sessionEpoch.current += 1; pendingRequest.current?.abort(); pendingRequest.current = null;
-    setTranscript([]); setSessionEvidence([]); setSourceContext(null); setSourceTerm(''); setSourceSection(''); setError(null); setLoading(false); setMessage('');
+    setTranscript([]); setSessionEvidence([]); setSourceContext(null); setSourceTerm(''); setSourceSection(''); setError(null); setLoading(false); setMessage(''); setCurrentConversationId(null);
   };
 
   return (
     <section className="conversation-workspace" aria-labelledby="conversational-assistant-title">
-      <header className="conversation-header"><div><h2 id="conversational-assistant-title">SmartAdvisor Chat</h2><p>Ask about the selected schedule or a specifically named course.</p></div><button type="button" className="clear-chat-button" onClick={clearChat} disabled={transcript.length === 0 && sessionEvidence.length === 0 && !loading}>Clear chat</button></header>
+      <header className="conversation-header"><div><h2 id="conversational-assistant-title">SmartAdvisor Chat</h2><p>Ask about the selected schedule or a specifically named course.</p></div><div className="conversation-header-actions">{accountId && <button type="button" className="clear-chat-button" onClick={toggleHistory} aria-expanded={historyOpen}>History</button>}<button type="button" className="clear-chat-button" onClick={clearChat} disabled={transcript.length === 0 && sessionEvidence.length === 0 && !loading}>New chat</button></div></header>
+      {historyOpen && <aside className="conversation-history" aria-label="Saved conversations">
+        <div className="history-heading"><div><strong>Recent conversations</strong><span>Saved for up to 30 days · newest 10</span></div><button type="button" onClick={() => setHistoryOpen(false)}>Close</button></div>
+        {historyError && <div className="conversation-error" role="alert">{historyError}</div>}
+        {historyLoading && <p role="status">Loading conversation history…</p>}
+        {!viewedConversation && !historyLoading && <div className="history-list">{history.length === 0 ? <p>No saved conversations yet.</p> : history.map((conversation) => <div className="history-row" key={conversation.id}><button type="button" onClick={() => void viewHistoryConversation(conversation)}><strong>{conversation.title}</strong><span>{new Date(conversation.updated_at).toLocaleString()}</span></button><button type="button" className="history-delete" aria-label={`Delete ${conversation.title}`} onClick={() => void removeHistoryConversation(conversation.id)}>Delete</button></div>)}</div>}
+        {viewedConversation && <div className="history-detail"><button type="button" onClick={() => { setViewedConversation(null); setViewedMessages([]); }}>← All conversations</button><h3>{viewedConversation.title}</h3><p className="history-readonly-note">Read-only archive. Starting a new message creates a fresh evidence session.</p>{viewedMessages.map((saved) => { const citations = Array.isArray(saved.display_metadata.citations) ? saved.display_metadata.citations as Array<Record<string, unknown>> : []; return <article className={`history-message history-message-${saved.role}`} key={saved.id}><small>{saved.role === 'user' ? 'You' : 'SmartAdvisor'}</small><p>{saved.content}</p>{citations.length > 0 && <ol>{citations.map((citation, index) => <li key={index}>{typeof citation.url === 'string' ? <a href={citation.url} target="_blank" rel="noopener noreferrer">{String(citation.title ?? 'Official source')}</a> : String(citation.title ?? 'Official source')} — {String(citation.locator ?? 'source text')}</li>)}</ol>}</article>; })}</div>}
+      </aside>}
       <details className="conversation-context-controls">
         <summary>Conversation context &amp; source evidence</summary>
         <label><input type="checkbox" checked={includeContext} onChange={(event) => setIncludeContext(event.target.checked)} /> Attach synthetic workload context</label>

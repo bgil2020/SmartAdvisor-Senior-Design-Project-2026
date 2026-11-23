@@ -1550,6 +1550,7 @@ onClick={async () => {
               defaultSatisfaction={compatSatisfaction}
               defaultRecentCourses={compatRecentInput}
               selectedSections={selectedSections}
+              accountId={accountId}
               onOverrideHandoff={handleOverrideHandoff}
             />
           </div>

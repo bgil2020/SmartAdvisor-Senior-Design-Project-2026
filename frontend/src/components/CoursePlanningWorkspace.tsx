@@ -3,7 +3,11 @@ import type { RawCourseRecord, RawSectionRecord } from '../services/api';
 import { MOCK_SECTIONS } from '../types/schedule';
 import {
   DAYS,
+  END_HOUR,
+  START_HOUR,
   calculateBlockStyle,
+  formatHourLabel,
+  formatTime12Hour,
   formatGroupedMeetingDisplay,
   getConflictingSectionIds,
   groupRawSectionsByCrn,
@@ -38,7 +42,7 @@ interface Props {
 }
 
 const QUICK_COURSES = ['CAP 4773', 'MAP 3305', 'CDA 4240C', 'MAC 2313'];
-const hours = Array.from({ length: 11 }, (_, index) => index + 8);
+const hours = Array.from({ length: END_HOUR - START_HOUR }, (_, index) => index + START_HOUR);
 
 export function CoursePlanningWorkspace({
   courses,
@@ -214,10 +218,10 @@ export function CoursePlanningWorkspace({
             <div className="calendar-header">Time</div>
             {DAYS.map((day) => <div className="calendar-header" key={day}>{day}</div>)}
             <div className="calendar-time-column">
-              {hours.map((hour) => <div key={hour}>{hour}:00</div>)}
+              {hours.map((hour) => <div key={hour}>{formatHourLabel(hour)}</div>)}
             </div>
             {DAYS.map((day) => (
-              <div className="calendar-day" key={day}>
+              <div className="calendar-day" key={day} style={{ height: `${hours.length * 42}px` }}>
                 {hours.map((hour) => <div className="calendar-hour" key={hour} />)}
                 {displaySections.flatMap((section) => section.meetings.filter((meeting) => meeting.day === day).map((meeting, index) => {
                   const conflict = conflictingIds.has(section.id);
@@ -232,7 +236,7 @@ export function CoursePlanningWorkspace({
                       }}
                     >
                       <strong>{section.courseCode}</strong>
-                      <span>{meeting.startTime}–{meeting.endTime}</span>
+                      <span>{formatTime12Hour(meeting.startTime)}–{formatTime12Hour(meeting.endTime)}</span>
                       {conflict && <span>Conflict</span>}
                     </div>
                   );
@@ -244,7 +248,7 @@ export function CoursePlanningWorkspace({
 
         {!showDemoSchedule && outsideGrid.length > 0 && (
           <div className="outside-schedule" aria-label="Sections outside the daytime calendar">
-            <h3>Outside the Mon–Fri 8 AM–6 PM grid</h3>
+            <h3>Outside the Mon–Fri 8 AM–8 PM calendar</h3>
             {outsideGrid.map((section) => (
               <article key={section.id}>
                 <div><strong>{section.courseCode} · Sec {section.sect || 'TBA'}</strong><span>{section.scheduleNote}</span></div>
