@@ -17,6 +17,29 @@ def test_get_all_courses():
     assert data["count"] > 0
 
 
+def test_courses_report_only_enabled_exact_approved_information_sources(monkeypatch):
+    monkeypatch.setenv("CATALOG_ACQUISITION_ENABLED", "true")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    response = client.get("/courses")
+    assert response.status_code == 200
+    records = response.json()["courses"]
+    cap = next(record for record in records if record["COURSE"].replace(" ", "") == "CAP4773")
+    map_course = next(record for record in records if record["COURSE"].replace(" ", "") == "MAP3305")
+    assert cap["INFORMATION_SOURCE_MAPPINGS"] == ["course_description", "syllabus"]
+    assert cap["INFORMATION_SOURCES"] == ["course_description", "syllabus"]
+    assert map_course["INFORMATION_SOURCE_MAPPINGS"] == []
+    assert map_course["INFORMATION_SOURCES"] == []
+
+
+def test_courses_do_not_advertise_disabled_source_workflows(monkeypatch):
+    monkeypatch.setenv("CATALOG_ACQUISITION_ENABLED", "false")
+    monkeypatch.setenv("SYLLABUS_ACQUISITION_ENABLED", "true")
+    records = client.get("/courses").json()["courses"]
+    cap = next(record for record in records if record["COURSE"].replace(" ", "") == "CAP4773")
+    assert cap["INFORMATION_SOURCE_MAPPINGS"] == ["course_description", "syllabus"]
+    assert cap["INFORMATION_SOURCES"] == ["syllabus"]
+
+
 def test_get_cap_4773_sections():
     response = client.get(
         "/sections",

@@ -52,8 +52,8 @@ def test_exact_content_message_targets_egn3343_independent_of_selection(monkeypa
     assert data["source_scope"] == expected_scope
     assert data["acquisition"]["status"] == "no_exact_approved_mapping"
     assert data["acquisition"]["additional_source_acquisitions"] == 0
-    assert "Source-grounded" in data["response_text"]
-    assert "not enabled" in data["response_text"]
+    assert data["response_text"] == "No approved course-information source is configured for EGN3343."
+    assert "will not invent course content" in data["actionable_guidance"]
     acquire.assert_called_once_with("EGN3343")
 
 

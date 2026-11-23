@@ -3,8 +3,8 @@ import { ApiError, sendConversationMessage, type ConversationRequest, type Conve
 import { createConversation, deleteConversation, listConversationHistory, loadConversationMessages, saveConversationMessage, type ConversationSummary, type SavedConversationMessage } from '../services/conversationHistory';
 import { commonSelectedTerm, describeSelectedSections, formatTerm, normalizeTermInput, singleSelectedSourceContext, toConversationSections, type ConversationSectionContext } from '../utils/planningSelection';
 import { appendTranscriptEntry, isCurrentConversationEpoch } from '../utils/conversationState';
-import { safeHistoryMetadata } from '../utils/conversationHistory';
-import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../utils/conversationPresentation';
+import { historyFailureMessage, safeHistoryMetadata } from '../utils/conversationHistory';
+import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel, type InformationSourcesByCourse } from '../utils/conversationPresentation';
 import { mergeSessionEvidence, type SessionEvidenceRecord, type SessionSourceContext } from '../utils/sessionEvidence';
 
 interface SyntheticProfile { student_id: string; name: string; major: string; work_hours: number; recent_difficulty: number; satisfied: 'yes' | 'mostly' | 'no'; recent_courses: string }
@@ -17,7 +17,7 @@ interface TranscriptEntry { id: number; role: 'user' | 'assistant'; text: string
 interface Props {
   defaultProfileId?: string; defaultWorkHours?: number; defaultDifficulty?: number;
   defaultSatisfaction?: 'yes' | 'mostly' | 'no'; defaultRecentCourses?: string;
-  selectedSections?: RawSectionRecord[]; onOverrideHandoff?: (courseCode?: string) => void; accountId?: string | null;
+  selectedSections?: RawSectionRecord[]; informationSourcesByCourse?: InformationSourcesByCourse; onOverrideHandoff?: (courseCode?: string) => void; accountId?: string | null;
 }
 
 function safeSourceUrl(value: unknown): string | null {
@@ -70,7 +70,7 @@ function AssistantResponse({ entry, isLatest }: { entry: TranscriptEntry; isLate
 
 export const ConversationalAssistant: React.FC<Props> = ({
   defaultProfileId = SAMPLE_PROFILES[0].student_id, defaultWorkHours = 5, defaultDifficulty = 1,
-  defaultSatisfaction = 'yes', defaultRecentCourses = 'CDA4240C, CDA4102, MAC2313', selectedSections = [], onOverrideHandoff, accountId = null,
+  defaultSatisfaction = 'yes', defaultRecentCourses = 'CDA4240C, CDA4102, MAC2313', selectedSections = [], informationSourcesByCourse, onOverrideHandoff, accountId = null,
 }) => {
   const [message, setMessage] = useState('');
   const [studentId, setStudentId] = useState(defaultProfileId);
@@ -102,7 +102,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const formRef = useRef<HTMLFormElement | null>(null);
   const userReadOlderMessages = useRef(false);
   const currentSelection = useMemo(() => toConversationSections(selectedSections), [selectedSections]);
-  const quickPrompts = useMemo(() => quickPromptsForSelection(currentSelection), [currentSelection]);
+  const quickPrompts = useMemo(() => quickPromptsForSelection(currentSelection, informationSourcesByCourse), [currentSelection, informationSourcesByCourse]);
   const pendingMessages = useMemo(() => pendingMessagesForRequest(pendingQuestion, currentSelection.length), [pendingQuestion, currentSelection.length]);
 
   useEffect(() => { const container = transcriptRef.current; if (container && !userReadOlderMessages.current) container.scrollTop = container.scrollHeight; }, [transcript]);
@@ -122,7 +122,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
     if (!accountId) return;
     setHistoryLoading(true); setHistoryError(null);
     try { setHistory(await listConversationHistory(accountId)); }
-    catch { setHistoryError('Conversation history is unavailable. The database migration may still need to be applied.'); }
+    catch (caught) { setHistoryError(historyFailureMessage(caught, 'read')); }
     finally { setHistoryLoading(false); }
   };
 
@@ -136,7 +136,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
     if (!accountId) return;
     setHistoryLoading(true); setHistoryError(null);
     try { setViewedMessages(await loadConversationMessages(accountId, conversation.id)); setViewedConversation(conversation); }
-    catch { setHistoryError('This saved conversation could not be loaded.'); }
+    catch (caught) { setHistoryError(historyFailureMessage(caught, 'read')); }
     finally { setHistoryLoading(false); }
   };
 
@@ -146,7 +146,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
       await deleteConversation(accountId, conversationId);
       if (viewedConversation?.id === conversationId) { setViewedConversation(null); setViewedMessages([]); }
       await refreshHistory();
-    } catch { setHistoryError('This saved conversation could not be deleted.'); }
+    } catch (caught) { setHistoryError(historyFailureMessage(caught, 'delete')); }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -176,14 +176,15 @@ export const ConversationalAssistant: React.FC<Props> = ({
     };
     let persistedConversationId = currentConversationId;
     if (accountId) {
+      setHistoryError(null);
       try {
         if (!persistedConversationId) {
           persistedConversationId = await createConversation(accountId, trimmed);
           setCurrentConversationId(persistedConversationId);
         }
         await saveConversationMessage(accountId, persistedConversationId, 'user', trimmed, safeHistoryMetadata(null, selectionSnapshot));
-      } catch {
-        setHistoryError('This message was sent, but it could not be added to conversation history.');
+      } catch (caught) {
+        setHistoryError(historyFailureMessage(caught, 'write'));
       }
     }
     try {
@@ -196,7 +197,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
       setTranscript((current) => appendTranscriptEntry(current, { id: ++entryId.current, role: 'assistant', text: response.response_text, response, selectionSnapshot }));
       if (accountId && persistedConversationId) {
         void saveConversationMessage(accountId, persistedConversationId, 'assistant', response.response_text, safeHistoryMetadata(response, selectionSnapshot))
-          .catch(() => setHistoryError('The answer is visible, but it could not be added to conversation history.'));
+          .catch((caught) => setHistoryError(historyFailureMessage(caught, 'write')));
       }
     } catch (caught) {
       if (!isCurrentConversationEpoch(requestEpoch, sessionEpoch.current) || (controller.signal.aborted && controller.signal.reason !== 'timeout')) return;
@@ -245,7 +246,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
         </div>}
       </div>
       {error && <div className="conversation-error" role="alert">{error}</div>}
-      <div className="quick-prompts">{quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}</div>
+      <div className="quick-prompts">{quickPrompts.map((prompt) => <button type="button" key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}{currentSelection.length === 1 && quickPrompts.length === 0 && <span className="quick-prompts-note">Source-based suggestions are unavailable for this course in the current deployment. Schedule questions remain available.</span>}</div>
       <form className="chat-composer" ref={formRef} onSubmit={handleSubmit}>
         <textarea id="conversational-message-input" aria-label="Student Question or Planning Query:" value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); formRef.current?.requestSubmit(); } }} placeholder="Ask about your selected classes…" rows={3} disabled={loading} />
         <button type="submit" id="conversational-submit-button" disabled={loading || !message.trim()}>{loading ? 'Sending…' : 'Send'}</button>

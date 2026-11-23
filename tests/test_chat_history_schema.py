@@ -4,6 +4,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "supabase" / "migrations" / "20261123_chat_history.sql"
+PERMISSIONS_MIGRATION = ROOT / "supabase" / "migrations" / "20261124_chat_history_permissions.sql"
 
 
 def test_chat_history_is_user_scoped_and_bounded():
@@ -23,3 +24,19 @@ def test_chat_history_schema_does_not_store_source_evidence_or_secrets():
     sql = MIGRATION.read_text(encoding="utf-8").casefold()
     for forbidden_column in ("session_evidence", "signature", "raw_syllabus", "api_key", "prompt"):
         assert not re.search(rf"\b{forbidden_column}\s+(?:text|jsonb|varchar)", sql)
+
+
+def test_chat_history_data_api_permissions_are_explicit_and_least_privilege():
+    for migration in (MIGRATION, PERMISSIONS_MIGRATION):
+        sql = migration.read_text(encoding="utf-8").casefold()
+        assert "revoke all on table public.chat_conversations from anon, authenticated" in sql
+        assert "revoke all on table public.chat_messages from anon, authenticated" in sql
+        assert "grant select, insert, delete on table public.chat_conversations to authenticated" in sql
+        assert "grant select, insert on table public.chat_messages to authenticated" in sql
+        assert "for select to authenticated" in sql
+        assert "for insert to authenticated" in sql
+        assert "auth.uid() = user_id" in sql
+        assert " to anon" not in sql.replace("from anon", "")
+
+    repair = PERMISSIONS_MIGRATION.read_text(encoding="utf-8").casefold()
+    assert "notify pgrst, 'reload schema'" in repair

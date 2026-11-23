@@ -23,7 +23,16 @@ function selectedCourses(sections: ConversationSectionContext[]): string[] {
   return [...new Set(sections.map((section) => section.course.trim()).filter(Boolean))];
 }
 
-export function quickPromptsForSelection(sections: ConversationSectionContext[]): string[] {
+export type InformationSourcesByCourse = Record<string, readonly string[]>;
+
+function normalizedCourse(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase();
+}
+
+export function quickPromptsForSelection(
+  sections: ConversationSectionContext[],
+  informationSources?: InformationSourcesByCourse,
+): string[] {
   const courses = selectedCourses(sections);
   if (courses.length === 0) {
     return [
@@ -33,16 +42,20 @@ export function quickPromptsForSelection(sections: ConversationSectionContext[])
     ];
   }
   if (courses.length === 1) {
+    if (!informationSources) return [`What topics are covered in ${courses[0]}?`, `What grading information is in the syllabus for ${courses[0]}?`];
+    const sources = informationSources[normalizedCourse(courses[0])] ?? [];
     return [
-      `What topics are covered in ${courses[0]}?`,
-      `What grading information is in the syllabus for ${courses[0]}?`,
+      ...(sources.includes('course_description') ? [`What topics are covered in ${courses[0]}?`] : []),
+      ...(sources.includes('syllabus') ? [`What grading information is in the syllabus for ${courses[0]}?`] : []),
     ];
   }
-  return [
+  const prompts = [
     'Do these classes conflict?',
     `Can I take ${courses[0]} and ${courses[1]} together?`,
-    `What topics are covered in ${courses[0]}?`,
   ];
+  const firstSources = informationSources?.[normalizedCourse(courses[0])];
+  if (!informationSources || firstSources?.includes('course_description')) prompts.push(`What topics are covered in ${courses[0]}?`);
+  return prompts;
 }
 
 export function pendingMessagesForRequest(question: string, selectionCount: number): string[] {

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import type { ConversationRequest, ConversationResponse } from '../src/services/api';
 import { mergeSessionEvidence, type SessionEvidenceRecord } from '../src/utils/sessionEvidence.ts';
 import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
-import { CHAT_RETENTION_DAYS, MAX_SAVED_CONVERSATIONS, MAX_SAVED_MESSAGE_CHARACTERS, MAX_SAVED_MESSAGES, conversationTitle, safeHistoryMetadata } from '../src/utils/conversationHistory.ts';
+import { CHAT_RETENTION_DAYS, MAX_SAVED_CONVERSATIONS, MAX_SAVED_MESSAGE_CHARACTERS, MAX_SAVED_MESSAGES, conversationTitle, historyFailureMessage, safeHistoryMetadata } from '../src/utils/conversationHistory.ts';
 
 describe('Conversational Client Payload & State Handling', () => {
   it('correctly structures payload with full synthetic workload context', () => {
@@ -149,6 +149,17 @@ describe('Conversational Client Payload & State Handling', () => {
     assert.match(quickPromptsForSelection([])[2], /\[COURSE\]/);
   });
 
+  it('does not suggest source questions for an unmapped selected course', () => {
+    const cap = [{ course: 'CAP 4773', section: '001', crn: '18637', term: 202608 }];
+    const map = [{ course: 'MAP 3305', section: '003', crn: '16355', term: 202608 }];
+    const sources = { CAP4773: ['course_description', 'syllabus'] };
+    assert.deepStrictEqual(quickPromptsForSelection(cap, sources), [
+      'What topics are covered in CAP 4773?',
+      'What grading information is in the syllabus for CAP 4773?',
+    ]);
+    assert.deepStrictEqual(quickPromptsForSelection(map, sources), []);
+  });
+
   it('describes pending work without claiming unconfirmed completion', () => {
     const messages = pendingMessagesForRequest('What grading information is in the syllabus?', 1);
     assert.match(messages[1], /Looking for approved information/);
@@ -173,6 +184,12 @@ describe('Conversational Client Payload & State Handling', () => {
     assert.equal(conversationTitle('  What   grading information is listed?  '), 'What grading information is listed?');
     assert.doesNotMatch(serialized, /signature|raw source|acquired_evidence/);
     assert.match(serialized, /CAP 4773 syllabus/);
+  });
+
+  it('reports safe history failures without exposing database details', () => {
+    assert.equal(historyFailureMessage({ code: '42501', message: 'permission denied for table chat_messages' }, 'write'), 'Conversation history access is not enabled for this account yet.');
+    assert.equal(historyFailureMessage({ code: 'PGRST205', details: 'schema cache' }, 'read'), 'Conversation history is not available in this deployment yet.');
+    assert.doesNotMatch(historyFailureMessage(new Error('secret database detail'), 'write'), /secret|database detail/);
   });
 });
 

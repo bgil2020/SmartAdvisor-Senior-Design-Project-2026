@@ -386,11 +386,18 @@ def handle_conversation(req: ConversationRequest):
                 acquired = [result["record"]]
                 matches = acquired
             elif result.get("status") in {"disabled", "headed_mode_not_selected", "no_exact_approved_mapping"}:
+                source_label = "syllabus" if source_category == "syllabus" else "course-information source"
+                if result.get("status") == "no_exact_approved_mapping":
+                    unavailable_text = f"No approved {source_label} is configured for {scope['course_code']}."
+                    unavailable_guidance = "Use the official course catalog or ask an authorized advisor. SmartAdvisor will not invent course content without a validated source."
+                else:
+                    unavailable_text = f"The approved {source_label} lookup is not enabled in this deployment."
+                    unavailable_guidance = "Use the official course source or ask an authorized advisor."
                 return _build_response(
                     status="no_relevant_evidence", raw_message=message, disposition=disposition,
                     target_handler=target_handler, response_code="RAG_NO_RELEVANT_EVIDENCE",
-                    response_text="No validated session evidence is available for the requested source scope.",
-                    actionable_guidance="Provide an exact supported scope or enable the approved bounded acquisition adapter.",
+                    response_text=unavailable_text,
+                    actionable_guidance=unavailable_guidance,
                     safe_to_route=False, engine_executed=False, extracted_courses=[scope["course_code"]],
                     source_scope=scope, acquisition=acquisition, rag_executed=True,
                     generation_source="none", explanation_limitations=evidence_errors,
