@@ -103,7 +103,7 @@ def answer_information_question(
             return RAGResult(status="answered", answer=answer, generation_source="provider", model_id=selected_provider.model_id, sources=[_source(item) for item in used], retrieved_evidence=evidence, limitations=limitations)
         except Exception as exc:
             return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason=f"Provider unavailable or rejected ({type(exc).__name__})", model_id=getattr(selected_provider, "model_id", None), sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])
-    return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason="RAG_GENERATION_MODE is not set to gemini", sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])
+    return RAGResult(status="answered", answer=_fallback(evidence), generation_source="source_excerpt_fallback", generation_fallback_used=True, generation_fallback_reason="No live generation provider is configured", sources=[_source(item) for item in evidence], retrieved_evidence=evidence, limitations=["This is an extractive fallback, not a live LLM-generated answer."])
 
 
 def answer_information_records(

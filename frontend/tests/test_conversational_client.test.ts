@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import type { ConversationRequest, ConversationResponse } from '../src/services/api';
 import { mergeSessionEvidence, type SessionEvidenceRecord } from '../src/utils/sessionEvidence.ts';
-import { missingContextLabel, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
+import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel } from '../src/utils/conversationPresentation.ts';
 
 describe('Conversational Client Payload & State Handling', () => {
   it('correctly structures payload with full synthetic workload context', () => {
@@ -133,6 +133,25 @@ describe('Conversational Client Payload & State Handling', () => {
 
     assert.strictEqual(responseDetailLabel(response), 'Course details needed');
     assert.deepStrictEqual(response.missing_context.map(missingContextLabel), ['term', 'section']);
+  });
+
+  it('builds suggestions from the actual planner selection', () => {
+    const selected = [
+      { course: 'CAP 4773', section: '001', crn: '18637', term: 202608 },
+      { course: 'EGN 3343', section: '001', crn: '16828', term: 202608 },
+    ];
+    assert.deepStrictEqual(quickPromptsForSelection(selected), [
+      'Do these classes conflict?',
+      'Can I take CAP 4773 and EGN 3343 together?',
+      'What topics are covered in CAP 4773?',
+    ]);
+    assert.match(quickPromptsForSelection([])[2], /\[COURSE\]/);
+  });
+
+  it('describes pending work without claiming unconfirmed completion', () => {
+    const messages = pendingMessagesForRequest('What grading information is in the syllabus?', 1);
+    assert.match(messages[1], /Looking for approved information/);
+    assert.doesNotMatch(messages.join(' '), /acquired|fetched|Gemini/);
   });
 });
 
