@@ -114,6 +114,93 @@ export default function App() {
   const [studentName, setStudentName] = useState(supabaseConfigured ? '' : 'Student');
   const [authReady, setAuthReady] = useState(!supabaseConfigured);
   const [accountId, setAccountId] = useState<string | null>(null);
+  const [chatSplitRatio, setChatSplitRatio] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('smartadvisor_chat_split_ratio');
+      const parsed = Number(saved);
+      if (!Number.isNaN(parsed) && parsed >= 25 && parsed <= 75) return parsed;
+    }
+    return 58;
+  });
+  const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const chatWorkspaceRef = useRef<HTMLDivElement | null>(null);
+
+  const handleSplitResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!chatWorkspaceRef.current) return;
+    setIsResizingSplit(true);
+    document.body.classList.add('resizing-col-active');
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!chatWorkspaceRef.current) return;
+      const rect = chatWorkspaceRef.current.getBoundingClientRect();
+      const relativeX = moveEvent.clientX - rect.left;
+      const percentage = (relativeX / rect.width) * 100;
+      const clamped = Math.max(25, Math.min(75, percentage));
+      setChatSplitRatio(clamped);
+      try {
+        localStorage.setItem('smartadvisor_chat_split_ratio', String(Math.round(clamped)));
+      } catch {}
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSplit(false);
+      document.body.classList.remove('resizing-col-active');
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleSplitResizeTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1 || !chatWorkspaceRef.current) return;
+    setIsResizingSplit(true);
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length !== 1 || !chatWorkspaceRef.current) return;
+      const rect = chatWorkspaceRef.current.getBoundingClientRect();
+      const relativeX = moveEvent.touches[0].clientX - rect.left;
+      const percentage = (relativeX / rect.width) * 100;
+      const clamped = Math.max(25, Math.min(75, percentage));
+      setChatSplitRatio(clamped);
+      try {
+        localStorage.setItem('smartadvisor_chat_split_ratio', String(Math.round(clamped)));
+      } catch {}
+    };
+
+    const handleTouchEnd = () => {
+      setIsResizingSplit(false);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+  };
+
+  const handleSplitResizeKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setChatSplitRatio((prev) => {
+        const next = Math.max(25, prev - 3);
+        try {
+          localStorage.setItem('smartadvisor_chat_split_ratio', String(Math.round(next)));
+        } catch {}
+        return next;
+      });
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setChatSplitRatio((prev) => {
+        const next = Math.min(75, prev + 3);
+        try {
+          localStorage.setItem('smartadvisor_chat_split_ratio', String(Math.round(next)));
+        } catch {}
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (!supabaseConfigured) return;
@@ -1533,7 +1620,12 @@ onClick={async () => {
       )}
 
       {currentView === 'chat' && (
-        <div className="chat-workspace" data-testid="chat-workspace">
+        <div
+          ref={chatWorkspaceRef}
+          className="chat-workspace"
+          data-testid="chat-workspace"
+          style={{ gridTemplateColumns: `${chatSplitRatio}% 10px minmax(320px, 1fr)` }}
+        >
           <div className="chat-schedule-panel" aria-label="Course planning workspace">
             <CoursePlanningWorkspace
               compact
@@ -1549,6 +1641,22 @@ onClick={async () => {
               onAddSectionGroup={handleAddSectionGroup}
               onRemoveSection={handleRemoveSection}
             />
+          </div>
+          <div
+            className={`chat-workspace-resizer ${isResizingSplit ? 'dragging' : ''}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize schedule and conversation panels"
+            aria-valuenow={Math.round(chatSplitRatio)}
+            aria-valuemin={25}
+            aria-valuemax={75}
+            tabIndex={0}
+            onMouseDown={handleSplitResizeStart}
+            onTouchStart={handleSplitResizeTouchStart}
+            onKeyDown={handleSplitResizeKeyDown}
+            title="Drag horizontally or use arrow keys to adjust panel widths"
+          >
+            <span className="resizer-grip" />
           </div>
           <div className="chat-conversation-panel" aria-label="Conversation panel">
             <ConversationalAssistant

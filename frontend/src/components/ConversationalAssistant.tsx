@@ -96,6 +96,17 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const [requestTimeoutMs, setRequestTimeoutMs] = useState(DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS);
   const [viewedConversation, setViewedConversation] = useState<ConversationSummary | null>(null);
   const [viewedMessages, setViewedMessages] = useState<SavedConversationMessage[]>([]);
+  const [historyHeight, setHistoryHeight] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('smartadvisor_history_box_height');
+      const parsed = Number(saved);
+      if (!Number.isNaN(parsed) && parsed >= 160 && parsed <= 900) return parsed;
+    }
+    return 360;
+  });
+  const [historyExpanded, setHistoryExpanded] = useState<boolean>(false);
+  const [isResizingHistory, setIsResizingHistory] = useState<boolean>(false);
+  const historyPanelRef = useRef<HTMLElement | null>(null);
   const sessionEpoch = useRef(0);
   const entryId = useRef(0);
   const pendingRequest = useRef<AbortController | null>(null);
@@ -105,6 +116,100 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const currentSelection = useMemo(() => toConversationSections(selectedSections), [selectedSections]);
   const quickPrompts = useMemo(() => quickPromptsForSelection(currentSelection, informationSourcesByCourse), [currentSelection, informationSourcesByCourse]);
   const pendingMessages = useMemo(() => pendingMessagesForRequest(pendingQuestion, currentSelection.length), [pendingQuestion, currentSelection.length]);
+
+  useEffect(() => {
+    const el = historyPanelRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const borderBox = entry.borderBoxSize?.[0];
+        const newH = borderBox ? borderBox.blockSize : entry.contentRect.height;
+        if (newH >= 160 && !historyExpanded) {
+          setHistoryHeight((prev) => (Math.abs(prev - newH) > 4 ? newH : prev));
+          try { localStorage.setItem('smartadvisor_history_box_height', String(Math.round(newH))); } catch {}
+        }
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [historyOpen, historyExpanded]);
+
+  const handleHistoryResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = historyPanelRef.current?.offsetHeight ?? historyHeight;
+    setIsResizingHistory(true);
+    document.body.classList.add('resizing-active');
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = moveEvent.clientY - startY;
+      const workspaceEl = transcriptRef.current?.closest('.conversation-workspace') as HTMLElement | null;
+      const maxH = workspaceEl ? Math.max(200, workspaceEl.clientHeight - 200) : 750;
+      const nextH = Math.max(160, Math.min(maxH, startH + deltaY));
+      setHistoryHeight(nextH);
+      try {
+        localStorage.setItem('smartadvisor_history_box_height', String(Math.round(nextH)));
+      } catch {}
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingHistory(false);
+      document.body.classList.remove('resizing-active');
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleHistoryResizeTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const startY = e.touches[0].clientY;
+    const startH = historyPanelRef.current?.offsetHeight ?? historyHeight;
+    setIsResizingHistory(true);
+
+    const handleTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length !== 1) return;
+      const deltaY = moveEvent.touches[0].clientY - startY;
+      const workspaceEl = transcriptRef.current?.closest('.conversation-workspace') as HTMLElement | null;
+      const maxH = workspaceEl ? Math.max(200, workspaceEl.clientHeight - 200) : 750;
+      const nextH = Math.max(160, Math.min(maxH, startH + deltaY));
+      setHistoryHeight(nextH);
+      try {
+        localStorage.setItem('smartadvisor_history_box_height', String(Math.round(nextH)));
+      } catch {}
+    };
+
+    const handleTouchEnd = () => {
+      setIsResizingHistory(false);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+  };
+
+  const handleHistoryResizeKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHistoryHeight((curr) => {
+        const next = Math.max(160, curr - 25);
+        try { localStorage.setItem('smartadvisor_history_box_height', String(next)); } catch {}
+        return next;
+      });
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHistoryHeight((curr) => {
+        const workspaceEl = transcriptRef.current?.closest('.conversation-workspace') as HTMLElement | null;
+        const maxH = workspaceEl ? Math.max(200, workspaceEl.clientHeight - 200) : 750;
+        const next = Math.min(maxH, curr + 25);
+        try { localStorage.setItem('smartadvisor_history_box_height', String(next)); } catch {}
+        return next;
+      });
+    }
+  };
 
   useEffect(() => { const container = transcriptRef.current; if (container && !userReadOlderMessages.current) container.scrollTop = container.scrollHeight; }, [transcript]);
   useEffect(() => {
@@ -223,13 +328,116 @@ export const ConversationalAssistant: React.FC<Props> = ({
   return (
     <section className="conversation-workspace" aria-labelledby="conversational-assistant-title">
       <header className="conversation-header"><div><h2 id="conversational-assistant-title">SmartAdvisor Chat</h2><p>Ask about the selected schedule or a specifically named course.</p></div><div className="conversation-header-actions">{accountId && <button type="button" className="clear-chat-button" onClick={toggleHistory} aria-expanded={historyOpen}>History</button>}<button type="button" className="clear-chat-button" onClick={clearChat} disabled={transcript.length === 0 && sessionEvidence.length === 0 && !loading}>New chat</button></div></header>
-      {historyOpen && <aside className="conversation-history" aria-label="Saved conversations">
-        <div className="history-heading"><div><strong>Recent conversations</strong><span>Saved for up to 30 days · newest 10</span></div><button type="button" onClick={() => setHistoryOpen(false)}>Close</button></div>
-        {historyError && <div className="conversation-error" role="alert">{historyError}</div>}
-        {historyLoading && <p role="status">Loading conversation history…</p>}
-        {!viewedConversation && !historyLoading && <div className="history-list">{history.length === 0 ? <p>No saved conversations yet.</p> : history.map((conversation) => <div className="history-row" key={conversation.id}><button type="button" onClick={() => void viewHistoryConversation(conversation)}><strong>{conversation.title}</strong><span>{new Date(conversation.updated_at).toLocaleString()}</span></button><button type="button" className="history-delete" aria-label={`Delete ${conversation.title}`} onClick={() => void removeHistoryConversation(conversation.id)}>Delete</button></div>)}</div>}
-        {viewedConversation && <div className="history-detail"><button type="button" onClick={() => { setViewedConversation(null); setViewedMessages([]); }}>← All conversations</button><h3>{viewedConversation.title}</h3><p className="history-readonly-note">Read-only archive. Starting a new message creates a fresh evidence session.</p>{viewedMessages.map((saved) => { const citations = Array.isArray(saved.display_metadata.citations) ? saved.display_metadata.citations as Array<Record<string, unknown>> : []; return <article className={`history-message history-message-${saved.role}`} key={saved.id}><small>{saved.role === 'user' ? 'You' : 'SmartAdvisor'}</small><p>{saved.content}</p>{citations.length > 0 && <ol>{citations.map((citation, index) => <li key={index}>{typeof citation.url === 'string' ? <a href={citation.url} target="_blank" rel="noopener noreferrer">{String(citation.title ?? 'Official source')}</a> : String(citation.title ?? 'Official source')} — {String(citation.locator ?? 'source text')}</li>)}</ol>}</article>; })}</div>}
-      </aside>}
+      {historyOpen && (
+        <>
+          <aside
+            ref={historyPanelRef}
+            className={`conversation-history ${historyExpanded ? 'conversation-history-expanded' : ''}`}
+            aria-label="Saved conversations"
+            style={{
+              height: historyExpanded ? '75%' : `${historyHeight}px`,
+              maxHeight: historyExpanded ? '85%' : 'none',
+              flex: 'none',
+            }}
+          >
+            <div className="history-heading">
+              <div>
+                <strong>Recent conversations</strong>
+                <span>Saved for up to 30 days · newest 10</span>
+              </div>
+              <div className="history-heading-actions">
+                <button
+                  type="button"
+                  className="history-size-btn"
+                  onClick={() => setHistoryExpanded((curr) => !curr)}
+                  title={historyExpanded ? 'Restore default size' : 'Expand history view for reading'}
+                  aria-label={historyExpanded ? 'Restore default size' : 'Expand history view'}
+                >
+                  {historyExpanded ? 'Restore size' : 'Expand'}
+                </button>
+                <button type="button" onClick={() => setHistoryOpen(false)}>Close</button>
+              </div>
+            </div>
+            {historyError && <div className="conversation-error" role="alert">{historyError}</div>}
+            {historyLoading && <p role="status">Loading conversation history…</p>}
+            {!viewedConversation && !historyLoading && (
+              <div className="history-list">
+                {history.length === 0 ? (
+                  <p>No saved conversations yet.</p>
+                ) : (
+                  history.map((conversation) => (
+                    <div className="history-row" key={conversation.id}>
+                      <button type="button" onClick={() => void viewHistoryConversation(conversation)}>
+                        <strong>{conversation.title}</strong>
+                        <span>{new Date(conversation.updated_at).toLocaleString()}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="history-delete"
+                        aria-label={`Delete ${conversation.title}`}
+                        onClick={() => void removeHistoryConversation(conversation.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+            {viewedConversation && (
+              <div className="history-detail">
+                <div className="history-detail-header">
+                  <button type="button" onClick={() => { setViewedConversation(null); setViewedMessages([]); }}>← All conversations</button>
+                  <h3>{viewedConversation.title}</h3>
+                  <p className="history-readonly-note">Read-only archive. Starting a new message creates a fresh evidence session.</p>
+                </div>
+                <div className="history-messages-scroll">
+                  {viewedMessages.map((saved) => {
+                    const citations = Array.isArray(saved.display_metadata.citations)
+                      ? saved.display_metadata.citations as Array<Record<string, unknown>>
+                      : [];
+                    return (
+                      <article className={`history-message history-message-${saved.role}`} key={saved.id}>
+                        <small>{saved.role === 'user' ? 'You' : 'SmartAdvisor'}</small>
+                        <p>{saved.content}</p>
+                        {citations.length > 0 && (
+                          <ol>
+                            {citations.map((citation, index) => (
+                              <li key={index}>
+                                {typeof citation.url === 'string'
+                                  ? <a href={citation.url} target="_blank" rel="noopener noreferrer">{String(citation.title ?? 'Official source')}</a>
+                                  : String(citation.title ?? 'Official source')} — {String(citation.locator ?? 'source text')}
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </aside>
+          {!historyExpanded && (
+            <div
+              className={`history-resize-handle ${isResizingHistory ? 'resizing' : ''}`}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Drag to adjust history box height"
+              aria-valuenow={Math.round(historyHeight)}
+              aria-valuemin={160}
+              aria-valuemax={800}
+              tabIndex={0}
+              onMouseDown={handleHistoryResizeStart}
+              onTouchStart={handleHistoryResizeTouchStart}
+              onKeyDown={handleHistoryResizeKeyDown}
+              title="Drag up or down to adjust history box size"
+            >
+              <span className="resize-handle-grip" />
+            </div>
+          )}
+        </>
+      )}
       <details className="conversation-context-controls">
         <summary>Conversation context &amp; source evidence</summary>
         <label><input type="checkbox" checked={includeContext} onChange={(event) => setIncludeContext(event.target.checked)} /> Attach synthetic workload context</label>
