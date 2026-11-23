@@ -81,7 +81,18 @@ def requires_advisor_escalation(message: str) -> bool:
 
 def is_future_rag_candidate(message: str, extractor_result: dict) -> bool:
     msg = message.lower()
-    if re.search(r'\btopics?\b.*\bcovered\b', msg):
+    # Ordinary course-content questions are informational lookups even when
+    # the deterministic intent classifier has no core-engine intent for them.
+    # Keep this phrasing-based so an explicitly named course remains the
+    # source scope; selected schedule entries must not turn it into a
+    # multi-course comparison.
+    if re.search(r'\b(?:materials?|topics?|content|subjects?)\b[^?.!]{0,120}\bcover(?:ed|s|ing)?\b', msg):
+        return True
+    if re.search(r'\bwhat\s+(?:does|do|will)\b[^?.!]{0,120}\bcover\b', msg):
+        return True
+    if re.search(r'\bwhat\s+(?:will|would|can|do)\s+i\s+learn\b', msg):
+        return True
+    if re.search(r'\bwhat\s+(?:is|will\s+be)\s+taught\b', msg):
         return True
     if re.search(r'\bprerequisites?\b', msg):
         return True
