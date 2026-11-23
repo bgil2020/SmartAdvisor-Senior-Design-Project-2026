@@ -61,6 +61,15 @@ export interface AlternativesResponse {
   alternatives: RawSectionRecord[];
 }
 
+export interface RuntimeConfigResponse {
+  conversation_request_timeout_ms: number;
+}
+
+export async function getRuntimeConfig(): Promise<RuntimeConfigResponse> {
+  const res = await fetch(`${API_BASE_URL}/runtime-config`);
+  return handleResponse<RuntimeConfigResponse>(res);
+}
+
 export interface CompatibilityRequest {
   student_id: string;
   proposed_courses: string[];

@@ -132,6 +132,20 @@ def load_courses():
 
 courses = load_courses()
 
+DEFAULT_CONVERSATION_REQUEST_TIMEOUT_SECONDS = 75
+MIN_CONVERSATION_REQUEST_TIMEOUT_SECONDS = 30
+MAX_CONVERSATION_REQUEST_TIMEOUT_SECONDS = 120
+
+
+def conversation_request_timeout_seconds(raw_value: str | None = None) -> int:
+    """Return a bounded, non-secret browser request deadline."""
+    configured = raw_value if raw_value is not None else os.getenv("CONVERSATION_REQUEST_TIMEOUT_SECONDS")
+    try:
+        seconds = int(configured) if configured is not None else DEFAULT_CONVERSATION_REQUEST_TIMEOUT_SECONDS
+    except (TypeError, ValueError):
+        seconds = DEFAULT_CONVERSATION_REQUEST_TIMEOUT_SECONDS
+    return max(MIN_CONVERSATION_REQUEST_TIMEOUT_SECONDS, min(seconds, MAX_CONVERSATION_REQUEST_TIMEOUT_SECONDS))
+
 
 def health_payload(records_loaded: int) -> dict[str, str | int]:
     return {
@@ -162,6 +176,14 @@ register_health_routes(
     serve_frontend=SERVE_FRONTEND,
     records_loaded=len(courses),
 )
+
+
+@app.get("/runtime-config")
+def get_runtime_config():
+    """Expose bounded public UI settings; never return credentials or feature secrets."""
+    return {
+        "conversation_request_timeout_ms": conversation_request_timeout_seconds() * 1000,
+    }
 
 
 def clean_value(value):

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, sendConversationMessage, type ConversationRequest, type ConversationResponse, type RawSectionRecord } from '../services/api';
+import { ApiError, getRuntimeConfig, sendConversationMessage, type ConversationRequest, type ConversationResponse, type RawSectionRecord } from '../services/api';
 import { createConversation, deleteConversation, listConversationHistory, loadConversationMessages, saveConversationMessage, type ConversationSummary, type SavedConversationMessage } from '../services/conversationHistory';
 import { commonSelectedTerm, describeSelectedSections, formatTerm, normalizeTermInput, singleSelectedSourceContext, toConversationSections, type ConversationSectionContext } from '../utils/planningSelection';
 import { appendTranscriptEntry, isCurrentConversationEpoch } from '../utils/conversationState';
 import { historyFailureMessage, safeHistoryMetadata } from '../utils/conversationHistory';
-import { missingContextLabel, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel, type InformationSourcesByCourse } from '../utils/conversationPresentation';
+import { DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS, missingContextLabel, normalizeConversationRequestTimeoutMs, pendingMessagesForRequest, quickPromptsForSelection, responseDetailLabel, type InformationSourcesByCourse } from '../utils/conversationPresentation';
 import { mergeSessionEvidence, type SessionEvidenceRecord, type SessionSourceContext } from '../utils/sessionEvidence';
 
 interface SyntheticProfile { student_id: string; name: string; major: string; work_hours: number; recent_difficulty: number; satisfied: 'yes' | 'mostly' | 'no'; recent_courses: string }
@@ -93,6 +93,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [history, setHistory] = useState<ConversationSummary[]>([]);
+  const [requestTimeoutMs, setRequestTimeoutMs] = useState(DEFAULT_CONVERSATION_REQUEST_TIMEOUT_MS);
   const [viewedConversation, setViewedConversation] = useState<ConversationSummary | null>(null);
   const [viewedMessages, setViewedMessages] = useState<SavedConversationMessage[]>([]);
   const sessionEpoch = useRef(0);
@@ -106,6 +107,13 @@ export const ConversationalAssistant: React.FC<Props> = ({
   const pendingMessages = useMemo(() => pendingMessagesForRequest(pendingQuestion, currentSelection.length), [pendingQuestion, currentSelection.length]);
 
   useEffect(() => { const container = transcriptRef.current; if (container && !userReadOlderMessages.current) container.scrollTop = container.scrollHeight; }, [transcript]);
+  useEffect(() => {
+    let active = true;
+    void getRuntimeConfig()
+      .then((config) => { if (active) setRequestTimeoutMs(normalizeConversationRequestTimeoutMs(config.conversation_request_timeout_ms)); })
+      .catch(() => { /* Preserve the safe local default when runtime config is unavailable. */ });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     if (!loading) return;
     const timer = window.setInterval(() => setPendingStage((current) => Math.min(current + 1, pendingMessages.length - 1)), 2200);
@@ -188,7 +196,7 @@ export const ConversationalAssistant: React.FC<Props> = ({
       }
     }
     try {
-      const timeout = window.setTimeout(() => controller.abort('timeout'), 45_000);
+      const timeout = window.setTimeout(() => controller.abort('timeout'), requestTimeoutMs);
       const response = await sendConversationMessage(payload, controller.signal).finally(() => window.clearTimeout(timeout));
       if (!isCurrentConversationEpoch(requestEpoch, sessionEpoch.current)) return;
       if (response.acquired_evidence?.length) setSessionEvidence((current) => mergeSessionEvidence(current, response.acquired_evidence ?? []));
